@@ -948,7 +948,7 @@ observeEvent(
           if (!is.null(fpColumnToSplit)) {
             levelsToSplit <- levels(as.factor(umapDF[[fpColumnToSplit]]))
             labs <- unlist(setNames(lapply(seq_along(levelsToSplit), function(i) {
-              paste0(levelsToSplit[[i]], "\n n = ", as.numeric(table(umapDF[[fpColumnToSplit]])[[i]]))
+              paste0(levelsToSplit[[i]], "\n n = ", as.numeric(table(fPData[[fpColumnToSplit]])[[i]]))
             }), levelsToSplit))
             fp2 <- eval(parse(text = paste0("fp2 + facet_wrap(~", fpColumnToSplit, ", ncol = ", input$ncolFPSplit, ", labeller = labeller('", fpColumnToSplit,"' = labs))")))
           }

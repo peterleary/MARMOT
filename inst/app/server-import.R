@@ -9,16 +9,14 @@ if (!is.null(dataUrl)) {
   urlDataRoot = c("/srv/gstore/projects", "/srv/GT/analysis/course_sushi/public/gstore/projects")
   dataDir <- file.path(urlDataRoot, dataUrl)
   dataDir <- dataDir[file.exists(dataDir)][1]
-} else if (is.null(dataUrl) & !exists("fileSE")) {
-  # dataDir <- "/srv/GT/analysis/peter/MARMOT_Paper/Results_Files_2024-10-17_09.44.56/R_files/"
-  # dataDir <- "/srv/GT/analysis/peter/MARMOT_Paper/Results_Files_2024-10-29_11.19.25/R_files/"
-  dataDir <- "/srv/GT/analysis/peter/MARMOT_Paper/Results_Files_2024-10-29_09.12.41/R_files/" # use this one 
-  # dataDir <- myDir
+} else if (is.null(dataUrl) & !exists("marmot_output")) {
+  # dataDir <- "/srv/GT/analysis/peter/MARMOT_Paper/Results_Files_2024-10-29_09.12.41/R_files/" # use this one 
+  dataDir <- "~/Desktop/FGCZ/MARMOT/files/Results_Files_2025-02-06_14.42.22/R_files/"
 }
 
 # 2025-01-29: Read in local proteomics file if specified 
-if(exists("fileSE")) {
-  dataDir <- fileSE
+if(exists("marmot_output")) {
+  dataDir <- marmot_output
 }
 
 if(!file.exists(dataDir)) {
@@ -37,7 +35,7 @@ tryCatch({
     
     require("parallel")
     # filesToLoad <- list.files(dataDir)
-    filesToLoad <- c("md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", "umapDFList.qs")
+    filesToLoad <- c("md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", "umapDFList.qs", "downsampleTo.qs")
     files <- setNames(lapply(filesToLoad, function(x) {
       qs::qread(file = file.path(dataDir, x), nthreads = 4)
     }), (filesToLoad %>% gsub("\\.qs", "", .)))
@@ -79,10 +77,30 @@ tryCatch({
     files[["topLineageTable"]] <- topLineageTable
     files[["topStateTable"]] <- topStateTable
     files[["topMarkerTable"]] <- topMarkerTable
-    if (ncol(sce) >= 1e5) {
-      set.seed(42)
-      sce <- sce[, sample(1:ncol(sce), 1e5)]
+    
+    # Make the scData the same length as the main DRs 
+    if(!is.null(files$smd$`Conditions Order`)) {
+      conditionOrder <- files$smd$`Conditions Order`
+      conditionOrder <- conditionOrder[!is.na(conditionOrder)]
     }
+    drCellPerCondition <- files$smd$`Cells per condition in UMAPs etc.`[!is.na(files$smd$`Cells per condition in UMAPs etc.`)]
+    drCellPerCondition <- unlist(setNames(lapply(seq_along(drCellPerCondition), function(i) {
+      eval(parse(text = drCellPerCondition[[i]]))
+    }), conditionOrder))
+    if (length(drCellPerCondition) >= 2) {
+      cellsToKeep <- unlist(lapply(levels(colData(sce)$sample_id), function(x) {
+        cells <- grep(x, sce@colData$sample_id)
+        dst <- as.numeric(drCellPerCondition[as.character(files$md$condition[files$md$sample_id == x])])
+        set.seed(42)
+        if (length(cells) > dst) {
+          idx <- sample(length(cells), dst)
+          cells <- cells[idx]
+        }
+        cells
+      }))
+      sce <- sce[, cellsToKeep]
+    }
+    
     files[["scData"]] <- Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm")
     files[["scData"]] <- Seurat::ScaleData(files[["scData"]], assay = "originalexp")
     
