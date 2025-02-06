@@ -1,0 +1,45 @@
+Package: shinyMarmot
+Type: Package
+Title: shinyMarmot
+Version: 0.1.0
+Author: Peter Leary [aut, cre]
+Maintainer: Peter Leary <peter.leary@uzh.ch>
+Description: shinyMarmot
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+  shiny,
+  shinydashboard,
+  tidyverse,
+  RColorBrewer,
+  DT,
+  colourpicker,
+  writexl,
+  circlize,
+  kableExtra,
+  ggrepel,
+  gplots,
+  sortable,
+  waiter,
+  ggprism,
+  rstatix,
+  gridExtra,
+  Matrix,
+  SCpubr,
+  fresh,
+  viridis,
+  plotly,
+  shinycssloaders,
+  shinyBS,
+  CATALYST,
+  ComplexHeatmap,
+  gtools,
+  fireworks,
+  ggnewscale,
+  scattermore,
+  Nebulosa,
+  scico,
+  chameleon,
+  pals,
+  scales
+RoxygenNote: 7.3.2
