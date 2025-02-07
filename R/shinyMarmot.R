@@ -3,7 +3,7 @@
 #' @examples
 #' \dontrun{
 #' marmotOut <- system.file("examples/R_files/", package = "shinyMarmot")
-#' shniyMarmot(marmotOut)
+#' shniyMarmot(marmot_output)
 #' }
 shinyMarmot <- function(marmot_output = NA, demo = NA) {
   folder <- system.file("app", package = "shinyMarmot")

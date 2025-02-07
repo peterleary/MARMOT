@@ -41,5 +41,6 @@ Imports:
   scico,
   chameleon,
   pals,
-  scales
+  scales,
+  qs
 RoxygenNote: 7.3.2

@@ -35,7 +35,9 @@ tryCatch({
     
     require("parallel")
     # filesToLoad <- list.files(dataDir)
-    filesToLoad <- c("md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", "umapDFList.qs", "downsampleTo.qs")
+    filesToLoad <- c(
+      "md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", 
+      "umapDFList.qs", "downsampleTo.qs", "selectedClustersList.qs")
     files <- setNames(lapply(filesToLoad, function(x) {
       qs::qread(file = file.path(dataDir, x), nthreads = 4)
     }), (filesToLoad %>% gsub("\\.qs", "", .)))
