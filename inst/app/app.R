@@ -5,24 +5,34 @@ packagesToLoad <- c(
   "ggprism", "rstatix", "gridExtra", "Matrix", "SCpubr", "fresh", "viridis", 
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",
   "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon", 
-  "pals", "scales"
+  "pals", "scales", "bslib"
 )
 invisible(lapply(packagesToLoad, function(pkg) {
   suppressPackageStartupMessages(suppressWarnings(library(pkg, character.only = TRUE, quietly = TRUE)))
 }))
-cat("... packages loaded!")
+cat("... packages loaded!\n\n")
 reactiveConsole(TRUE)
 
 my_theme = create_theme(
   adminlte_color(
-    light_blue = "#96B3D2"
+    light_blue = "#627e9c"
   )
 )
 
+
 ui = dashboardPage(
-  title = "Shiny Marmot",
+  title = "Shiny Marmot", 
   dashboardHeader(
-    title = tags$div(tags$img(src = 'MARMOT_Logo_2_bw.png', height = '47', width = '42'), 'Shiny Marmot'),
+    title = tags$span(
+      tags$img(
+        src = "MARMOT_Logo_2_bw.png",
+        width = "46px",
+        height = "auto",
+        class = "me-3",
+        alt = "MARMOT"
+      ),
+      "Shiny Marmot"
+    ),
     tags$li(
       a(
         href = 'mailto:peter.leary@uzh.ch?subject=flow-cytometry-shiny-app-feedback', 

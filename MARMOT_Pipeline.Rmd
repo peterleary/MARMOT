@@ -30,7 +30,7 @@ parcScriptDir <- "/home/debian/parc_pacmap/"
 # Do you want to downsample everything from QC onwards? This speeds up processing time but may result in loss of extremely rare cell populations.
 # e.g.: `downsampleTo <- 1000` will downsample each FCS file to 1000 cells
 # Leave it as `downsampleTo <- NULL` to keep all cells 
-downsampleTo <- 20000
+downsampleTo <- NULL
 
 # Cell clustering:
 # Clustering method to use, options are: Rphenograph, FastPG, PARC, or FlowSOM. *Pick only 1*
@@ -44,7 +44,7 @@ knn = 30
 
 # Dimension reduction (DR):
 # DR method to use, options are: TSNE, UMAP, or pacmap. *Pick only 1 for now* 
-dimRedMethodToUse <- "TSNE"
+dimRedMethodToUse <- "UMAP"
 # Which markers do you want to use for the DR? By default, the type markers are used. Either: "all", "type", "state".
 markersToDimRedBy <- "type"
 # How many cells to take from each sample for the Dim Res plots
@@ -83,13 +83,13 @@ quantileNormaliseAll <- FALSE
 runInParallel <- TRUE
 
 # Number of cores available
-nCores <- 16
+nCores <- 8
 
 # Pick a ggplot theme. Options are any ggplot theme available e.g., classic, bw, minimal, prism 
 themeToUse <- "prism"
 
 # Select a colour theme for the DR plots, pick A through G (or magma, inferno, etc...)
-viridisColour <- "Viridis"
+viridisColour <- "mako"
 
 cache = FALSE
 

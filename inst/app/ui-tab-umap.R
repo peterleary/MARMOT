@@ -23,22 +23,22 @@ tabItem(
             checkboxInput(inputId = "umapShowLabels", label = "Show cluster labels?", value = FALSE),
             hr(style = "border-top: 1px solid #000000;"), h4("Dot Settings"),
             splitLayout(
-              sliderInput(inputId = "pointSizeUMAP", label = "Dot size", min = 0.1, max = 4, value = 1, step = 0.1, width = "85%"),
-              sliderInput(inputId = "pointAlphaUMAP", label = "Dot alpha", min = 0.1, max = 1, value = 1, step = 0.1, width = "85%"),
-              sliderInput(inputId = "borderSizeUMAP", label = "Dot border size", min = 0, max = 1, value = 0, step = 0.1, width = "85%")
+              sliderInput(inputId = "pointSizeUMAP", label = "Dot size", min = 0.1, max = 4, value = 1, step = 0.1, width = "85%", ticks = F),
+              sliderInput(inputId = "pointAlphaUMAP", label = "Dot alpha", min = 0.1, max = 1, value = 1, step = 0.1, width = "85%", ticks = F),
+              sliderInput(inputId = "borderSizeUMAP", label = "Dot border size", min = 0, max = 1, value = 0, step = 0.1, width = "85%", ticks = F)
             ),
             selectInput(inputId = "umapBorderColour", label = "Dot border colour", choices = c("black", "white", "grey"), selected = "black"),
             hr(style = "border-top: 1px solid #000000;"), h4("Font Settings"),
             splitLayout(
-              sliderInput(inputId = "textSizeUMAP", label = "Font size", min = 4, max = 30, value = 12, step = 0.5, width = "85%"),
-              sliderInput(inputId = "labelSizeUMAP", label = "Label size", min = 1, max = 12, value = 4, step = 0.5, width = "85%"),
-              sliderInput(inputId = "labelShiftUMAP", label = "Label shift", min = -20, max = 20, value = 0, step = 0.5, width = "85%"),
+              sliderInput(inputId = "textSizeUMAP", label = "Font size", min = 4, max = 30, value = 12, step = 0.5, width = "85%", ticks = F),
+              sliderInput(inputId = "labelSizeUMAP", label = "Label size", min = 1, max = 12, value = 4, step = 0.5, width = "85%", ticks = F),
+              sliderInput(inputId = "labelShiftUMAP", label = "Label shift", min = -20, max = 20, value = 0, step = 0.5, width = "85%", ticks = F),
             ),
             hr(style = "border-top: 1px solid #000000;"), h4("Layout Settings"),
             splitLayout(
-              sliderInput(inputId = "figWidthUMAP", label = "Figure width", min = 100, max = 2000, value = 650, step = 10, width = "85%"),
-              sliderInput(inputId = "figHeightUMAP", label = "Figure height", min = 100, max = 2000, value = 500, step = 10, width = "85%"),
-              sliderInput(inputId = "umapMainNcol", label = "Facet Columns", value = 1, min = 1, max = 10, step = 1, width = "85%")
+              sliderInput(inputId = "figWidthUMAP", label = "Figure width", min = 100, max = 2000, value = 650, step = 10, width = "85%", ticks = F),
+              sliderInput(inputId = "figHeightUMAP", label = "Figure height", min = 100, max = 2000, value = 500, step = 10, width = "85%", ticks = F),
+              sliderInput(inputId = "umapMainNcol", label = "Facet Columns", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F)
             )
           ),
           tabPanel(
@@ -121,13 +121,13 @@ tabItem(
               selected = "viridis"),
             checkboxInput(inputId = "flipViridisFP", label = "Flip colour scale?", value = FALSE),
             splitLayout(
-              sliderInput(inputId = "textSizeFP", label = "Font Size", min = 4, max = 30, value = 14, step = 0.5, width = "85%"),
-              sliderInput(inputId = "ncolFPGene", label = "Columns per gene", value = 1, min = 1, max = 10, step = 1, width = "85%"),
-              sliderInput(inputId = "ncolFPSplit", label = "Columns per split", value = 1, min = 1, max = 10, step = 1, width = "85%")
+              sliderInput(inputId = "textSizeFP", label = "Font Size", min = 4, max = 30, value = 14, step = 0.5, width = "85%", ticks = F),
+              sliderInput(inputId = "ncolFPGene", label = "Columns per gene", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F),
+              sliderInput(inputId = "ncolFPSplit", label = "Columns per split", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F)
             ),
             splitLayout(
-              sliderInput(inputId = "figWidthFP", label = "Figure Width", min = 100, max = 2000, value = 650, step = 10, width = "85%"),
-              sliderInput(inputId = "figHeightFP", label = "Figure Height", min = 100, max = 2000, value = 500, step = 10, width = "85%")
+              sliderInput(inputId = "figWidthFP", label = "Figure Width", min = 100, max = 2000, value = 650, step = 10, width = "85%", ticks = F),
+              sliderInput(inputId = "figHeightFP", label = "Figure Height", min = 100, max = 2000, value = 500, step = 10, width = "85%", ticks = F)
             ),
             selectInput(inputId = "fpLegendPosition", label = "Legend Position", choices = c("Right", "Bottom", "None"), selected = "Right")
           ),

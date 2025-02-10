@@ -17,7 +17,7 @@ observeEvent(input$acceptCite, {
       h4("Download Figures"),
       splitLayout(
         selectInput(inputId = "dlFormat", label = "Download Format", choices = c("PDF", "SVG", "PNG"), selected = "PDF", width = "85%"),
-        sliderInput(inputId = "pngRes", label = "PNG Resolution", min = 100, max = 1000, value = 600, step = 100, width = "85%"),
+        sliderInput(inputId = "pngRes", label = "PNG Resolution", min = 100, max = 1000, value = 600, step = 100, width = "85%", ticks = F)
       ),
       downloadButton(outputId = "dlUMAP", label = "Download DR Plot"),
       downloadButton(outputId = "dlFP", label = "Download Feature Plot"),
@@ -625,10 +625,10 @@ observeEvent(
       })
       splitLayout(
         output$umapFeaturePlotSettingsUI4 <- renderUI({
-          sliderInput(inputId = "pointSizeFP", label = "Dot Size", min = 0.1, max = 4, value = 0.8, step = 0.1, width = "85%")
+          sliderInput(inputId = "pointSizeFP", label = "Dot Size", min = 0.1, max = 4, value = 0.8, step = 0.1, width = "85%", ticks = F)
         }),
         output$umapFeaturePlotSettingsUI5 <- renderUI({
-          sliderInput(inputId = "borderSizeFP", label = "Dot border size", min = 0, max = 10, value = 0, step = 1, width = "85%")
+          sliderInput(inputId = "borderSizeFP", label = "Dot border size", min = 0, max = 10, value = 0, step = 1, width = "85%", ticks = F)
         })
       )
       output$umapFeaturePlotSettingsUI6 <- renderUI({
