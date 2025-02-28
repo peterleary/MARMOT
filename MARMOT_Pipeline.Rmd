@@ -130,37 +130,42 @@ options(bitmapType='cairo')
 ```
 
 ```{r, label = "load packages", include = FALSE, cache = FALSE}
-library(flowCore)
-library(FlowSOM)
-library(tidyverse)
-library(CATALYST)
-library(readxl)
-library(cowplot)
-library(diffcyt)
-library(ggpubr)
-library(flowSpecs)
-library(ggprism)
-library(gridExtra)
-library(rstatix)
-library(Rphenograph)
-library(plotly)
-library(slingshot)
-library(grDevices)
-library(RColorBrewer)
-library(reshape2)
-library(grid)
-library(ComplexHeatmap)
-library(circlize)
-library(clustree)
-library(kableExtra)
-library(DT)
-library(flowAI)
-library(parallel)
-library(qs)
-library(ggrepel)
-library(gtools)
-library(reticulate)
-library(ggbeeswarm)
+suppressPackageStartupMessages({
+  library(future.apply)
+  library(flowCore)
+  library(FlowSOM)
+  library(tidyverse)
+  library(CATALYST)
+  library(readxl)
+  library(cowplot)
+  library(diffcyt)
+  library(ggpubr)
+  library(flowSpecs)
+  library(ggprism)
+  library(gridExtra)
+  library(rstatix)
+  library(Rphenograph)
+  library(plotly)
+  library(slingshot)
+  library(grDevices)
+  library(RColorBrewer)
+  library(reshape2)
+  library(grid)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(clustree)
+  library(kableExtra)
+  library(DT)
+  library(flowAI)
+  library(parallel)
+  library(qs)
+  library(ggrepel)
+  library(gtools)
+  library(reticulate)
+  library(ggbeeswarm)
+})
+plan(multisession, workers = nCores)
+options(future.globals.maxSize = 8 * 1024^3)
 set.seed(2)
 htmltools::tagList(datatable(cars))
 ```
@@ -469,7 +474,7 @@ cofactorDFList <- setNames(lapply(useMarkers, function(marker) {
 
 cofactorPlotList <- setNames(lapply(useMarkers, function(marker) {
   # Make the plots
-  markersToPlot <- setNames(mclapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
+  markersToPlot <- setNames(future_lapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
     ggplot(cofactorDFList[[marker]][["df"]], aes_string(x = cofactors, y = "..ndensity..", fill = "condition", color = "condition")) +
       geom_density(alpha = 0.1) +
       ylab("") +
@@ -480,7 +485,7 @@ cofactorPlotList <- setNames(lapply(useMarkers, function(marker) {
       scale_colour_manual(values = coloursList$condition) +
       scale_fill_manual(values = coloursList$condition) +
       geom_vline(xintercept = mean(cofactorDFList[[marker]][["df"]][[cofactors]]), linetype = "dashed", color = "red", size = 1)
-  }, mc.cores = 1), c("pretransform", paste0("Cofactor_",cofactorsToPlot)))
+  }), c("pretransform", paste0("Cofactor_",cofactorsToPlot)))
   markersToPlot[["legend"]] <- get_legend(markersToPlot[[1]])
   for (i in c("pretransform", paste0("Cofactor_",cofactorsToPlot))) {
     markersToPlot[[i]] <- markersToPlot[[i]] + theme(legend.position = "hide")
@@ -562,7 +567,7 @@ if (grepl("Rphenograph|FastPG", clusteringMethodToUse)) {
   
   # FastPG
   if (clusteringMethodToUse == "FastPG") {
-    kList <- setNames(mclapply(kValuesIWant, function(i) {
+    kList <- setNames(future_lapply(kValuesIWant, function(i) {
       set.seed(2)
       clusters <- FastPG::fastCluster(data = es, k = i, num_threads = floor(nCores/length(kValuesIWant)))
       clusters$communities <- clusters$communities+1
@@ -573,14 +578,14 @@ if (grepl("Rphenograph|FastPG", clusteringMethodToUse)) {
         "clusters" = clusters
         )
       )
-    }, mc.cores = nCores), paste0("k", kValuesIWant))
+    }), paste0("k", kValuesIWant))
   }
   
   # Rphenograph
   if (clusteringMethodToUse == "Rphenograph") {
     # Multicore
     if (runInParallel) {
-      kList <- setNames(mclapply(kValuesIWant, function(i) {
+      kList <- setNames(future_lapply(kValuesIWant, function(i) {
         set.seed(2)
         clusters <- Rphenograph::Rphenograph(data = es, k = i)
         kids <- factor(membership(clusters[[2]]))
@@ -590,7 +595,7 @@ if (grepl("Rphenograph|FastPG", clusteringMethodToUse)) {
           "clusters" = clusters
           )
         )
-      }, mc.cores = nCores), paste0("k", kValuesIWant))
+      }), paste0("k", kValuesIWant))
     } else {
       # Single core
       kList <- setNames(lapply(kValuesIWant, function(i) {
@@ -629,11 +634,11 @@ if (clusteringMethodToUse == "PARC") {
   
   set.seed(2)
   esPARC <- t(assay(sce, exprsToUse)[featuresToCluster,])
-  parcClustList <- setNames(mclapply(kValuesIWant, function(i) {
+  parcClustList <- setNames(future_lapply(kValuesIWant, function(i) {
     cmd <- paste0("unlist(parc_clust(esPARC, knn = ", i, "L, num_threads = ", floor(nCores/length(kValuesIWant)), "L))")
     clus <- eval(parse(text = cmd))
     return(clus)
-  }, mc.cores = nCores), paste0("p", kValuesIWant))
+  }), paste0("p", kValuesIWant))
   
   for (i in kValuesIWant) {
     f <- as.factor(paste0("p", parcClustList[[paste0("p", i)]]+1))
@@ -1810,7 +1815,7 @@ if (gimmePDFs) {
     pdf(file = file.path(pdfDir, paste0(m, "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
     print(plot_grid(plotlist = UMAPList[[m]], ncol = 4))
     dev.off()
-    mclapply(names(UMAPList[[m]]), function(n) {
+    future_lapply(names(UMAPList[[m]]), function(n) {
       pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
       if (n != "legend") {
         print(UMAPList[[m]][[n]])
@@ -1818,7 +1823,7 @@ if (gimmePDFs) {
         plot(UMAPList[[m]][[n]])
       }
       dev.off()
-    }, mc.cores = nCores)
+    })
   })
 }
 ```
@@ -1832,12 +1837,12 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
     "With" = TRUE,
     "Without" = FALSE
   )
-  l1 <- setNames(mclapply(names(useMarkers), function(marker) {
+  l1 <- setNames(future_lapply(names(useMarkers), function(marker) {
     m1 <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = marker, name = "Normalised\nExpression\n", size = 0.3, show_cluster_labels = var) + 
       facet_wrap(~condition, ncol = 2)
     m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank(), legend.position = "hide")
     m1
-  }, mc.cores = nCores), useMarkers)
+  }), useMarkers)
   return(l1)
 }), c("With Labels", "Without Labels"))
 ```
@@ -1859,7 +1864,7 @@ if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse)))
   lapply(names(DRperCondList), function(m) {
     dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m))
-    mclapply(names(DRperCondList[[m]]), function(n) {
+    future_lapply(names(DRperCondList[[m]]), function(n) {
       pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
       if (n != "legend") {
         print(DRperCondList[[m]][[n]])
@@ -1867,7 +1872,7 @@ if (gimmePDFs) {
         plot(DRperCondList[[m]][[n]])
       }
       dev.off()
-    }, mc.cores = nCores)
+    })
   })
 }
 ```
