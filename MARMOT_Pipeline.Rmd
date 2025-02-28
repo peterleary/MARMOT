@@ -163,6 +163,7 @@ suppressPackageStartupMessages({
   library(gtools)
   library(reticulate)
   library(ggbeeswarm)
+  library(Rcpp)
 })
 plan(multisession, workers = nCores)
 options(future.globals.maxSize = 8 * 1024^3)

@@ -4,7 +4,7 @@
 \alias{shinyMarmot}
 \title{start shinyMarmot application}
 \usage{
-shinyMarmot(fileSE = NA, demo = NA)
+shinyMarmot(marmot_output = NA, demo = NA)
 }
 \description{
 start shinyMarmot application
@@ -12,6 +12,6 @@ start shinyMarmot application
 \examples{
 \dontrun{
 marmotOut <- system.file("examples/R_files/", package = "shinyMarmot")
-shniyMarmot(marmotOut)
+shniyMarmot(marmot_output)
 }
 }

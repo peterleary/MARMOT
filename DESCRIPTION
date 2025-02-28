@@ -42,5 +42,6 @@ Imports:
   chameleon,
   pals,
   scales,
-  qs
+  qs,
+  Rcpp
 RoxygenNote: 7.3.2
