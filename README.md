@@ -2,7 +2,9 @@
 
 Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data 
 
-<img src="MARMOT_Logo_2_bw.png" style="width:10%;">
+<div align="center">
+  <img src="MARMOT_Logo_2_bw.png" width="150">
+</div>
 
 ### At A Glance
 
