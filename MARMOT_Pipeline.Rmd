@@ -20,27 +20,27 @@ editor_options:
 ### Change the parts in this chunk ### 
 
 # Most importantly, tell me where the files live - a directory containing all FCS files and an Excel metadata file
-fp <- "~/Desktop/FGCZ/MARMOT/files/"
+fp <- "~/Desktop/IMCR/MARMOT/For_Submission/MARMOT_Paper/"
 
 # If you want to use PARC and/or PaCMAP, tell me where conda/mamba is installed
 condaDir <- "~/miniforge3/bin/mamba"
 # And then tell me where you saved the PARC and PaCMAP scripts to. They must be called f_pacmap.py and f_parc.py
-parcScriptDir <- "/home/debian/parc_pacmap/"
+parcScriptDir <- "~/Desktop/FGCZ/MARMOT/"
 
 # Do you want to downsample everything from QC onwards? This speeds up processing time but may result in loss of extremely rare cell populations.
 # e.g.: `downsampleTo <- 1000` will downsample each FCS file to 1000 cells
 # Leave it as `downsampleTo <- NULL` to keep all cells 
-downsampleTo <- NULL
+downsampleTo <- 1000
 
 # Cell clustering:
 # Clustering method to use, options are: Rphenograph, FastPG, PARC, or FlowSOM. *Pick only 1*
 clusteringMethodToUse <- "FlowSOM"
 # Which markers do you want to cluster using? Either: "all", "type", "state".
-markersToClusterBy <- "type"
+markersToClusterBy <- "all"
 # How many clustering k values do you want to test?
-kValuesIWant <- c(10,30,50)
+kValuesIWant <- c(20, 40, 60)
 # Pick the k value to use. Must be one of kValuesIWant
-knn = 30
+knn = 40
 
 # Dimension reduction (DR):
 # DR method to use, options are: TSNE, UMAP, or pacmap. *Pick only 1 for now* 
@@ -62,8 +62,7 @@ useQC <- FALSE
 # Other options:
 # Did you already run the pipeline and just want to change figures and not re-run the analysis? 
 # Enter the path to the output folder to use here, and it will skip the analysis chunks!
-RDataFolder <- NULL
-# RDataFolder <- "~/MARMOT_Paper/Results_Files_2024-10-28_15.41.21/"
+RDataFolder <- "~/Desktop/IMCR/MARMOT/For_Submission/MARMOT_Paper/Results_Files_2025-02-28_18.13.46/"
 
 # Do you want to exclude a sample from the results?
 # e.g., excludeTheseSamples <- c("Sample_028") will remove one sample, c("Sample_001", "Sample_026) will remove two samples, otherwise leave as NULL
@@ -89,7 +88,7 @@ nCores <- 8
 themeToUse <- "prism"
 
 # Select a colour theme for the DR plots, pick A through G (or magma, inferno, etc...)
-viridisColour <- "mako"
+viridisColour <- "viridis"
 
 cache = FALSE
 
@@ -473,7 +472,7 @@ cofactorDFList <- setNames(lapply(useMarkers, function(marker) {
   ))
 }), useMarkers)
 
-cofactorPlotList <- setNames(lapply(useMarkers, function(marker) {
+cofactorPlotList <- setNames(future_lapply(useMarkers, function(marker) {
   # Make the plots
   markersToPlot <- setNames(future_lapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
     ggplot(cofactorDFList[[marker]][["df"]], aes_string(x = cofactors, y = "..ndensity..", fill = "condition", color = "condition")) +
@@ -870,7 +869,6 @@ for (i in seq_along(contrasts)) {
   tbl_DS <- rowData(res_DS$res)
   dsList[[paste(cTTForPlots[i], "Merged")]][["res_DS"]] <- res_DS
   dsList[[paste(cTTForPlots[i], "Merged")]][["tbl_DS"]] <- tbl_DS
-  
 }
 
 # Extract the DA clusters
@@ -2116,28 +2114,62 @@ if (gimmePDFs) {
 
 ### Cluster Boxplots {.tabset}
 
-```{r, label = "cluster boxplot", fig.width=15, fig.height=(nlevels(sce$cluster_id)/8)*3}
+```{r, label = "cluster boxplot dimensions", include = F}
+nColsToPlot <- 6
+nGroupsToPlot <- nlevels(sce$condition)
+nClustersToPlot <- nlevels(sce$cluster_id)
+nRowsToPlot <- ceiling(nClustersToPlot/nColsToPlot)
+heightToPlot <- ceiling(nRowsToPlot*4)
+widthToPlot <- ceiling((4*1.1)*nColsToPlot)
+```
+
+```{r, label = "cluster boxplot", fig.width = widthToPlot, fig.height = heightToPlot}
 clusterBoxPlotsDF <- pFH@matrix
 clusterBoxPlotsDF <- as.data.frame(t(clusterBoxPlotsDF))
 clusterBoxPlotsDF <- rownames_to_column(clusterBoxPlotsDF, "sample_id") %>% left_join(md)
 clusterBoxPlotsDFMelt <- melt(clusterBoxPlotsDF)
 
-clusterBoxplot <- ggplot(clusterBoxPlotsDFMelt, aes(x = condition, y = value)) + 
-  geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
-  geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 3, corral = "random", corral.width = 0.9) +
-  facet_wrap(~variable, ncol = 8, scales = "free") +
-  ylab("Normalised Frequency") + xlab("Condition") +
-  geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
-  scale_fill_manual(values = coloursList$condition) +
-  theme_prism(axis_text_angle = 45)
-clusterBoxplot
-openxlsx::write.xlsx(as.data.frame(clusterBoxPlotsDF), file = file.path(excelDir, "Cluster_per_sample_normalised_abundance.xlsx"))
+ctsList <- lapply(names(daList), function(da) { da %>% strsplit(" over ") %>% unlist}) %>% setNames(names(daList))
+
+clusterPvalues <- lapply(levels(kids), function(k) {
+  pvals <- lapply(names(daList), function(da) { daList[[da]]$p_adj[daList[[da]]$cluster_id == k] }) %>% setNames(names(daList)) %>% unlist
+  if(is.na(pvals)) {pvals <- 1}
+  y_max <- max(clusterBoxPlotsDFMelt$value)
+  spacing <- (y_max - min(clusterBoxPlotsDFMelt$value)) * 0.1
+  y_positions <- y_max + (1:length(ctsList)) * spacing
+  pval_df <- data.frame(
+    group1 = sapply(ctsList, `[`, 1),
+    group2 = sapply(ctsList, `[`, 2),
+    p = pvals,
+    y.position = y_positions
+  )
+  pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
+  pval_df
+}) %>% setNames(levels(kids))
+maxY <- lapply(seq_along(clusterPvalues), function(i) {clusterPvalues[[i]]$y.position}) %>% unlist %>% max
+
+clusterBoxplotList <- lapply(levels(kids), function(k) {
+  ctp <- as.character(k)
+  ggplot(clusterBoxPlotsDF, aes(x = .data[["condition"]], y = .data[[ctp]])) + 
+    # geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
+    scale_y_continuous(limits = c(min(clusterBoxPlotsDFMelt$value), maxY)) +
+    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
+    scale_fill_manual(values = coloursList$condition) +
+    stat_pvalue_manual(clusterPvalues[[ctp]], label = "p.signif", tip.length = 0, hide.ns = T, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
+    theme_prism(axis_text_angle = 45) +
+    ggtitle(paste("Cluster", ctp)) +
+    theme(legend.position = "hide", axis.title = element_blank())
+})
+ylab <- textGrob("Normalised Frequency", rot = 90, gp = gpar(fontface = "bold", fontsize = 16))
+xlab <- textGrob("Condition", gp = gpar(fontface = "bold", fontsize = 16))
+grid.arrange(grobs = clusterBoxplotList, ncol = nColsToPlot, left = ylab, bottom = xlab)
 ```
 
 ```{r, label = "save cluster boxplot", include = F}
 if (gimmePDFs) {
-  pdf(file = file.path(pdfDir, "Cluster_Boxplot.pdf"), width = 15, height = (nlevels(sce$cluster_id)/8)*3)
-  print(clusterBoxplot)
+  pdf(file = file.path(pdfDir, "Cluster_Boxplot.pdf"), width = widthToPlot, height = heightToPlot)
+  grid.arrange(grobs = clusterBoxplotList, ncol = nColsToPlot, left = ylab, bottom = xlab)
   dev.off()
 }
 ```
@@ -2146,28 +2178,60 @@ if (gimmePDFs) {
 
 #### Markers per Condition 
 
-```{r, label = "marker boxplots by condition 1", fig.width=18, fig.height=ceiling(length(useMarkers)/8)*3}
-medianScaled <- CATALYST:::.agg(sce, "sample_id", "median", "exprsQuantNorm")
-markerBoxplotsDF <- melt(medianScaled, varnames = c("antigen", "sample_id"[length("sample_id")]))
-i <- match(markerBoxplotsDF$sample_id, sce$sample_id)
-j <- setdiff(names(colData(sce)), c(names(markerBoxplotsDF), "cluster_id"))
-markerBoxplotsDF <- cbind(markerBoxplotsDF, colData(sce)[i, j, drop = FALSE])
-openxlsx::write.xlsx(as.data.frame(markerBoxplotsDF), file = file.path(excelDir, "Median_Markers_Per_Sample_Expression.xlsx"))
-markersBoxplot <- ggplot(markerBoxplotsDF, aes(x = condition, y = value)) +
-  geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
-  geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 3, corral = "random", corral.width = 0.9) +
-  facet_wrap(~antigen, ncol = 8, scales = "free") +
-  geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
-  scale_fill_manual(values = coloursList$condition) +
-  theme_prism(axis_text_angle = 45) +
-  ylab("Median Quantile Normalised Expression") + xlab("Condition")
-markersBoxplot
+```{r, label = "generate marker tables"}
+medianScaledDF <- CATALYST:::.agg(sce, "sample_id", "median", exprsToUse)
+markerBoxplotsMeltDF <- melt(medianScaledDF, varnames = c("antigen", "sample_id"[length("sample_id")]))
+i <- match(markerBoxplotsMeltDF$sample_id, sce$sample_id)
+j <- setdiff(names(colData(sce)), c(names(markerBoxplotsMeltDF), "cluster_id"))
+markerBoxplotsMeltDF <- cbind(markerBoxplotsMeltDF, colData(sce)[i, j, drop = FALSE])
+medianScaledDF <- medianScaledDF %>%
+  t %>% 
+  data.frame(check.names = F) %>%
+  rownames_to_column("sample_id") %>%
+  left_join(md, by = "sample_id")
+openxlsx::write.xlsx(as.data.frame(medianScaledDF), file = file.path(excelDir, "Median_Markers_Per_Sample_Expression.xlsx"))
 ```
 
-```{r, label = "save marker boxplot 1", include = F}
+```{r, label = "draw marker boxplots", fig.height = heightToPlot, fig.width = widthToPlot}
+markerPvalues <- lapply(useMarkers, function(marker) {
+  pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) %>% setNames(names(dsList)[grep("Merged", names(dsList))]) %>% unlist
+  if(length(pvals) == 0) {pvals <- 1}
+  y_max <- max(markerBoxplotsMeltDF$value)
+  spacing <- (y_max - min(markerBoxplotsMeltDF$value)) * 0.1
+  y_positions <- y_max + (1:length(ctsList)) * spacing
+  pval_df <- data.frame(
+    group1 = sapply(ctsList, `[`, 1),
+    group2 = sapply(ctsList, `[`, 2),
+    p = pvals,
+    y.position = y_positions
+  )
+  pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
+  pval_df
+}) %>% setNames(useMarkers)
+maxY <- lapply(seq_along(markerPvalues), function(i) {markerPvalues[[i]]$y.position}) %>% unlist %>% max
+
+markerBoxplotList <- lapply(useMarkers, function(marker) {
+  ggplot(medianScaledDF, aes(x = .data[["condition"]], y = .data[[marker]])) + 
+    # geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
+    scale_y_continuous(limits = c(min(markerBoxplotsMeltDF$value), maxY)) +
+    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
+    scale_fill_manual(values = coloursList$condition) +
+    stat_pvalue_manual(markerPvalues[[marker]], label = "p.signif", tip.length = 0, hide.ns = T, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
+    theme_prism(axis_text_angle = 45) +
+    ggtitle(marker) +
+    theme(legend.position = "hide", axis.title = element_blank())
+})
+ylabtext <- switch(exprsToUse, "exprsTransformed" = "Transformed", "exprsQuantNorm" = "Quantile Normalised")
+ylab <- textGrob(paste0("Median ", ylabtext, " Expression"), rot = 90, gp = gpar(fontface = "bold", fontsize = 16))
+xlab <- textGrob("Condition", gp = gpar(fontface = "bold", fontsize = 16))
+grid.arrange(grobs = markerBoxplotList, ncol = nColsToPlot, left = ylab, bottom = xlab)
+```
+
+```{r, label = "save marker boxplots", include = F}
 if (gimmePDFs) {
-  pdf(file = file.path(pdfDir, "Marker_per_Sample_boxplot.pdf"), width = 18, height = ceiling(length(useMarkers)/8)*3)
-  print(markersBoxplot)
+  pdf(file = file.path(pdfDir, "Marker_per_Sample_boxplot.pdf"), width = widthToPlot, height = heightToPlot)
+  grid.arrange(grobs = markerBoxplotList, ncol = nColsToPlot, left = ylab, bottom = xlab)
   dev.off()
 }
 ```
@@ -2175,14 +2239,11 @@ if (gimmePDFs) {
 #### Markers within Clusters {.tabset}
 
 ```{r, label = "markers per cluster boxplot", fig.width=12, fig.height=5, results = 'asis'}
-medianScaled <- CATALYST:::.agg(sce, "sample_id", "median", "exprsQuantNorm")
-markerBoxplotsDF <- melt(medianScaled, varnames = c("antigen", c("cluster_id", "sample_id")[length(c("cluster_id", "sample_id"))]))
-i <- match(markerBoxplotsDF$sample_id, sce$sample_id)
-j <- setdiff(names(colData(sce)), c(names(markerBoxplotsDF), "cluster_id"))
-markerBoxplotsDF <- cbind(markerBoxplotsDF, colData(sce)[i, j, drop = FALSE])
-
 by <- c("cluster_id", "sample_id")
 ms <- CATALYST:::.agg(sce, by, "median", "exprsQuantNorm")
+```
+
+```{r}
 df <- melt(ms, varnames = c("antigen", by[length(by)]))
 names(df)[ncol(df)] <- "cluster_id"
 i <- match(df$sample_id, sce$sample_id)
@@ -2190,7 +2251,7 @@ j <- setdiff(names(colData(sce)), c(names(df), "cluster_id"))
 df <- cbind(df, colData(sce)[i, j, drop = FALSE])
 cat("\n\n")
 openxlsx::write.xlsx(as.data.frame(df), file = file.path(excelDir, "Median_Markers_Per_Cluster_Expression.xlsx"))
-individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsDF[[paste0(mergeBy, knn)]]), function(i) {
+individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]), function(i) {
   cat("##### Cluster", i, "\n\n")
   df1 <- df[df$cluster_id == as.character(i),]
   g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
@@ -2204,7 +2265,7 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsDF[[past
   print(g1)
   cat("\n\n")
   return("g1" = g1)
-}), levels(markerBoxplotsDF[[paste0(mergeBy, knn)]]))
+}), levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]))
 ```
 
 ```{r, label = "save markers per cluster boxplots", include = F}

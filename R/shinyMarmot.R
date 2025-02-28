@@ -1,5 +1,6 @@
 #' start shinyMarmot application
 #' @export
+#' @import Rcpp
 #' @examples
 #' \dontrun{
 #' marmotOut <- system.file("examples/R_files/", package = "shinyMarmot")

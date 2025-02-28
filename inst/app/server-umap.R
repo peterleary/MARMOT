@@ -1130,6 +1130,21 @@ observeEvent(
           }
           fp2
         })
+      # } else if (input$featurePlotType == "Boxplot") {
+      #   assay <-  Seurat::GetAssayData(object = scDataToFP, assay = "originalexp", layer = input$fpAssayToPlot) %>% 
+      #     t %>%
+      #     data.frame(check.names = F) %>%
+      #     rownames_to_column("cell-id") %>% 
+      #     left_join((scDataToFP@meta.data %>% data.frame(check.names = F) %>% rownames_to_column("cell-id")), by = "cell-id")
+      #   fp <- lapply(fpFeaturesToPlot, function(gene) {
+      #     gtp <- gene %>% gsub("-", "_", .)
+      #     gene <- gene %>% gsub("_", "-", .)
+      #     ggplot(assay, aes(x = .data[[fpColumnToPlot]], y = .data[[gene]])) +
+      #       # geom_boxplot(outlier.shape = NA, aes(fill = .data[[fpColumnToPlot]])) +
+      #       geom_violin(outlier.shape = NA, aes(fill = .data[[fpColumnToPlot]])) +
+      #       scale_fill_manual(values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]) +
+      #       theme_prism()
+      #   })
       } else if (input$featurePlotType == "Violin Plot") {
         req(any(nchar(fpFeaturesToPlot) >= 2))
         if (!is.null(fpColumnToSplit)) {
@@ -1244,11 +1259,6 @@ observeEvent(
         }
       } else if (input$featurePlotType == "Barplot") {
         umapDF <- inputDataReactive$Results$umapDFList$All
-        if (input$fpColumnToPlot == "new_clusters") {
-          req("new_clusters" %in% colnames(inputDataReactive$Results[["sce"]]@colData))
-          req(length(inputDataReactive$Results$coloursList[["new_clusters"]]) >= 2)
-          umapDF$new_clusters <- inputDataReactive$Results[["sce"]]@colData$new_clusters[match(inputDataReactive$Results[["sce"]]@colData$cluster_id, umapDF$cluster_id)]
-        }
         if (input$fpBarplotPercentage) {
           position <- "fill"
         } else {
@@ -1288,7 +1298,6 @@ observeEvent(
           }
         )
       }
-
       featurePlotReactive$fp <- fp
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   })
@@ -1334,7 +1343,7 @@ if (input$featurePlotType == "Ridge Plot" && length(input$keepBucketFP) >= 2 || 
       } else if (input$dlFormat == "PNG") {
         png(filename = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60), units = "in", res = as.numeric(input$pngRes))
       }
-      plot(featurePlotReactive$fp)
+      print(featurePlotReactive$fp)
       dev.off()
     }
   )
