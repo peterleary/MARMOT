@@ -1,5 +1,6 @@
 input <- list(
-  umapColumnToPlot = inputDataReactive$Results$conditions[[1]],
+  # umapColumnToPlot = inputDataReactive$Results$conditions[[1]],
+  umapColumnToPlot = "new_clusters",
   umapColumnToSplit = inputDataReactive$Results$conditions[[2]],
   umapColourPalette = "Catalyst",
   umapShowAxes = FALSE,
@@ -45,7 +46,7 @@ input <- list(
   fpDRCustomMinMax = FALSE,
   umapShowDAClusters = "Up only",
   umapContrastToUse = inputDataReactive$Results$smd$`Conditions To Test` %>% .[!is.na(.)] %>% .[3],
-  importFile = "/srv/GT/analysis/peter/rs_connect_apps/exploreFC/clusterInfos_Marmot.xlsx",
+  importFile = "~/Desktop/FGCZ/MARMOT/clusterInfos_paper_2025-02-28.xlsx",
   fpNebulosaPlotTogether = TRUE,
   fpNebulosaPlotTogetherOnly = FALSE,
   rasteriseFP = FALSE,
@@ -109,5 +110,5 @@ clusterTableReactive$table$new_clusters[match(inputDataReactive$Results[["sce"]]
   gsub("^p1$|^p2$", "test", .)
 
 # fileSE <- system.file("examples/", package = "shinyMarmot")
-# importedClusters <- readxl::read_xlsx("/srv/exploreFC/clusterInfos_Marmot.xlsx")
+importedClusters <- readxl::read_xlsx(input$importFile)
 fpFeaturesToPlot <- input$keepBucketFP

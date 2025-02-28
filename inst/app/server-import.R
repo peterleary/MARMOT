@@ -33,8 +33,6 @@ tryCatch({
     waiter$show()
     on.exit(waiter$hide())
     
-    require("parallel")
-    # filesToLoad <- list.files(dataDir)
     filesToLoad <- c(
       "md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", 
       "umapDFList.qs", "downsampleTo.qs", "selectedClustersList.qs")
@@ -55,7 +53,7 @@ tryCatch({
     exprsToUse <- "exprsTransformed"
     clusteringMethodToUse <- files$clusteringMethodToUse
     pET <- plotExprHeatmap(x = sce, assay = exprsToUse, features = "type", by = "cluster_id", k = clusteringMethodToUse)
-    pETdf <- pET@matrix[row_order(pET),]
+    pETdf <- suppressWarnings(pET@matrix[row_order(pET),])
     topLineageTable <- data.frame("Cluster" = paste("Cluster", rownames(pETdf)))
     topLineageTable$Top_Lineage_Markers <- NA
     for (i in seq_along(1:nrow(topLineageTable))) {
@@ -64,7 +62,7 @@ tryCatch({
     topLineageTable <- topLineageTable[mixedorder(topLineageTable$Cluster), ]
     
     pES <- plotExprHeatmap(x = sce, features = "state", by = "cluster_id", k = clusteringMethodToUse)
-    pESdf <- pES@matrix[row_order(pES),]
+    pESdf <- suppressWarnings(pES@matrix[row_order(pES),])
     topStateTable <- data.frame("Cluster" = paste("Cluster", rownames(pESdf)))
     topStateTable$Top_State_Markers <- NA
     for (i in seq_along(1:nrow(topStateTable))) {
@@ -72,7 +70,7 @@ tryCatch({
       topStateTable$Bottom_State_Markers[i] <- paste(names(tail(sort(pESdf[i,], decreasing = T), n = 3)), collapse = " ")
     }
     topStateTable <- topStateTable[mixedorder(topStateTable$Cluster), ]
-    topMarkerTable <- left_join(topLineageTable, topStateTable)
+    topMarkerTable <- left_join(topLineageTable, topStateTable, by = "Cluster")
     
     files[["conditions"]] <- conditions
     files[["mergeBy"]] <- mergeBy
@@ -103,8 +101,8 @@ tryCatch({
       sce <- sce[, cellsToKeep]
     }
     
-    files[["scData"]] <- Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm")
-    files[["scData"]] <- Seurat::ScaleData(files[["scData"]], assay = "originalexp")
+    files[["scData"]] <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
+    files[["scData"]] <- Seurat::ScaleData(files[["scData"]], assay = "originalexp", verbose = FALSE)
     
     inputDataReactive <- reactiveValues(Results = NULL)
     inputDataReactive[["Results"]] = files

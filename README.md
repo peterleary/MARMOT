@@ -89,7 +89,7 @@ lapply(
 
 If there are any issues, please manually check which package has failed to install. It probably has dependencies that did not install due to missing libraries. 
 
-\textcolor{red}{Once these have been installed, the pipeline will work with the following cell-clustering and dimension reduction methods: Rphenograph, FlowSOM, UMAP, and tSNE.}
+Once these have been installed, the pipeline will work with the following cell-clustering and dimension reduction methods: Rphenograph, FlowSOM, UMAP, and tSNE.
 
 If you wish to use alternative methods, including FastPG, PARC, and PaCMAP, follow the instructions below. 
 
