@@ -20,12 +20,12 @@ editor_options:
 ### Change the parts in this chunk ### 
 
 # Most importantly, tell me where the files live - a directory containing all FCS files and an Excel metadata file
-fp <- "~/Desktop/IMCR/MARMOT/For_Submission/MARMOT_Paper/"
+fp <- "~/Desktop/MARMOT/CD45/"
 
 # If you want to use PARC and/or PaCMAP, tell me where conda/mamba is installed
 condaDir <- "~/miniforge3/bin/mamba"
 # And then tell me where you saved the PARC and PaCMAP scripts to. They must be called f_pacmap.py and f_parc.py
-parcScriptDir <- "~/Desktop/FGCZ/MARMOT/"
+parcScriptDir <- "~/Desktop/MARMOT/"
 
 # Do you want to downsample everything from QC onwards? This speeds up processing time but may result in loss of extremely rare cell populations.
 # e.g.: `downsampleTo <- 1000` will downsample each FCS file to 1000 cells
@@ -62,7 +62,8 @@ useQC <- FALSE
 # Other options:
 # Did you already run the pipeline and just want to change figures and not re-run the analysis? 
 # Enter the path to the output folder to use here, and it will skip the analysis chunks!
-RDataFolder <- "~/Desktop/IMCR/MARMOT/For_Submission/MARMOT_Paper/Results_Files_2025-02-28_18.13.46/"
+# E.g., "~/Desktop/MARMOT/Analysis/Results_Files_2025-01-01_13.40.23"
+RDataFolder <- NULL
 
 # Do you want to exclude a sample from the results?
 # e.g., excludeTheseSamples <- c("Sample_028") will remove one sample, c("Sample_001", "Sample_026) will remove two samples, otherwise leave as NULL
@@ -82,13 +83,15 @@ quantileNormaliseAll <- FALSE
 runInParallel <- TRUE
 
 # Number of cores available
-nCores <- 8
+nCores <- 4
+# Amount of RAM to dedicate to each process, don't get too close to total available RAM! 
+ramPerCore <- 6
 
 # Pick a ggplot theme. Options are any ggplot theme available e.g., classic, bw, minimal, prism 
 themeToUse <- "prism"
 
 # Select a colour theme for the DR plots, pick A through G (or magma, inferno, etc...)
-viridisColour <- "viridis"
+viridisColour <- "mako"
 
 cache = FALSE
 
@@ -165,7 +168,7 @@ suppressPackageStartupMessages({
   library(Rcpp)
 })
 plan(multisession, workers = nCores)
-options(future.globals.maxSize = 8 * 1024^3)
+options(future.globals.maxSize = ramPerCore * 1024^3)
 set.seed(2)
 htmltools::tagList(datatable(cars))
 ```
@@ -175,7 +178,7 @@ if(!is.null(RDataFolder)) {
   fileNames <- file.path(RDataFolder, list.files(RDataFolder, pattern = ".qs", recursive = T))
   varNames <- fileNames %>% gsub(".*/", "", .) %>% gsub(".qs", "", .)
   for (i in seq_along(fileNames)) {
-    assign(varNames[i], qread(fileNames[i], nthreads = 8), envir = .GlobalEnv)
+    assign(varNames[i], qread(fileNames[i], nthreads = nCores), envir = .GlobalEnv)
   }
   print(paste("Using previously-generated results from folder:", RDataFolder))
 }
@@ -283,7 +286,7 @@ catalystCols <- c(
   "#FF7F00", "#FDB462", "#E7298A", "#E78AC3", "#33A02C", "#B2DF8A", 
   "#55A1B1", "#8DD3C7", "#A6761D", "#E6AB02", "#7570B3", "#BEAED4", 
   "#666666", "#999999", "#aa8282", "#d4b7b7", "#8600bf", "#ba5ce3", 
-  "#808000", "#aeae5c", "#1e90ff", "#00bfff", "#56ff0d", "#ffff00"
+  "#808000", "#aeae5c", "#1e90ff", "#00bfff", "#56ff0d", "#cfbf11"
 )
 cc2 <- catalystCols
 cc2 <- colorspace::darken(cc2, 0.4)
@@ -434,7 +437,7 @@ panel <- panel[which(!panel$marker_name %in% removeMarkers),]
 panel <- panel[match(useMarkers, panel$marker_name), ]
 ```
 
-```{r, label = "make cofactor histograms", results = "hide", dependson = "import fcs files and qc", eval = is.null(RDataFolder)}
+```{r, label = "make cofactor histograms", results = "hide", dependson = "import fcs files and qc", eval = T}
 # Marker Cofactor Histograms
 cofactorsToPlot <- c(5, 50, 500, 1000, 2500, 5000, 10000, 15000)
 nrowsCofactors <- ceiling(length(useMarkers)/4)
@@ -943,7 +946,9 @@ save <- c(
   "cf2",
   "dimRedMethodToUse",
   "useMarkers",
-  "cofactorPlotList",
+  "framesList",
+  "frames",
+  # "cofactorPlotList",
   "nrowsCofactors",
   "sce",
   "sce2", 
@@ -1643,10 +1648,10 @@ paste(featuresToUmap)
 
 #### Full `r paste(dimRedMethodToUse)` {.tabset}
 
-```{r, label = "DR all cells", fig.height=6, fig.width=(3.5*ceiling(length(levels(umapDFList$All$cluster_id))/18)+0.5), results = 'asis'}
+```{r, label = "DR all cells", fig.height=6, fig.width=7, results = 'asis'}
 if (!is.null(drCellPerCondition)) {
   cat("##### All Cells", dimRedMethodToUse, "\n\n")
-  cat("Since you clustered on all available cells (after initial downsampling), here is a DR plot of all available cells. Your per-condition DR plots are subset from this main DR plot.\n\n")
+  cat("Since you clustered on all available cells (after initial downsampling), here is a DR plot of all available cells. All subsequent DR plots are subset from this main DR plot.\n\n")
   dr0 <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.9, show_cluster_labels = TRUE, show_grids = F, text_size = 14) + 
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
   dr0
@@ -1685,7 +1690,7 @@ if (!is.null(drCellPerCondition)) {
 
 ##### All Samples: Selected Clusters
 
-```{r, label = "main cluster DR 1", fig.height=6, fig.width=(3.5*ceiling(length(levels(umapDFList$All$cluster_id))/18))+0.5}
+```{r, label = "main cluster DR 1", fig.height=6, fig.width=7}
 if (is.null(drCellPerCondition)) {
   umapsDFToPlot <- "All"
 } else {
@@ -1814,7 +1819,7 @@ if (gimmePDFs) {
     pdf(file = file.path(pdfDir, paste0(m, "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
     print(plot_grid(plotlist = UMAPList[[m]], ncol = 4))
     dev.off()
-    future_lapply(names(UMAPList[[m]]), function(n) {
+    lapply(names(UMAPList[[m]]), function(n) {
       pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
       if (n != "legend") {
         print(UMAPList[[m]][[n]])
@@ -1836,7 +1841,7 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
     "With" = TRUE,
     "Without" = FALSE
   )
-  l1 <- setNames(future_lapply(names(useMarkers), function(marker) {
+  l1 <- setNames(lapply(names(useMarkers), function(marker) {
     m1 <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = marker, name = "Normalised\nExpression\n", size = 0.3, show_cluster_labels = var) + 
       facet_wrap(~condition, ncol = 2)
     m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank(), legend.position = "hide")
@@ -1846,7 +1851,7 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
 }), c("With Labels", "Without Labels"))
 ```
 
-```{r, label = "DR per per marker per cond 2", fig.width=10, fig.height=5*(ceiling(length(condLevels)/2)), results = 'asis'}
+```{r, label = "DR per marker per cond 2", fig.width=10, fig.height=5*(ceiling(length(condLevels)/2)), results = 'asis'}
 lapply(names(DRperCondList), function(yn){
   cat("#####", yn, "{.tabset} \n\n")
   lapply(names(DRperCondList[[yn]]), function(marker) {
@@ -1863,7 +1868,7 @@ if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse)))
   lapply(names(DRperCondList), function(m) {
     dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m))
-    future_lapply(names(DRperCondList[[m]]), function(n) {
+    lapply(names(DRperCondList[[m]]), function(n) {
       pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
       if (n != "legend") {
         print(DRperCondList[[m]][[n]])
@@ -2119,12 +2124,16 @@ nColsToPlot <- 6
 nGroupsToPlot <- nlevels(sce$condition)
 nClustersToPlot <- nlevels(sce$cluster_id)
 nRowsToPlot <- ceiling(nClustersToPlot/nColsToPlot)
-heightToPlot <- ceiling(nRowsToPlot*4)
-widthToPlot <- ceiling((4*1.1)*nColsToPlot)
+heightToPlot <- ceiling(nRowsToPlot*5)
+widthToPlot <- ceiling((5*1.2)*nColsToPlot)
 ```
 
 ```{r, label = "cluster boxplot", fig.width = widthToPlot, fig.height = heightToPlot}
-clusterBoxPlotsDF <- pFH@matrix
+# From CATALYST plotFreqHeatmap function
+ns <- table(sce$cluster_id, sce$sample_id)
+fq <- prop.table(ns, 2)
+fq.z <- as.matrix(unclass(fq))
+clusterBoxPlotsDF <- CATALYST:::.z_normalize(asin(sqrt(fq.z)))
 clusterBoxPlotsDF <- as.data.frame(t(clusterBoxPlotsDF))
 clusterBoxPlotsDF <- rownames_to_column(clusterBoxPlotsDF, "sample_id") %>% left_join(md)
 clusterBoxPlotsDFMelt <- melt(clusterBoxPlotsDF)
@@ -2133,9 +2142,9 @@ ctsList <- lapply(names(daList), function(da) { da %>% strsplit(" over ") %>% un
 
 clusterPvalues <- lapply(levels(kids), function(k) {
   pvals <- lapply(names(daList), function(da) { daList[[da]]$p_adj[daList[[da]]$cluster_id == k] }) %>% setNames(names(daList)) %>% unlist
-  if(is.na(pvals)) {pvals <- 1}
+  if(any(is.na(pvals))) {pvals[is.na(pvals)] <- 1}
   y_max <- max(clusterBoxPlotsDFMelt$value)
-  spacing <- (y_max - min(clusterBoxPlotsDFMelt$value)) * 0.1
+  spacing <- (y_max - min(clusterBoxPlotsDFMelt$value)) * 0.2
   y_positions <- y_max + (1:length(ctsList)) * spacing
   pval_df <- data.frame(
     group1 = sapply(ctsList, `[`, 1),
@@ -2144,6 +2153,7 @@ clusterPvalues <- lapply(levels(kids), function(k) {
     y.position = y_positions
   )
   pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
+  
   pval_df
 }) %>% setNames(levels(kids))
 maxY <- lapply(seq_along(clusterPvalues), function(i) {clusterPvalues[[i]]$y.position}) %>% unlist %>% max
@@ -2192,7 +2202,7 @@ medianScaledDF <- medianScaledDF %>%
 openxlsx::write.xlsx(as.data.frame(medianScaledDF), file = file.path(excelDir, "Median_Markers_Per_Sample_Expression.xlsx"))
 ```
 
-```{r, label = "draw marker boxplots", fig.height = heightToPlot, fig.width = widthToPlot}
+```{r, label = "draw marker boxplots", fig.height = heightToPlot*0.7, fig.width = widthToPlot}
 markerPvalues <- lapply(useMarkers, function(marker) {
   pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) %>% setNames(names(dsList)[grep("Merged", names(dsList))]) %>% unlist
   if(length(pvals) == 0) {pvals <- 1}
@@ -2238,12 +2248,10 @@ if (gimmePDFs) {
 
 #### Markers within Clusters {.tabset}
 
-```{r, label = "markers per cluster boxplot", fig.width=12, fig.height=5, results = 'asis'}
+```{r, label = "markers per cluster boxplot", fig.width=18, fig.height=5, results = 'asis'}
 by <- c("cluster_id", "sample_id")
 ms <- CATALYST:::.agg(sce, by, "median", "exprsQuantNorm")
-```
 
-```{r}
 df <- melt(ms, varnames = c("antigen", by[length(by)]))
 names(df)[ncol(df)] <- "cluster_id"
 i <- match(df$sample_id, sce$sample_id)
@@ -2255,10 +2263,11 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[
   cat("##### Cluster", i, "\n\n")
   df1 <- df[df$cluster_id == as.character(i),]
   g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
-    geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
-    geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
+    scale_y_continuous(limits = c(0, 1), breaks = c(0.25, 0.5, 0.75, 1)) +
     geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
     geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
+    geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
     scale_fill_manual(values = coloursList$condition) +
     theme_prism(axis_text_angle = 45) +
     ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", i))
@@ -2279,7 +2288,7 @@ if (gimmePDFs) {
 }
 ```
 
-```{r, label = "markers_boxplots2", fig.width=10, fig.height=6, results = "asis"}
+```{r, label = "markers_boxplots2", fig.width=18, fig.height=5, results = "asis"}
 for (i in seq_along(selectedClustersList)) {
   if (length(selectedClustersList[[i]]) > 0) {
     cat("####", names(selectedClustersList)[[i]], "\n\n")
