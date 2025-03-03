@@ -10,7 +10,6 @@ if (!is.null(dataUrl)) {
   dataDir <- file.path(urlDataRoot, dataUrl)
   dataDir <- dataDir[file.exists(dataDir)][1]
 } else if (is.null(dataUrl) & !exists("marmot_output")) {
-  # dataDir <- "/srv/GT/analysis/peter/MARMOT_Paper/Results_Files_2024-10-29_09.12.41/R_files/" # use this one 
   dataDir <- "~/Desktop/FGCZ/MARMOT/files/Results_Files_2025-02-06_14.42.22/R_files/"
 }
 

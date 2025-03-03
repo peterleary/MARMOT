@@ -18,7 +18,7 @@ input <- list(
   featurePlotType = "Feature Plot",
   fpAssayToPlot = "data",
   fpFeatureToPlot = inputDataReactive$Results$panel$marker_name[1],
-  fpColumnToPlot = paste0(inputDataReactive$Results$mergeBy, inputDataReactive$Results$knn),
+  fpColumnToPlot = "cluster_id",
   fpColumnToSplit = inputDataReactive$Results$conditions[[1]],
   fpShowAxes = FALSE,
   fpShowLabels = FALSE,
@@ -112,3 +112,5 @@ clusterTableReactive$table$new_clusters[match(inputDataReactive$Results[["sce"]]
 # fileSE <- system.file("examples/", package = "shinyMarmot")
 importedClusters <- readxl::read_xlsx(input$importFile)
 fpFeaturesToPlot <- input$keepBucketFP
+
+input$keepBucketFP <- "CD19"

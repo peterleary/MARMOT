@@ -789,7 +789,6 @@ observeEvent({
 })
 
 # Feature plots ----
-fp <- NULL
 featurePlotReactive <- reactiveValues(fp = NULL)
 observeEvent(input$featurePlotType, {
   featurePlotReactive <- reactiveValues(fp = NULL)
@@ -1313,38 +1312,24 @@ output$featurePlotOutput <- renderPlot(
   height = function(){input$figHeightFP},
   width = function(){input$figWidthFP}
 )
-if (input$featurePlotType == "Ridge Plot" && length(input$keepBucketFP) >= 2 || input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot")) {
-  output$dlFP <- downloadHandler(
-    filename = function() {
-      paste((input$featurePlotType %>% gsub(" ", "", .)), paste(input$keepBucketFP, collapse = "_"), tolower(input$dlFormat), sep = ".")
-    },
-    content = function(file) {
-      if (input$dlFormat == "PDF") {
-        pdf(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
-      } else if (input$dlFormat == "SVG") {
-        svg(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
-      } else if (input$dlFormat == "PNG") {
-        png(filename = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60), units = "in", res = as.numeric(input$pngRes))
-      }
+
+output$dlFP <- downloadHandler(
+  filename = function() {
+    paste((input$featurePlotType %>% gsub(" ", "", .)), paste(input$keepBucketFP, collapse = "_"), tolower(input$dlFormat), sep = ".")
+  },
+  content = function(file) {
+    if (input$dlFormat == "PDF") {
+      pdf(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
+    } else if (input$dlFormat == "SVG") {
+      svg(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
+    } else if (input$dlFormat == "PNG") {
+      png(filename = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60), units = "in", res = as.numeric(input$pngRes))
+    }
+    if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot", "Ridge Plot") && length(input$keepBucketFP) >= 2) {
       gridExtra::grid.arrange(grobs = featurePlotReactive$fp, ncol = input$ncolFPGene)
-      dev.off()
-    }
-  )
-} else {
-  output$dlFP <- downloadHandler(
-    filename = function() {
-      paste((input$featurePlotType %>% gsub(" ", "", .)), input$keepBucketFP, tolower(input$dlFormat), sep = ".")
-    },
-    content = function(file) {
-      if (input$dlFormat == "PDF") {
-        pdf(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
-      } else if (input$dlFormat == "SVG") {
-        svg(file = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60))
-      } else if (input$dlFormat == "PNG") {
-        png(filename = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60), units = "in", res = as.numeric(input$pngRes))
-      }
+    } else {
       print(featurePlotReactive$fp)
-      dev.off()
     }
-  )
-}
+    dev.off()
+  }
+)
