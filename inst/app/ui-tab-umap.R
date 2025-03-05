@@ -101,7 +101,7 @@ tabItem(
           tabPanel(
             title = "Inputs",
             selectInput(inputId = "featurePlotType", label = "Select a plot type", choices = c("Feature Plot", "Nebulosa Plot", "Violin Plot", "Dot Plot", "Ridge Plot", "Heatmap", "Individual Heatmap", "Barplot"), selected = "", multiple = FALSE),
-            selectizeInput(inputId = "fpFeatureToPlot", label = "Select genes to plot", choices = "", selected = "", multiple = TRUE),
+            selectizeInput(inputId = "fpFeatureToPlot", label = "Select marker to plot", choices = "", selected = "", multiple = TRUE),
             radioButtons(inputId = "fpAssayToPlot", label = "Select counts to plot", choiceNames = c("Quantile Normalised", "Transformed", "Scaled Counts"), choiceValues = c("data", "counts", "scale.data")),
             selectInput(inputId = "fpColumnToPlot", label = "Select a Column to Plot By", choices = NULL, selected = NULL, multiple = FALSE),
             selectInput(inputId = "fpColumnToSplit", label = "Select a Column to Split By", choices = NULL, selected = NULL, multiple = FALSE),
@@ -122,7 +122,7 @@ tabItem(
             checkboxInput(inputId = "flipViridisFP", label = "Flip colour scale?", value = FALSE),
             splitLayout(
               sliderInput(inputId = "textSizeFP", label = "Font Size", min = 4, max = 30, value = 14, step = 0.5, width = "85%", ticks = F),
-              sliderInput(inputId = "ncolFPGene", label = "Columns per gene", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F),
+              sliderInput(inputId = "ncolFPGene", label = "Columns per marker", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F),
               sliderInput(inputId = "ncolFPSplit", label = "Columns per split", value = 1, min = 1, max = 10, step = 1, width = "85%", ticks = F)
             ),
             splitLayout(

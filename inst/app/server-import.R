@@ -10,7 +10,7 @@ if (!is.null(dataUrl)) {
   dataDir <- file.path(urlDataRoot, dataUrl)
   dataDir <- dataDir[file.exists(dataDir)][1]
 } else if (is.null(dataUrl) & !exists("marmot_output")) {
-  dataDir <- "~/Desktop/FGCZ/MARMOT/files/Results_Files_2025-02-06_14.42.22/R_files/"
+  dataDir <- "examples/R_files/"
 }
 
 # 2025-01-29: Read in local proteomics file if specified 
@@ -34,9 +34,12 @@ tryCatch({
     
     filesToLoad <- c(
       "md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs", 
-      "umapDFList.qs", "downsampleTo.qs", "selectedClustersList.qs")
+      "umapDFList.qs", "downsampleTo.qs", "selectedClustersList.qs", "frames.qs", 
+      "framesList.qs")
     files <- setNames(lapply(filesToLoad, function(x) {
-      qs::qread(file = file.path(dataDir, x), nthreads = 4)
+      if (file.exists(file.path(dataDir, x))) {
+        qs::qread(file = file.path(dataDir, x), nthreads = 4)
+      }
     }), (filesToLoad %>% gsub("\\.qs", "", .)))
     
     conditions <- c("condition", colnames(files$md)[!colnames(files$md) %in% c("file_name", "sample_id", "condition")])
