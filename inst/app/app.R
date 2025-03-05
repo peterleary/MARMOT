@@ -5,7 +5,7 @@ packagesToLoad <- c(
   "ggprism", "rstatix", "gridExtra", "Matrix", "SCpubr", "fresh", "viridis", 
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",
   "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon", 
-  "pals", "scales", "bslib"
+  "pals", "scales", "shinyMarmot"
 )
 invisible(lapply(packagesToLoad, function(pkg) {
   suppressPackageStartupMessages(suppressWarnings(library(pkg, character.only = TRUE, quietly = TRUE)))
