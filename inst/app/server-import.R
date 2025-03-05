@@ -10,7 +10,7 @@ if (!is.null(dataUrl)) {
   dataDir <- file.path(urlDataRoot, dataUrl)
   dataDir <- dataDir[file.exists(dataDir)][1]
 } else if (is.null(dataUrl) & !exists("marmot_output")) {
-  dataDir <- "examples/R_files/"
+  dataDir <- system.file("examples/R_files/", package = "shinyMarmot")
 }
 
 # 2025-01-29: Read in local proteomics file if specified 
