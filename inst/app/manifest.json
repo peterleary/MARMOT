@@ -5355,12 +5355,12 @@
         "RemoteType": "github",
         "RemoteHost": "api.github.com",
         "RemoteRepo": "shinyMarmot",
-        "RemoteUsername": "fgcz",
-        "RemoteSha": "5d879829e3a759d55758a4905cc9aa52f16390fc",
+        "RemoteUsername": "peterleary",
+        "RemoteSha": "4ff7e2d75e7919d8785a6813974f468066f77cb0",
         "GithubRepo": "peterleary",
-        "GithubUsername": "fgcz",
+        "GithubUsername": "peterleary",
         "GithubRef": "HEAD",
-        "GithubSHA1": "5d879829e3a759d55758a4905cc9aa52f16390fc",
+        "GithubSHA1": "4ff7e2d75e7919d8785a6813974f468066f77cb0",
         "NeedsCompilation": "no",
         "Built": "R 4.4.2; ; 2025-03-05 10:17:43 UTC; unix"
       }
