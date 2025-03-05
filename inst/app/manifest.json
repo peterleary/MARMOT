@@ -5356,11 +5356,11 @@
         "RemoteHost": "api.github.com",
         "RemoteRepo": "MARMOT",
         "RemoteUsername": "peterleary",
-        "RemoteSha": "4ff7e2d75e7919d8785a6813974f468066f77cb0",
+        "RemoteSha": "7844b59cf64a7603c7ea9d1a399ac776d2d179b7",
         "GithubRepo": "peterleary",
         "GithubUsername": "peterleary",
         "GithubRef": "HEAD",
-        "GithubSHA1": "4ff7e2d75e7919d8785a6813974f468066f77cb0",
+        "GithubSHA1": "7844b59cf64a7603c7ea9d1a399ac776d2d179b7",
         "NeedsCompilation": "no",
         "Built": "R 4.4.2; ; 2025-03-05 10:17:43 UTC; unix"
       }
