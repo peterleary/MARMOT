@@ -5364,7 +5364,8 @@
         "NeedsCompilation": "no",
         "Built": "R 4.4.2; ; 2025-03-05 10:17:43 UTC; unix"
       }
-    },
+    }
+  },
   "files": {
     "app.R": {
       "checksum": "e2c631e26ebb61a9e4e6e8f800add33d"
