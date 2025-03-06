@@ -5356,11 +5356,11 @@
         "RemoteHost": "api.github.com",
         "RemoteRepo": "MARMOT",
         "RemoteUsername": "peterleary",
-        "RemoteSha": "7844b59cf64a7603c7ea9d1a399ac776d2d179b7",
+        "RemoteSha": "fa82522d4b25d80c77fd9b4170cb0b5e9b0de704",
         "GithubRepo": "peterleary",
         "GithubUsername": "peterleary",
         "GithubRef": "HEAD",
-        "GithubSHA1": "7844b59cf64a7603c7ea9d1a399ac776d2d179b7",
+        "GithubSHA1": "fa82522d4b25d80c77fd9b4170cb0b5e9b0de704",
         "NeedsCompilation": "no",
         "Built": "R 4.4.2; ; 2025-03-05 10:17:43 UTC; unix"
       }
@@ -5368,16 +5368,16 @@
   },
   "files": {
     "app.R": {
-      "checksum": "e2c631e26ebb61a9e4e6e8f800add33d"
+      "checksum": "71ed11db6969564898f15d81766be81e"
     },
     "server-import.R": {
-      "checksum": "53df3246ff15dd8971dba5dfc50805a9"
+      "checksum": "fb1edce10f57642e1c50d0c3c899e0d6"
     },
     "server-umap.R": {
-      "checksum": "9a2eead9570963be05cbdf035757c96d"
+      "checksum": "70c200330ef53557acf694d00803c6c3"
     },
     "ui-tab-umap.R": {
-      "checksum": "a1bc4b1a2487d2b27e89073129f993fa"
+      "checksum": "b08ccf1de43ae7c24a61a930c9ab6cc5"
     },
     "www/eth_logo.png": {
       "checksum": "d0f0ca72d8a842d4afc28b41f423bf0c"
