@@ -1,5 +1,5 @@
 ---
-title: "MARMOT Flow Cytometry Pipeline v1.0.0"
+title: {{PIPELINE_NAME}}
 author: ''
 date: "`r format(Sys.time(), '%Y-%m-%d_%H.%M.%S')`"
 output:
@@ -9,28 +9,23 @@ output:
     code_folding: hide
     toc: true
     toc_depth: 6
-  pdf_document:
-    toc: true
-    toc_depth: '4'
-editor_options:
-  chunk_output_type: inline
 ---
 
-```{r, label = "input settings", cache = FALSE}
+```{r, label = "input settings"}
 ### Change the parts in this chunk ### 
 
 # Most importantly, tell me where the files live - a directory containing all FCS files and an Excel metadata file
-fp <- "~/Desktop/MARMOT/CD45/"
+fp <- NULL
 
 # If you want to use PARC and/or PaCMAP, tell me where conda/mamba is installed
-condaDir <- "~/miniforge3/bin/mamba"
+condaDir <- NULL
 # And then tell me where you saved the PARC and PaCMAP scripts to. They must be called f_pacmap.py and f_parc.py
-parcScriptDir <- "~/Desktop/MARMOT/"
+parcScriptDir <- NULL
 
 # Do you want to downsample everything from QC onwards? This speeds up processing time but may result in loss of extremely rare cell populations.
 # e.g.: `downsampleTo <- 1000` will downsample each FCS file to 1000 cells
 # Leave it as `downsampleTo <- NULL` to keep all cells 
-downsampleTo <- 1000
+downsampleTo <- NULL
 
 # Cell clustering:
 # Clustering method to use, options are: Rphenograph, FastPG, PARC, or FlowSOM. *Pick only 1*
@@ -40,7 +35,7 @@ markersToClusterBy <- "all"
 # How many clustering k values do you want to test?
 kValuesIWant <- c(20, 40, 60)
 # Pick the k value to use. Must be one of kValuesIWant
-knn = 40
+knn <- 40
 
 # Dimension reduction (DR):
 # DR method to use, options are: TSNE, UMAP, or pacmap. *Pick only 1 for now* 
@@ -93,8 +88,6 @@ themeToUse <- "prism"
 # Select a colour theme for the DR plots, pick A through G (or magma, inferno, etc...)
 viridisColour <- "mako"
 
-cache = FALSE
-
 ### That's all! Now you can knit or run all chunks. ### 
 ```
 
@@ -110,7 +103,7 @@ requiredVariables <- c(
   "markersToClusterBy", "kValuesIWant", "knn", "dimRedMethodToUse", "markersToDimRedBy", 
   "drCellCount", "runQC", "removeFromQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll", "runInParallel", 
-  "nCores", "themeToUse", "viridisColour", "cache"
+  "nCores", "themeToUse", "viridisColour"
 )
 missingVariables <- names(unlist(setNames(lapply(requiredVariables, function(x) {
   if (!exists(x)) {
@@ -125,13 +118,14 @@ if(!is.null(missingVariables)) {
 
 ```{r, label = "knitr settings", include = FALSE}
 knitr::opts_chunk$set(
-  comment = '', fig.width = 8, fig.height = 8, warning = FALSE, error = FALSE, message = FALSE, cache = cache, echo = FALSE, cache.lazy = FALSE, dev = 'png'
+  comment = '', fig.width = 8, fig.height = 8, warning = FALSE, error = FALSE, message = FALSE, cache = FALSE, cache.lazy = FALSE, echo = FALSE,  dev = 'png'
 )
+# cache.lazy = FALSE,
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
 options(bitmapType='cairo')
 ```
 
-```{r, label = "load packages", include = FALSE, cache = FALSE}
+```{r, label = "load packages", include = FALSE}
 suppressPackageStartupMessages({
   library(future.apply)
   library(flowCore)
@@ -184,14 +178,14 @@ if(!is.null(RDataFolder)) {
   print(paste("Using previously-generated results from folder:", RDataFolder))
 }
 
-clusteringMethodNames <- list(
-  "Rphenograph" = c("Rphenograph", "rphenograph", "RPHENOGRAPH", "RPhenograph", "r-phenograph", "rhpenograph", "rphenogarph"),
-  "FastPG" = c("FastPG", "fastpg", "FASTPG", "Fastpg", "fastPG", "fartPG", "fartyowls"),
-  "PARC" = c("PARC", "parc", "Parc", "Prac", "Pcra"),
-  "FlowSOM" = c("FlowSOM", "flowsom", "flowSOM", "FlowSom", "Flow-SOM")
-)
-
-clusteringMethodToUse <- names(clusteringMethodNames)[grep(clusteringMethodToUse, clusteringMethodNames, ignore.case = TRUE)]
+# clusteringMethodNames <- list(
+#   "Rphenograph" = c("Rphenograph", "rphenograph", "RPHENOGRAPH", "RPhenograph", "r-phenograph", "rhpenograph", "rphenogarph"),
+#   "FastPG" = c("FastPG", "fastpg", "FASTPG", "Fastpg", "fastPG", "fartPG", "fartyowls"),
+#   "PARC" = c("PARC", "parc", "Parc", "Prac", "Pcra"),
+#   "FlowSOM" = c("FlowSOM", "flowsom", "flowSOM", "FlowSom", "Flow-SOM")
+# )
+# 
+# clusteringMethodToUse <- names(clusteringMethodNames)[grep(clusteringMethodToUse, clusteringMethodNames, ignore.case = TRUE)]
 
 # Get some variables 
 mergeBy <- switch(
@@ -208,12 +202,12 @@ if (greyscalePlots) {
 }
 ```
 
-```{r, label = "import md file", results = "hide", cache = F}
+```{r, label = "import md file", results = "hide"}
 # md = sample metadata
-md <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = 2)
+md <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = "File Data")
 
 # smd <- study meatadata
-smd <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = 1)
+smd <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = "Study Data")
 # where the fcs files are
 fcsDir <- file.path(fp)
 
@@ -280,7 +274,7 @@ md$sample_id <- factor(md$sample_id, levels = md$sample_id)
 md$patient_id <- factor(md$patient_id, levels = md$sample_id)
 ```
 
-```{r, label = "Cluster colours", results = "hide", cache = F}
+```{r, label = "Cluster colours", results = "hide"}
 # Get the catalyst colours 
 catalystCols <- c(
   "#DC050C", "#FB8072", "#1965B0", "#7BAFDE", "#882E72", "#B17BA6", 
@@ -316,7 +310,7 @@ coloursList <- setNames(lapply(conditions, function(x) {
 }), conditions)
 ```
 
-```{r, label = "import fcs files", results = "asis", include = FALSE, dependson = c("input settings", "import md file"), eval = is.null(RDataFolder), cache = F}
+```{r, label = "import fcs files", results = "asis", include = FALSE, dependson = c("input settings", "import md file"), eval = is.null(RDataFolder)}
 # Create the frames list 
 fns <- dir(fcsDir, full.names = TRUE, pattern = ".fcs") %>% gsub(".*\\/", "", .)
 frames <- setNames(lapply(fns, function(x) {
@@ -398,7 +392,7 @@ if (runQC) {
 }
 ```
 
-```{r, label = "arrange frames list", results = "asis", include = FALSE, dependson = -2, eval = is.null(RDataFolder), cache = F}
+```{r, label = "arrange frames list", results = "asis", include = FALSE, dependson = -2, eval = is.null(RDataFolder)}
 fsList <- setNames(lapply(seq_along(framesList), function(i) {
   as(framesList[[i]], "flowSet")
 }), names(framesList))
@@ -510,7 +504,7 @@ names(cf2) <- channels$desc
 cf2 <- cf2[useMarkers]
 ```
 
-```{r, label = "make sce", results = "hide", dependson = c("import md file", "arrange frames list"), eval = is.null(RDataFolder), cache = F}
+```{r, label = "make sce", results = "hide", dependson = c("import md file", "arrange frames list"), eval = is.null(RDataFolder)}
 sceList <- setNames(lapply(names(fsList), function(x) {
   prepData(x = fsList[[x]], panel = panel, md = md, features = panel$fcs_colname, cofactor = cf, md_cols = list(factors = conditions))
 }), names(fsList))
@@ -542,7 +536,7 @@ scale.coef <- rowQuantiles(assay(sce, "exprs"), probs = c(0.01, 0.99))
 assay(sce, "norm") <- t(scale(t(assay(sce, "exprs")), center = scale.coef[, 1], scale = (scale.coef[, 2] - scale.coef[, 1])))
 ```
 
-```{r, label = "get some variables", results = "hide", cache = F}
+```{r, label = "get some variables", results = "hide"}
 # If user selected quantile normalised, make them the default expression assay
 if(quantileNormaliseAll) {
   assay(sce, "exprs") <- assay(sce, "exprsQuantNorm")
@@ -630,7 +624,7 @@ if (grepl("Rphenograph|FastPG", clusteringMethodToUse)) {
 }
 ```
 
-```{r, label = "parc", results = "hide", dependson = "input settings", cache = FALSE, eval = is.null(RDataFolder)}
+```{r, label = "parc", results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
 # PARC-based
 if (clusteringMethodToUse == "PARC") {
   use_condaenv("p4r", conda = condaDir)
@@ -657,7 +651,7 @@ if (clusteringMethodToUse == "PARC") {
 }
 ```
 
-```{r, label = "FlowSOM", results = "hide", dependson = "input settings", cache = FALSE, eval = is.null(RDataFolder)}
+```{r, label = "FlowSOM", results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
 if (clusteringMethodToUse == "FlowSOM") {
   sceSOM <- cluster(sce, features = featuresToCluster, xdim = 10, ydim = 10, maxK = max(kValuesIWant), seed = 42)
   for (i in kValuesIWant) {
@@ -671,7 +665,7 @@ if (clusteringMethodToUse == "FlowSOM") {
 }
 ```
 
-```{r, label = "Dim Red", results = "hide", dependson = "input settings", cache = FALSE, eval = is.null(RDataFolder)}
+```{r, label = "Dim Red", results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
 # Get cell number to DR if downsampling
 if (!is.null(drCellCount)) {
   cellsToUmap <- drCellCount
@@ -1622,14 +1616,10 @@ for (i in seq_along(selectedClustersList)) {
 }
 ```
 
+```{r fig.height=8, fig.width=16, eval = F}
 #### Per-Cell Heatmap
-
-```{r}
 scData <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
 scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-```
-
-```{r fig.height=8, fig.width=16}
 Seurat::Idents(scData) <- "cluster_id"
 Seurat::DoHeatmap(
   object = scData,
