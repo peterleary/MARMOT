@@ -166,6 +166,7 @@ suppressPackageStartupMessages({
   library(reticulate)
   library(ggbeeswarm)
   library(Rcpp)
+  library(Seurat)
 })
 plan(multisession, workers = nCores)
 options(future.globals.maxSize = ramPerCore * 1024^3)
@@ -1619,6 +1620,28 @@ for (i in seq_along(selectedClustersList)) {
     cat("\n\n")
   }
 }
+```
+
+#### Per-Cell Heatmap
+
+```{r}
+scData <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
+scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+```
+
+```{r fig.height=8, fig.width=16}
+Seurat::Idents(scData) <- "cluster_id"
+Seurat::DoHeatmap(
+  object = scData,
+  assay = "originalexp",
+  slot = "scale.data",
+  features = (useMarkers %>% gsub("_", "-", .)),
+  group.by = "cluster_id",
+  group.colors = coloursList[[paste0(mergeBy, knn)]],
+  size = 4,
+  vjust = 0.1,
+  group.bar = TRUE
+)
 ```
 
 ### Ridge Plot
