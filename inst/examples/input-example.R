@@ -114,3 +114,8 @@ importedClusters <- readxl::read_xlsx(input$importFile)
 fpFeaturesToPlot <- input$keepBucketFP
 
 input$keepBucketFP <- "CD19"
+
+importedClusters <- reactiveValues(table = NULL)
+importedClusters$table <- openxlsx::read.xlsx(input$importFile, colNames = T)
+importedClusters$table <- importedClusters$table %>% data.frame(check.names = F) %>% column_to_rownames("original")
+clusterTableReactive$table <- importedClusters$table

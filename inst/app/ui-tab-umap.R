@@ -61,7 +61,7 @@ tabItem(
           tags$p("If you plan to publish any of the results generated in the MARMOT pipeline or Shiny Marmot app, please cite us!"),
           tags$b("Marmot: Kirsche et al., 2025"),
           tags$p("Kirsche L, He J, Müller A, Leary P (2025) Marmot. Big Journal."),
-          actionButton(inputId = "acceptCite", label = "I promise to cite you! Now gimme PDFs!!")
+          actionButton(inputId = "acceptCite", label = "I agree to cite you, now give me PDFs!")
         ),
         useFireworks(),
         uiOutput(outputId = "showPDFs")

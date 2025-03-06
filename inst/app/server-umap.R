@@ -26,7 +26,19 @@ observeEvent(input$acceptCite, {
       downloadButton("downloadData", "Download app data"),
       hr(style = "border-top: 1px solid #000000;"), h4("Download App Settings"),
       helpText("Download all the app settings as either an Excel sheet, or as a qs file of the settings as a list."),
-      downloadButton("downloadInputsE", "Download settings (Excel)"), downloadButton("downloadInputsR", "Download settings (qs)")
+      downloadButton("downloadInputsE", "Download settings (Excel)"), downloadButton("downloadInputsR", "Download settings (qs)"),
+      hr(style = "border-top: 1px solid #000000;"), h4("Download FCS Files"),
+      helpText(
+        "Use this button to download modified FCS files. 
+        These contain the original intensity values, in addition to the DR coordinates, 
+        as well as the cluster IDs (and annotation labels) coded as numerical values. 
+        An Excel file mapping the numerical IDs to their original values is also included."
+        ),
+      downloadButton("downloadFCS", "Download FCS files"),
+      downloadButton("downloadClusterCodes", "Download cluster codes"),
+      hr(style = "border-top: 1px solid #000000;"), h4("Main Citations"),
+      tags$p("Please also include citations for the main parts of this pipeline:"),
+      helpText("CATALYST; flowCore; FlowSOM; Phenograph; diffcyt; ComplexHeatmap; edgeR; FlowAI, PARC; PacMAP")
     )
   })
 })
@@ -1333,3 +1345,82 @@ output$dlFP <- downloadHandler(
     dev.off()
   }
 )
+
+## Download modified FCS files ----
+output$downloadClusterCodes <- downloadHandler(
+  filename = function(){
+    "clusterCodes.xlsx"
+  },
+  content = function(file){
+    # Get the full DR df as this has all we need
+    umap_a <- inputDataReactive$Results$umapDFList$All
+    # Code the cluster IDs to a numerical table, and save it for downloading later
+    clusterCodes <- data.frame(
+      "cluster_ids" = levels(umap_a$cluster_id),
+      "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
+    )
+    # If there are new cluster IDs, append them 
+    if ("new_clusters" %in% colnames(umap_a)) {
+      clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
+      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
+    }
+    writexl::write_xlsx(clusterCodes, path = file)
+  }
+)
+
+output$downloadFCS <- downloadHandler(
+  filename = function(){
+    paste("modified_fcs_files_", Sys.Date(), ".zip", sep = "")
+  },
+  content = function(file){
+    
+    # Create the temp dir 
+    temp_directory <- file.path(tempdir(), as.integer(Sys.time()))
+    dir.create(temp_directory)
+    
+    # Get the full DR df as this has all we need
+    umap_a <- inputDataReactive$Results$umapDFList$All
+    # Code the cluster IDs to a numerical table, and save it for downloading later
+    clusterCodes <- data.frame(
+      "cluster_ids" = levels(umap_a$cluster_id),
+      "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
+    )
+    # If there are new cluster IDs, append them 
+    if ("new_clusters" %in% colnames(umap_a)) {
+      clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
+      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
+    }
+    
+    # For every sample, add the DR coords
+    fcsFilesList <- lapply(levels(inputDataReactive$Results$md$sample_id), function(s) {
+      umap_xx <- umap_a[which(umap_a$sample_id == s),]
+      apps <- data.frame(
+        umap_x = umap_xx$x, umap_y = umap_xx$y, cluster_id_codes = clusterCodes$cluster_id_codes[match(umap_xx$cluster_id, clusterCodes$cluster_ids)]
+      )
+      if ("new_clusters" %in% colnames(umap_xx)) {
+        apps$new_cluster_codes <- clusterCodes$new_cluster_codes[match(umap_xx$cluster_id, clusterCodes$cluster_ids)]
+      }
+      fn1 <- inputDataReactive$Results$md$file_name[inputDataReactive$Results$md$sample_id == s]
+      fn2 <- file.path(temp_directory, paste0(s, "_modified.fcs"))
+      
+      write.FCS(
+        x = fr_append_cols(fr = inputDataReactive$Results$framesList$`All Cells`[[fn1]], cols = as.matrix(apps)),
+        filename = fn2, 
+        delimiter="#"
+      )
+    }) %>% setNames(unique(inputDataReactive$Results$md$sample_id))
+    
+    zip::zip(
+      zipfile = file,
+      files = dir(temp_directory),
+      root = temp_directory
+    )
+    
+    unlink(temp_directory, recursive = TRUE)
+    
+  },
+  contentType = "application/zip"
+  
+)
+
+
