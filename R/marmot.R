@@ -16,6 +16,19 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Read Excel file
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
+  
+  cantBeBlank <- c(
+    "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn", 
+    "dimRedMethodToUse", "markersToDimRedBy", "runQC", "useQC", "gimmePDFs",
+    "quantileNormaliseAll", "runInParallel", "nCores", "ramPerCore", "themeToUse",
+    "viridisColour"
+    )
+  lapply(cantBeBlank, function(p) {
+    if (is.na(params_df$Setting[params_df$Variable == p])) {
+      stop(p , " is blank! Please enter a value.")
+    }
+  })
+  
   params_df <- na.omit(params_df)
   
   # Get the list of options chosen
@@ -37,7 +50,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   params_list[["fp"]] <- fp
   
   # Import the template marmot file 
-  rmd_content <- readLines("MARMOT_Pipeline.Rmd")
+  rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "shinyMarmot"))
   
   # Replace the markdown title 
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)

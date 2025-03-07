@@ -52,7 +52,7 @@ drCellCount <- NULL
 # Want to run flowAI QC on your data? Set to TRUE or FALSE 
 runQC <- TRUE
 # Specify which parameters the QC should remove from: FR = flow rate; FS = signal acquisition; FM = dynamic range; all
-removeFromQC <- c("FR", "FS")
+metricsQC <- c("FR", "FS")
 # Do you want to use the QC-filtered cells? Set to TRUE or FALSE
 useQC <- FALSE
 
@@ -103,7 +103,7 @@ viridisColour <- "mako"
 requiredVariables <- c(
   "fp", "condaDir", "parcScriptDir", "downsampleTo", "clusteringMethodToUse", 
   "markersToClusterBy", "kValuesIWant", "knn", "dimRedMethodToUse", "markersToDimRedBy", 
-  "drCellCount", "runQC", "removeFromQC", "useQC", "RDataFolder", "excludeTheseSamples",
+  "drCellCount", "runQC", "metricsQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll", "runInParallel", 
   "nCores", "themeToUse", "viridisColour"
 )
@@ -347,8 +347,8 @@ if (!is.null(downsampleTo)) {
 
 ```{r, label = "run flow_auto_QC", results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
 if (runQC) {
-  if (length(removeFromQC) > 1) {
-    removeFromQC <- paste(removeFromQC, collapse = "_")
+  if (length(metricsQC) > 1) {
+    metricsQC <- paste(metricsQC, collapse = "_")
   }
   if (dir.exists(file.path(fp, "resultsQC")) & all(gsub(".fcs","_QC.fcs", md$file_name) %in% list.files(file.path(fp, "resultsQC"), pattern = "_QC.fcs"))) {
     # If all the QC files are present, then load them in 
@@ -361,7 +361,7 @@ if (runQC) {
     flow_auto_qc(
       fcsfiles = as(framesList[["All Cells"]], "flowSet"), 
       folder_results = file.path(fp, "resultsQC"), 
-      remove_from = removeFromQC, 
+      remove_from = metricsQC, 
       fcs_highQ = "_QC_highQ", 
       fcs_lowQ = "_QC_lowQ"
     )
