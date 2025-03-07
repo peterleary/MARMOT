@@ -3,10 +3,10 @@
 #' @import Rcpp
 #' @examples
 #' \dontrun{
-#' marmot(metadatafile)
+#' marmot(metadata = "FC_metadata.xlsx", name = "Study Name", render = FALSE)
 #' }
-marmot <- function(metadata = NULL, name = "MARMOT Flow Cytometry Pipeline v1.0.0") {
-  require(tidyverse)
+marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
+  suppressPackageStartupMessages({require(tidyverse)})
   if (is.null(metadata)) {
     stop("Oops! You left the metadata argument empty. Please tell me where the Excel file lives!")
   }
@@ -42,7 +42,7 @@ marmot <- function(metadata = NULL, name = "MARMOT Flow Cytometry Pipeline v1.0.
   # Replace the markdown title 
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
   
-  # Construct a regex pattern to find the variable assignment
+  # Remap the variables in the template RMD
   var_name <- "fp"
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
@@ -63,8 +63,17 @@ marmot <- function(metadata = NULL, name = "MARMOT Flow Cytometry Pipeline v1.0.
     rmd_content <- gsub(pattern, replacement, rmd_content)
   }
   
-  output_rmd <- paste0(fp, "/MARMOT_Pipeline_Modified.Rmd")
+  output_rmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".Rmd")
   writeLines(rmd_content, output_rmd)
-  rmarkdown::render(output_rmd)
+  message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
+  if (!render) {
+    message("\nYou chose not to render the HTML report. You can either Knit it yourself in RStudio, or run this function again with `render = TRUE`.\n")
+  }
+  if (render) {
+    message("Now rendering the HTML report. This can take some time...")
+    invisible(rmarkdown::render(output_rmd, output_format = "html_document", clean = TRUE))
+    message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
+    unlink(file.path(fp, "Rplots.pdf"))
+  }
   
 }

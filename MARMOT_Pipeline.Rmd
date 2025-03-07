@@ -4,6 +4,8 @@ author: ''
 date: "`r format(Sys.time(), '%Y-%m-%d_%H.%M.%S')`"
 output:
   html_document:
+    mathjax: https://fgcz-gstore.uzh.ch/reference/mathjax.js
+    self_contained: true
     highlight: tango
     theme: sand
     code_folding: hide
@@ -123,6 +125,7 @@ knitr::opts_chunk$set(
 # cache.lazy = FALSE,
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
 options(bitmapType='cairo')
+options(kableExtra_view_html = F)
 ```
 
 ```{r, label = "load packages", include = FALSE}
@@ -1616,10 +1619,14 @@ for (i in seq_along(selectedClustersList)) {
 }
 ```
 
-```{r fig.height=8, fig.width=16, eval = F}
 #### Per-Cell Heatmap
+
+```{r, label = "Prepare Seurat object for heatmap"}
 scData <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
 scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+```
+
+```{r, label = "Draw big heatmap", fig.height=8, fig.width=20}
 Seurat::Idents(scData) <- "cluster_id"
 Seurat::DoHeatmap(
   object = scData,

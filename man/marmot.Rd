@@ -4,13 +4,13 @@
 \alias{marmot}
 \title{start main marmot pipeline}
 \usage{
-marmot(metadata = NULL, name = "MARMOT Flow Cytometry Pipeline v1.0.0")
+marmot(metadata = NULL, name = "Title", render = FALSE)
 }
 \description{
 start main marmot pipeline
 }
 \examples{
 \dontrun{
-marmot(metadatafile)
+marmot(metadata = "FC_metadata.xlsx", name = "Study Name", render = FALSE)
 }
 }
