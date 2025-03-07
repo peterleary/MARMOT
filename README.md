@@ -3,7 +3,7 @@
 Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data 
 
 <div align="center">
-  <img src="MARMOT_Logo_2-min.png" width="150">
+  <img src="images/MARMOT_Logo_2-min.png" width="150">
 </div>
 
 ## Installation Instructions
@@ -120,7 +120,7 @@ First you will need to install `conda`, or better still, `mamba`. This is a pack
 
 To do this, first go to https://github.com/conda-forge/miniforge and download the appropriate installation script for your system (Figure 1).
 
-![Click to download the appropriate script for your system](Mamba_Install_1.png)
+![Click to download the appropriate script for your system](images/Mamba_Install_1.png)
 
 **NOTE**: If you're using an M-series Mac, you will *have* to install the x86_64 version of mamba, same as R.
 
@@ -168,7 +168,7 @@ Then you will need to download the python scripts for PARC and PaCMAP to a folde
 
 * Link to the PaCMAP Script: https://github.com/stbenke/p4r/blob/master/f_pacmap.py
 
-![Click this button to download the script, and save it to a convenient location, ideally with the main MARMOT pipeline script](Mamba_Install_2.png)
+![Click this button to download the script, and save it to a convenient location, ideally with the main MARMOT pipeline script](images/Mamba_Install_2.png)
 
 Once you have installed mamba, PARC, and PaCMAP, and have downloaded the two scripts, you will need to modify the main FC pipeline script to tell it where mamba is installed and where the two scripts are placed. This is done on lines 26 and 28 of the main FC pipeline script (*i.e.*, the variables `condaDir` and `parcScriptDir`.)
 
