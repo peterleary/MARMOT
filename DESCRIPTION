@@ -44,7 +44,8 @@ Imports:
   qs,
   Rcpp,
   fireworks,
-  Seurat
+  Seurat,
+  openxlsx
 Remotes:
   hypebright/fireworks
 RoxygenNote: 7.3.2

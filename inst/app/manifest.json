@@ -5337,17 +5337,17 @@
         "Built": "R 4.4.2; x86_64-pc-linux-gnu; 2024-11-11 10:26:25 UTC; unix"
       }
     },
-    "shinyMarmot": {
+    "MARMOT": {
       "Source": "github",
       "Repository": null,
       "description": {
-        "Package": "shinyMarmot",
+        "Package": "MARMOT",
         "Type": "Package",
-        "Title": "shinyMarmot",
+        "Title": "MARMOT",
         "Version": "0.1.0",
         "Author": "Peter Leary [aut, cre]",
         "Maintainer": "Peter Leary <peter.leary@uzh.ch>",
-        "Description": "shinyMarmot",
+        "Description": "MARMOT",
         "URL": "https://github.com/peterleary/MARMOT",
         "Encoding": "UTF-8",
         "Imports": "shiny,\nshinydashboard,\ntidyverse,\nRColorBrewer,\nDT,\ncolourpicker,\nwritexl,\ncirclize,\nkableExtra,\nggrepel,\ngplots,\nsortable,\nwaiter,\nggprism,\nrstatix,\ngridExtra,\nMatrix,\nSCpubr,\nfresh,\nviridis,\nplotly,\nshinycssloaders,\nshinyBS,\nCATALYST,\nComplexHeatmap,\ngtools,\nfireworks,\nggnewscale,\nscattermore,\nNebulosa,\nscico,\nchameleon,\npals,\nscales,\nqs,\nRcpp",
