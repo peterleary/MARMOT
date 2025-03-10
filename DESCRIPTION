@@ -52,6 +52,5 @@ Remotes:
   bioc::Nebulosa,
   bioc::ComplexHeatmap,
   bioc::CATALYST,
-  bioc::rstatix,
   bioc::Seurat
 RoxygenNote: 7.3.2
