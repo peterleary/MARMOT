@@ -54,7 +54,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   params_list[["fp"]] <- fp
   
   # Import the template marmot file 
-  rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "shinyMarmot"))
+  rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "MARMOT"))
   
   # Replace the markdown title 
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
