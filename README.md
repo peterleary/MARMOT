@@ -6,6 +6,16 @@ Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
   <img src="images/MARMOT_Logo_2-min.png" width="150">
 </div>
 
+## TL;DR
+
+```{r eval = F}
+devtools::install_github("peterleary/MARMOT")
+library(MARMOT)
+# Fill the template metadata sheet in 
+marmot("MARMOT_Metadata.xlsx", name = "Test", render = TRUE)
+shinyMarmot(marmot_output = "Results-data/R_files")
+```
+
 ## Installation Instructions
 
 ### At A Glance
