@@ -19,7 +19,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames("~/Desktop/FGCZ/MARMOT/MARMOT_Metadata.xlsx"), ignore.case = T))) {
     stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file.")
   }
-  params_df <- read.xlsx(metadata, sheet = "Pipeline Settings")
+  params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
   
   cantBeBlank <- c(
     "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn", 
