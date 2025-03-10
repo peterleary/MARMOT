@@ -51,6 +51,5 @@ Remotes:
   hypebright/fireworks,
   bioc::Nebulosa,
   bioc::ComplexHeatmap,
-  bioc::CATALYST,
-  bioc::Seurat
+  bioc::CATALYST
 RoxygenNote: 7.3.2
