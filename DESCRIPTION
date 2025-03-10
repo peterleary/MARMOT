@@ -48,8 +48,10 @@ Imports:
   Seurat,
   openxlsx
 Remotes:
-  hypebright/fireworks
+  hypebright/fireworks,
   bioc::Nebulosa,
   bioc::ComplexHeatmap,
-  bioc::CATALYST
+  bioc::CATALYST,
+  bioc::rstatix,
+  bioc::Seurat
 RoxygenNote: 7.3.2
