@@ -11,9 +11,10 @@ Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
 ```{r eval = F}
 devtools::install_github("peterleary/MARMOT")
 library(MARMOT)
-# Fill the template metadata sheet in 
+# Fill the template metadata sheet in, put it in the folder with gated FCS files 
 marmot("MARMOT_Metadata.xlsx", name = "Test", render = TRUE)
-shinyMarmot(marmot_output = "Results-data/R_files")
+# The marmots will run the pipeline for a while... and generate a results folder
+shinyMarmot(marmot_output = "Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
 ## Installation Instructions
