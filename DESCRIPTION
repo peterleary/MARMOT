@@ -1,10 +1,10 @@
-Package: shinyMarmot
+Package: MARMOT
 Type: Package
-Title: shinyMarmot
+Title: MARMOT
 Version: 0.1.0
 Author: Peter Leary [aut, cre]
 Maintainer: Peter Leary <peter.leary@uzh.ch>
-Description: shinyMarmot
+Description: MARMOT
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports:
@@ -34,7 +34,6 @@ Imports:
   CATALYST,
   ComplexHeatmap,
   gtools,
-  fireworks,
   ggnewscale,
   scattermore,
   Nebulosa,
@@ -43,5 +42,9 @@ Imports:
   pals,
   scales,
   qs,
-  Rcpp
+  Rcpp,
+  fireworks,
+  Seurat
+Remotes:
+  hypebright/fireworks
 RoxygenNote: 7.3.2
