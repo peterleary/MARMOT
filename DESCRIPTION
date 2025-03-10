@@ -8,6 +8,7 @@ Description: MARMOT
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports:
+  BiocManager,
   shiny,
   shinydashboard,
   tidyverse,
@@ -48,4 +49,7 @@ Imports:
   openxlsx
 Remotes:
   hypebright/fireworks
+  bioc::Nebulosa,
+  bioc::ComplexHeatmap,
+  bioc::CATALYST
 RoxygenNote: 7.3.2
