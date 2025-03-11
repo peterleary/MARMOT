@@ -1,4 +1,4 @@
-#' Extract the metadata file to a specific folder
+#' Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.
 #' @export
 #' @import Rcpp
 #' @examples

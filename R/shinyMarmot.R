@@ -1,4 +1,4 @@
-#' start shinyMarmot application
+#' Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.
 #' @export
 #' @import Rcpp
 #' @examples

@@ -1,4 +1,4 @@
-#' start main marmot pipeline
+#' The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
 #' @export
 #' @import Rcpp
 #' @examples
