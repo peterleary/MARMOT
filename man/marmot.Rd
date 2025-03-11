@@ -2,12 +2,12 @@
 % Please edit documentation in R/marmot.R
 \name{marmot}
 \alias{marmot}
-\title{start main marmot pipeline}
+\title{The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.}
 \usage{
 marmot(metadata = NULL, name = "Title", render = FALSE)
 }
 \description{
-start main marmot pipeline
+The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
 }
 \examples{
 \dontrun{

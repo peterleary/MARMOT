@@ -2,12 +2,12 @@
 % Please edit documentation in R/shinyMarmot.R
 \name{shinyMarmot}
 \alias{shinyMarmot}
-\title{start shinyMarmot application}
+\title{Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.}
 \usage{
 shinyMarmot(marmot_output = NA, demo = NA)
 }
 \description{
-start shinyMarmot application
+Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.
 }
 \examples{
 \dontrun{

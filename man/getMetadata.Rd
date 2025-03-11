@@ -2,12 +2,12 @@
 % Please edit documentation in R/getMetadata.R
 \name{getMetadata}
 \alias{getMetadata}
-\title{Extract the metadata file to a specific folder}
+\title{Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.}
 \usage{
 getMetadata(folder = NULL)
 }
 \description{
-Extract the metadata file to a specific folder
+Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.
 }
 \examples{
 \dontrun{
