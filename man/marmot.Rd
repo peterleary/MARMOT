@@ -2,15 +2,21 @@
 % Please edit documentation in R/marmot.R
 \name{marmot}
 \alias{marmot}
-\title{The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.}
+\title{marmot}
 \usage{
 marmot(metadata = NULL, name = "Title", render = FALSE)
+}
+\value{
+A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
 }
 \description{
 The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
 }
 \examples{
 \dontrun{
-marmot(metadata = "FC_metadata.xlsx", name = "Study Name", render = FALSE)
+marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
 }
+}
+\author{
+Peter Leary
 }

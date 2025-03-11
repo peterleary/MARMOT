@@ -2,15 +2,21 @@
 % Please edit documentation in R/getMetadata.R
 \name{getMetadata}
 \alias{getMetadata}
-\title{Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.}
+\title{Get Metadata}
 \usage{
 getMetadata(folder = NULL)
+}
+\value{
+The MARMOT metadata file will be saved to the specified folder.
 }
 \description{
 Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.
 }
 \examples{
 \dontrun{
-getMetadata(folder = "~/Desktop/MARMOT/")
+getMetadata(folder = "~/Desktop/Flow_Data/")
 }
+}
+\author{
+Peter Leary
 }

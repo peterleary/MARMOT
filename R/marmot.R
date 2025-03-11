@@ -1,9 +1,12 @@
-#' The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
+#' @title marmot
+#' @description The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
+#' @return A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
+#' @author Peter Leary
 #' @export
 #' @import Rcpp
 #' @examples
 #' \dontrun{
-#' marmot(metadata = "FC_metadata.xlsx", name = "Study Name", render = FALSE)
+#' marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
 #' }
 marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   suppressPackageStartupMessages({require(tidyverse)})

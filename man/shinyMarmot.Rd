@@ -2,16 +2,21 @@
 % Please edit documentation in R/shinyMarmot.R
 \name{shinyMarmot}
 \alias{shinyMarmot}
-\title{Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.}
+\title{shinyMarmot}
 \usage{
 shinyMarmot(marmot_output = NA, demo = NA)
+}
+\value{
+An interactive shiny app session in console.
 }
 \description{
 Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.
 }
 \examples{
 \dontrun{
-marmotOut <- system.file("examples/R_files/", package = "shinyMarmot")
-shniyMarmot(marmot_output)
+shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
 }
+}
+\author{
+Peter Leary
 }
