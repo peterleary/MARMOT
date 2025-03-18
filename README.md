@@ -6,6 +6,25 @@ Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
   <img src="images/MARMOT_Logo_2-min.png" width="150">
 </div>
 
+<html>
+<hr style="height:5px;border-width:0;color:gray;background-color:gray">
+</html>
+
+**If you are using MARMOT in your work, please cite the MARMOT paper:**
+
+MARMOT: Kirsche et al., 2025
+
+Kirsche L, He J, Müller A, Leary P (2025) ➡ TBD
+
+**And feel free to link MARMOT in your methods:** 
+https://github.com/peterleary/MARMOT
+
+For additional information, guidelines, and tips, please refer to the [Wiki](../../wiki) on this GitHub. 
+
+<html>
+<hr style="height:5px;border-width:0;color:gray;background-color:gray">
+</html>
+
 ## TL;DR
 
 ```{r eval = F}
