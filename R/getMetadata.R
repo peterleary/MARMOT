@@ -12,10 +12,16 @@
 #'  openxlsx::write.xlsx(x = system.file("pipeline/", "MARMOT_Metadata.xlsx", package = "MARMOT"), file = file.path(folder, "MARMOT_Metadata.xlsx"))
 #' }
 
-getMetadata <- function(folder = NULL) {
-  file_path <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT")
-  if (file_path == "") {
-    stop("MARMOT_Metadata.xlsx not found. Ensure it is placed in 'inst/pipeline/' and the package is rebuilt.")
+getMetadata <- function() {
+  # Locate the metadata file in the installed package
+  pkg_file <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT")
+  
+  # Check if the file exists and is found
+  if (!nzchar(pkg_file) || !file.exists(pkg_file)) {
+    stop("Metadata file not found in the package installation. Please ensure 'inst/pipeline/MARMOT_Metadata.xlsx' is included in your package.")
   }
-  file.copy(from = file_path, to = file.path(folder, "MARMOT_Metadata.xlsx"), overwrite = TRUE)
+  
+  # Read and return the metadata from the Excel file
+  metadata <- readxl::read_excel(pkg_file)
+  return(metadata)
 }
