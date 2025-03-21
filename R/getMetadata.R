@@ -14,7 +14,7 @@
 
 getMetadata <- function() {
   # Locate the metadata file in the installed package
-  pkg_file <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT")
+  pkg_file <- system.file("pipeline/", "MARMOT_Metadata.xlsx", package = "MARMOT")
   
   # Check if the file exists and is found
   if (!nzchar(pkg_file) || !file.exists(pkg_file)) {
