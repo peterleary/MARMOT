@@ -47,8 +47,8 @@ shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.
 
 *Basic setup*
 
-* Install R (>= version 4.3)
-* Install Bioconductor (>= version 3.18)
+* Install R (>= version 4.4)
+* Install Bioconductor (>= version 3.20)
 * Install the required R packages
 
 *Advanced setup*
