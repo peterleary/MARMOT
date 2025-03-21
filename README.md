@@ -84,7 +84,7 @@ packagesToInstall <- c(
   "diffcyt", "ggpubr", "flowSpecs", "ggprism", "gridExtra", "rstatix", "plotly",
   "slingshot", "grDevices", "RColorBrewer", "reshape2", "grid", 
   "ComplexHeatmap", "circlize", "clustree", "kableExtra", "DT", "flowAI", 
-  "parallel", "qs", "ggrepel", "gtools", "reticulate", "ggbeeswarm", "futures"
+  "parallel", "qs", "ggrepel", "gtools", "reticulate", "ggbeeswarm", "future"
 )
 BiocManager::install(packagesToInstall, force = TRUE)
 ```
