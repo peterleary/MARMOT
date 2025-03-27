@@ -6,7 +6,7 @@
 #' @import Rcpp
 #' @examples
 #' \dontrun{
-#' marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
+#' getMetadata("Files/MARMOT_Metadata.xlsx")
 #' }
 getMetadata <- function(localfilepath = ".") {
   # Define the path to the metadata file inside the package

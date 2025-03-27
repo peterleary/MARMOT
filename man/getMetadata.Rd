@@ -14,7 +14,7 @@ This function copies the metadata file from the package to a user-defined locati
 }
 \examples{
 \dontrun{
-marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
+getMetadata("Files/MARMOT_Metadata.xlsx")
 }
 }
 \author{
