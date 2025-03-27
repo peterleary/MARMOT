@@ -14,7 +14,7 @@ Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
 
 MARMOT: Kirsche et al., 2025
 
-Kirsche L, He J, Müller A, Leary P (2025) ➡ TBD
+Kirsche L, He J, Müller A, Leary P (2025). MARMOT: A multifaceted R pipeline for analysing spectral flow cytometry data from subcutaneously growing murine gastric organoids. Journal of Immunological Methods. https://doi.org/10.1016/j.jim.2025.113854
 
 **And feel free to link MARMOT in your methods:** 
 https://github.com/peterleary/MARMOT

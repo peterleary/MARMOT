@@ -59,8 +59,8 @@ tabItem(
           width = 12,
           h4("Before you download..."),
           tags$p("If you plan to publish any of the results generated in the MARMOT pipeline or Shiny Marmot app, please cite us!"),
-          tags$b("Marmot: Kirsche et al., 2025"),
-          tags$p("Kirsche L, He J, Müller A, Leary P (2025) Marmot. Big Journal."),
+          tags$b("MARMOT: Kirsche et al., 2025"),
+          tags$p("Kirsche L, He J, Müller A, Leary P (2025) MARMOT: A multifaceted R pipeline for analysing spectral flow cytometry data from subcutaneously growing murine gastric organoids. https://doi.org/10.1016/j.jim.2025.113854"),
           actionButton(inputId = "acceptCite", label = "I agree to cite you, now give me PDFs!")
         ),
         useFireworks(),

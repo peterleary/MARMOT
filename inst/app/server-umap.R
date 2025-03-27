@@ -1,6 +1,3 @@
-req(exists("inputDataReactive"))
-req(!is.null(inputDataReactive$Results[["sce"]]))
-
 # Fireworks ----
 fw <- Fireworks$new()
 observe({
@@ -42,7 +39,6 @@ observeEvent(input$acceptCite, {
     )
   })
 })
-
 
 # Get some nice colours for things ----
 catalystCols <- c(
@@ -144,7 +140,7 @@ output$changeLabelTable <- DT::renderDataTable(DT::datatable(labelDf, class = "d
 # If the posMarkers xlsx file was loaded, create the UI to display it
 output$posMarkerUI <- renderUI({
   if ("topMarkerTable" %in% names(inputDataReactive$Results)) {
-    req(!is.null(inputDataReactive$Results[["topMarkerTable"]]))
+    # req(!is.null(inputDataReactive$Results[["topMarkerTable"]]))
     DT::dataTableOutput(outputId = "posMarkerTable")
   } else {
     renderText("No Marker Gene table was loaded.")
@@ -152,7 +148,7 @@ output$posMarkerUI <- renderUI({
 })
 # If the posMarkers xlsx file was loaded, table the table in the table UI
 if ("topMarkerTable" %in% names(inputDataReactive$Results)) {
-  req(!is.null(inputDataReactive$Results[["topMarkerTable"]]))
+  # req(!is.null(inputDataReactive$Results[["topMarkerTable"]]))
   dt1 <- DT::datatable(
     data = inputDataReactive$Results[["topMarkerTable"]], 
     filter = "top", 
@@ -301,8 +297,8 @@ observeEvent(input$importFile, {
   if(any(!inputDataReactive$Results[["sce"]]@colData$cluster_id %in% rownames(importedClusters$table))) {
     shinyalert::shinyalert(title = "Marmot says no", text = "You uploaded a file that has different original cluster IDs or different numbers of original clusters. Are you sure it's from this study?", closeOnEsc = TRUE, closeOnClickOutside = TRUE, showCancelButton = TRUE)
   } else {
-    req(!is.null(clusterTableReactive$table))
-    req(!is.null(importedClusters$table))
+    # req(!is.null(clusterTableReactive$table))
+    # req(!is.null(importedClusters$table))
     clusterTableReactive$table <- importedClusters$table
   }
 })
@@ -423,7 +419,7 @@ umapReactive <- eventReactive(
   ignoreNULL = FALSE,
   {
     tryCatch({
-      req(nchar(input$umapColumnToPlot) >= 2)
+      # req(nchar(input$umapColumnToPlot) >= 2)
 
       if (input$umapColumnToSplit == "None") {
         umapColumnToSplit <- NULL
@@ -436,8 +432,8 @@ umapReactive <- eventReactive(
       umapDF <- inputDataReactive$Results$umapDFList$Downsampled
 
       if (input$umapColumnToPlot == "new_clusters") {
-        req("new_clusters" %in% colnames(inputDataReactive$Results[["sce"]]@colData))
-        req(length(inputDataReactive$Results$coloursList[["new_clusters"]]) >= 2)
+        # req("new_clusters" %in% colnames(inputDataReactive$Results[["sce"]]@colData))
+        # req(length(inputDataReactive$Results$coloursList[["new_clusters"]]) >= 2)
         # umapDF$new_clusters <- inputDataReactive$Results[["sce"]]@colData$new_clusters[match(inputDataReactive$Results[["sce"]]@colData$cluster_id, umapDF$cluster_id)]
       }
 
@@ -652,7 +648,7 @@ observeEvent(
   },
   ignoreNULL = FALSE,
   {
-    req(nchar(input$featurePlotType) > 2)
+    # req(nchar(input$featurePlotType) > 2)
     if (input$featurePlotType == "Feature Plot") {
       output$umapFeaturePlotSettingsUI7 <- renderUI({
         checkboxInput(inputId = "fpDRCustomMinMax", label = "Use custom min/max values?", value = FALSE)
@@ -788,7 +784,7 @@ observeEvent({
   input$featurePlotType
   }, ignoreNULL = TRUE, {
   if (input$featurePlotType %in% c("Heatmap", "Individual Heatmap", "Dot Plot")) {
-    req(!is.null(input$fpHeatmapPlotAll))
+    # req(!is.null(input$fpHeatmapPlotAll))
     if (input$fpHeatmapPlotAll) {
       currentlySelectedGenes <- previousFeatureSelection(input$fpFeatureToPlot)
       updateSelectInput(session = session, inputId = "fpFeatureToPlot", selected = names(inputDataReactive$Results$sce))
@@ -851,8 +847,8 @@ observeEvent(
   ignoreNULL = FALSE,
   {
     tryCatch({
-      req(length(input$plotByKeepBucket) > 1)
-      req(nchar(input$featurePlotType) >= 2)
+      # req(length(input$plotByKeepBucket) > 1)
+      # req(nchar(input$featurePlotType) >= 2)
       scDataToFP <- inputDataReactive$Results$scData
 
       if (input$viridisColourFP %in% viridisColours) {
@@ -974,7 +970,7 @@ observeEvent(
               }
             }
           } else {
-            req(!is.null(input$rasterFP_DPI))
+            # req(!is.null(input$rasterFP_DPI))
             fp2 <- fp2 + eval(parse(text = paste0("geom_scattermore(pointsize = ", (input$pointSizeFP*2)+0.6, ", pixels = c(", input$rasterFP_DPI, ",", input$rasterFP_DPI,"), aes(colour = `", gene, "`))")))
             if (input$viridisColourFP %in% viridisColours) {
               fp2 <- fp2 + scale_colour_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
@@ -1026,7 +1022,7 @@ observeEvent(
           fp2
         })
       } else if (input$featurePlotType == "Nebulosa Plot") {
-        req(any(nchar(fpFeaturesToPlot) >= 2))
+        # req(any(nchar(fpFeaturesToPlot) >= 2))
         require("Nebulosa")
         combine = TRUE
         joint = input$fpNebulosaPlotTogether
@@ -1090,7 +1086,7 @@ observeEvent(
               }
             }
           } else {
-            req(!is.null(input$rasterFP_DPI))
+            # req(!is.null(input$rasterFP_DPI))
             fp2 <- fp2 + eval(parse(text = paste0("geom_scattermore(pointsize = ", (input$pointSizeFP*2)+0.6, ", pixels = c(", input$rasterFP_DPI, ",", input$rasterFP_DPI,"), aes(colour = feature))")))
             if (input$viridisColourFP %in% viridisColours) {
               fp2 <- fp2 + scale_colour_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
@@ -1142,10 +1138,10 @@ observeEvent(
           fp2
         })
       # } else if (input$featurePlotType == "Boxplot") {
-      #   assay <-  Seurat::GetAssayData(object = scDataToFP, assay = "originalexp", layer = input$fpAssayToPlot) %>% 
+      #   assay <-  Seurat::GetAssayData(object = scDataToFP, assay = "originalexp", layer = input$fpAssayToPlot) %>%
       #     t %>%
       #     data.frame(check.names = F) %>%
-      #     rownames_to_column("cell-id") %>% 
+      #     rownames_to_column("cell-id") %>%
       #     left_join((scDataToFP@meta.data %>% data.frame(check.names = F) %>% rownames_to_column("cell-id")), by = "cell-id")
       #   fp <- lapply(fpFeaturesToPlot, function(gene) {
       #     gtp <- gene %>% gsub("-", "_", .)
@@ -1157,7 +1153,7 @@ observeEvent(
       #       theme_prism()
       #   })
       } else if (input$featurePlotType == "Violin Plot") {
-        req(any(nchar(fpFeaturesToPlot) >= 2))
+        # req(any(nchar(fpFeaturesToPlot) >= 2))
         if (!is.null(fpColumnToSplit)) {
           colsToViolin <- fpColumnToSplit
         } else {
@@ -1202,8 +1198,8 @@ observeEvent(
           fp <- fp + scale_fill_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
         }
       } else if (input$featurePlotType == "Dot Plot") {
-        req(any(nchar(fpFeaturesToPlot) >= 2))
-        req(!is.null(input$umapFeaturePlotDotplotFlip))
+        # req(any(nchar(fpFeaturesToPlot) >= 2))
+        # req(!is.null(input$umapFeaturePlotDotplotFlip))
         fp <- do_DotPlot(
           sample = scDataToFP,
           features = fpFeaturesToPlot,
@@ -1224,7 +1220,7 @@ observeEvent(
           fp <- fp + scale_fill_distiller(palette = input$viridisColourFP, direction = viridisFlip, type = "div")
         }
       } else if (input$featurePlotType == "Heatmap") {
-        req(any(nchar(fpFeaturesToPlot) >= 2))
+        # req(any(nchar(fpFeaturesToPlot) >= 2))
         fp <- do_ExpressionHeatmap(
           sample = scDataToFP,
           features = fpFeaturesToPlot,
@@ -1242,7 +1238,7 @@ observeEvent(
           fp <- fp + scale_fill_distiller(palette = input$viridisColourFP, direction = viridisFlip, type = "div")
         }
       } else if (input$featurePlotType == "Ridge Plot") {
-        req(any(nchar(fpFeaturesToPlot) >= 2))
+        # req(any(nchar(fpFeaturesToPlot) >= 2))
         if (length(fpFeaturesToPlot) == 1) {
           fp <- do_RidgePlot(
             sample = scDataToFP,
@@ -1359,7 +1355,7 @@ output$downloadClusterCodes <- downloadHandler(
       "cluster_ids" = levels(umap_a$cluster_id),
       "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
     )
-    # If there are new cluster IDs, append them 
+    # If there are new cluster IDs, append them
     if ("new_clusters" %in% colnames(umap_a)) {
       clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
       clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
@@ -1373,11 +1369,11 @@ output$downloadFCS <- downloadHandler(
     paste("modified_fcs_files_", Sys.Date(), ".zip", sep = "")
   },
   content = function(file){
-    
-    # Create the temp dir 
+
+    # Create the temp dir
     temp_directory <- file.path(tempdir(), as.integer(Sys.time()))
     dir.create(temp_directory)
-    
+
     # Get the full DR df as this has all we need
     umap_a <- inputDataReactive$Results$umapDFList$All
     # Code the cluster IDs to a numerical table, and save it for downloading later
@@ -1385,12 +1381,12 @@ output$downloadFCS <- downloadHandler(
       "cluster_ids" = levels(umap_a$cluster_id),
       "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
     )
-    # If there are new cluster IDs, append them 
+    # If there are new cluster IDs, append them
     if ("new_clusters" %in% colnames(umap_a)) {
       clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
       clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
     }
-    
+
     # For every sample, add the DR coords
     fcsFilesList <- lapply(levels(inputDataReactive$Results$md$sample_id), function(s) {
       umap_xx <- umap_a[which(umap_a$sample_id == s),]
@@ -1402,25 +1398,23 @@ output$downloadFCS <- downloadHandler(
       }
       fn1 <- inputDataReactive$Results$md$file_name[inputDataReactive$Results$md$sample_id == s]
       fn2 <- file.path(temp_directory, paste0(s, "_modified.fcs"))
-      
+
       write.FCS(
         x = fr_append_cols(fr = inputDataReactive$Results$framesList$`All Cells`[[fn1]], cols = as.matrix(apps)),
-        filename = fn2, 
+        filename = fn2,
         delimiter="#"
       )
     }) %>% setNames(unique(inputDataReactive$Results$md$sample_id))
-    
+
     zip::zip(
       zipfile = file,
       files = dir(temp_directory),
       root = temp_directory
     )
-    
+
     unlink(temp_directory, recursive = TRUE)
-    
+
   },
   contentType = "application/zip"
-  
+
 )
-
-
