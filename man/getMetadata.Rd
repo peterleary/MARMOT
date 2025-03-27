@@ -2,21 +2,31 @@
 % Please edit documentation in R/getMetadata.R
 \name{getMetadata}
 \alias{getMetadata}
-\title{Get Metadata}
+\title{Download the MARMOT metadata file}
 \usage{
-getMetadata(folder = NULL)
+getMetadata(localfilepath)
 }
-\value{
-The MARMOT metadata file will be saved to the specified folder.
+\arguments{
+\item{localfilepath}{A character string specifying the full path where the 
+metadata file should be saved. If `NULL` (default), the file will be saved 
+in the current working directory as `"MARMOT_Metadata.xlsx"`.}
 }
 \description{
-Extract the template MARMOT metadata file to a specific folder for easy editing in Excel.
+This function copies the metadata Excel file (`MARMOT_Metadata.xlsx`) from 
+the package directory to a user-specified location.
+}
+\details{
+The metadata file is stored within the package's `inst/pipeline/` directory. 
+This function retrieves the file path dynamically and allows users to copy it 
+to a desired location.
 }
 \examples{
 \dontrun{
-getMetadata(folder = "~/Desktop/Flow_Data/")
+# Download to the current working directory
+getMetadata()
+
+# Download to a specific location
+getMetadata("C:/Users/YourName/Documents/MARMOT_Metadata.xlsx")
 }
-}
-\author{
-Peter Leary
+
 }

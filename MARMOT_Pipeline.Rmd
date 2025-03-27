@@ -4,7 +4,6 @@ author: ''
 date: "`r format(Sys.time(), '%Y-%m-%d_%H.%M.%S')`"
 output:
   html_document:
-    mathjax: https://fgcz-gstore.uzh.ch/reference/mathjax.js
     self_contained: true
     highlight: tango
     theme: sand
