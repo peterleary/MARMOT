@@ -19,7 +19,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Read Excel file
   # TODO: add check to make sure sheet "Pipeline Settings" exists 
-  if(!any(grepl("pipeline settings", openxlsx::getSheetNames("~/Desktop/FGCZ/MARMOT/MARMOT_Metadata.xlsx"), ignore.case = T))) {
+  if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
     stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file.")
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
@@ -43,7 +43,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Tidy up the params
   params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, " ") %>% unlist %>% as.numeric
-  params_list$removeFromQC <- strsplit(params_list$removeFromQC, " ") %>% unlist
+  params_list$metricsQC <- strsplit(params_list$metricsQC, " ") %>% unlist
   for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
