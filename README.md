@@ -41,9 +41,9 @@ marmot("~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", name = "Test", render = TRUE)
 shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
-This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, UMAP, and t-SNE.
+This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
 
-If you want to install the extra options, namely Rphenograph, FastPG, PARC, and PaCMAP, follow the instructions below.
+If you want to install the extra options, namely FastPG, PARC, and PaCMAP, follow the instructions below.
 
 <hr> 
 
@@ -54,87 +54,14 @@ If you want to install the extra options, namely Rphenograph, FastPG, PARC, and 
 * Install Rphenograph/FastPG
 * Install conda (even better, mamba)
 * Download PARC/PaCMAP python scripts from Stephan Benke-Bruderer
-* Modify the FC pipeline script to include your mamba installation location and location of PARC/PaCMAP scripts 
+* Modify the metadata to include your mamba installation location and location of PARC/PaCMAP scripts 
 * Ensure you're running x86 R and mamba if using M-series Mac to ensure compatibility with everything
 
 ### Full Installation Guide
 
-#### Part 1: Basic Setup
-
-Follow these instructions to get the main features running, which will enable you to use t-SNE and UMAP for plotting, and FlowSOM for clustering.
-
-Based on R 4.4.1; Bioconductor 3.19.
-
-Assuming you have R and RStudio/Positron installed. 
-
 **NOTE**: If you're using an M-series Mac, it is *highly* recommend downloading the x86_64 version of R to ensure compatibility with all the packages. It is **required** for FastPG, PARC, and PaCMAP. 
 
-```{r eval = F}
-# In R
-install.packages("BiocManager")
-BiocManager::install(version = "3.19")
-```
-
-```{r eval = F}
-# In R
-packagesToInstall <- c(
-  "flowCore", "FlowSOM", "tidyverse", "CATALYST", "readxl", "cowplot", 
-  "diffcyt", "ggpubr", "flowSpecs", "ggprism", "gridExtra", "rstatix", "plotly",
-  "slingshot", "grDevices", "RColorBrewer", "reshape2", "grid", 
-  "ComplexHeatmap", "circlize", "clustree", "kableExtra", "DT", "flowAI", 
-  "parallel", "qs", "ggrepel", "gtools", "reticulate", "ggbeeswarm", "future"
-)
-BiocManager::install(packagesToInstall, force = TRUE)
-```
-
-Installing these on a new system can take considerable time, especially on Linux-based systems (potentially over 30 minutes). For a fresh Linux installation (*e.g.*, a cluster node), you may need to install several additional libraries, which will require `sudo` access.
-
-#### Part 1: Rphenograph
-
-We strongly suggest taking a moment to also install Rphenograph.
-
-[RPhenograph](https://github.com/JinmiaoChenLab/Rphenograph) is not available on Bioconductor and as such needs to be installed manually. 
-
-It may not compile on the ARM version of R on M-series Macs. Again, it is advised to use an x86 installation where possible. 
-
-```{r eval = F}
-# In R
-# Install devtools if required
-install.packages("devtools")
-devtools::install_github("JinmiaoChenLab/Rphenograph")
-```
-
-#### Test the Installation
-
-Once you have installed the Bioconductor packages and RPhenograph, it is important to test that they installed and load correctly. 
-
-If all packages have installed correctly, you should be able to run the following code with no errors, and all should return TRUE:
-
-```{r eval = F}
-# In R
-lapply(
-  c(packagesToInstall, "Rphenograph"), 
-  require, 
-  character.only = TRUE, 
-  quietly = TRUE
-)
-```
-
-If there are any issues, please manually check which package has failed to install. It probably has dependencies that did not install due to missing libraries. 
-
-Once these have been installed, the pipeline will work with the following cell-clustering and dimension reduction methods: Rphenograph, FlowSOM, UMAP, and tSNE.
-
-If you wish to use alternative methods, including FastPG, PARC, and PaCMAP, follow the instructions below. 
-
-****** 
-
-****** 
-
-### Optional Steps
-
-The following steps are optional and are only required for FastPG, PARC, and PaCMAP.
-
-#### FastPG Support 
+#### FastPG 
 
 FastPG will need to be installed separately, and can be found [here](https://github.com/sararselitsky/FastPG).
 
