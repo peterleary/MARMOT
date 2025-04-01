@@ -48,6 +48,7 @@ Imports:
   Seurat,
   openxlsx
 Remotes:
+  JinmiaoChenLab/Rphenograph,
   hypebright/fireworks,
   bioc::Nebulosa,
   bioc::ComplexHeatmap,

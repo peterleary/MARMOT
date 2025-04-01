@@ -41,17 +41,15 @@ marmot("~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", name = "Test", render = TRUE)
 shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
-## Installation Instructions
+This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, UMAP, and t-SNE.
 
-### At A Glance
+If you want to install the extra options, namely Rphenograph, FastPG, PARC, and PaCMAP, follow the instructions below.
 
-*Basic setup*
+<hr> 
 
-* Install R (>= version 4.4)
-* Install Bioconductor (>= version 3.20)
-* Install the required R packages
+## Full Installation Instructions
 
-*Advanced setup*
+### Quick Guide
 
 * Install Rphenograph/FastPG
 * Install conda (even better, mamba)
