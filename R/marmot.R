@@ -11,7 +11,7 @@
 marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   suppressPackageStartupMessages({require(tidyverse)})
   if (is.null(metadata)) {
-    stop("Oops! You left the metadata argument empty. Please tell me where the Excel file lives!")
+    stop("Oops! You left the metadata argument empty. Please tell me where the Excel Metadata file lives!")
   }
   
   # Get the directory name
@@ -20,7 +20,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   # Read Excel file
   # TODO: add check to make sure sheet "Pipeline Settings" exists 
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
-    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file.")
+    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run the getMetadata function again.")
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
   
@@ -32,7 +32,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     )
   lapply(cantBeBlank, function(p) {
     if (is.na(params_df$Setting[params_df$Variable == p])) {
-      stop(p , " is blank! Please enter a value.")
+      stop(p , " is blank! Please enter a value in the Excel Metadata file.")
     }
   })
   
