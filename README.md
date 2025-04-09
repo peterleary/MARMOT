@@ -33,12 +33,17 @@ This is all the R code you will need to run the MARMOT pipeline and load the Shi
 # Step 1. Install and load 
 devtools::install_github("peterleary/MARMOT")
 library(MARMOT)
-# Step 2: Save the template metadata sheet in a folder with the gated FCS files
-getMetadata("~/Desktop/Flow_Data/")
-# Step 3: Fill the template metadata sheet in manually in Excel
+
+# Step 2: Save the template metadata file in a folder with the gated FCS files
+addMetadataToFCSFolder(FCS_folder = "~/Desktop/Flow_Data/")
+# This will place a copy of the template Excel Metadata file in the folder you specified
+
+# Step 3: Fill the metadata file in manually in Excel
+
 # Step 4: Run the pipeline
-marmot("~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", name = "Test", render = TRUE)
+marmot("~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", name = "CD45+ Treated vs Control", render = TRUE)
 # The marmots will run the pipeline for a while... and generate a results folder
+
 # Step 5: Load the shiny app
 shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
