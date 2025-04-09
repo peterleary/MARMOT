@@ -17,8 +17,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   # Get the directory name
   fp <- dirname(metadata)
   
-  # Read Excel file
-  # TODO: add check to make sure sheet "Pipeline Settings" exists 
+  # Read Metadata Excel file
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
     stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run the getMetadata function again.")
   }

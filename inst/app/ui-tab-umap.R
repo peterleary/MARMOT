@@ -196,7 +196,7 @@ tabItem(
         status = "warning", 
         collapsible = TRUE,
         width = 4,
-        tabsetPanel(
+        # tabsetPanel(
           tabPanel(
             title = "Metadata",
             DT::dataTableOutput(outputId = "metadataTable"),
@@ -206,7 +206,7 @@ tabItem(
           #   title = "Change labels",
           #   DT::dataTableOutput(outputId = "changeLabelTable")
           # )
-        )
+        # )
       ),
       box(
         title = "Marker Table", 
