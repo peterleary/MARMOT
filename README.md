@@ -41,7 +41,11 @@ addMetadataToFCSFolder(FCS_folder = "~/Desktop/Flow_Data/")
 # Step 3: Fill the metadata file in manually in Excel
 
 # Step 4: Run the pipeline
-marmot("~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", name = "CD45+ Treated vs Control", render = TRUE)
+marmot(
+  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", 
+  name = "CD45+ Treated vs Control", 
+  render = TRUE
+  )
 # The marmots will run the pipeline for a while... and generate a results folder
 
 # Step 5: Load the shiny app
