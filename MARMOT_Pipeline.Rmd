@@ -130,6 +130,10 @@ options(kableExtra_view_html = F)
 
 ```{r, label = "load packages", include = FALSE}
 suppressPackageStartupMessages({
+  library(BiocGenerics)
+  library(S4Vectors)
+  library(SummarizedExperiment)
+  library(SingleCellExperiment)
   library(future.apply)
   library(flowCore)
   library(FlowSOM)
@@ -169,6 +173,16 @@ plan(multisession, workers = nCores)
 options(future.globals.maxSize = ramPerCore * 1024^3)
 set.seed(2)
 htmltools::tagList(datatable(cars))
+tryCatch({
+  # First check if the class exists at all
+  if (!exists("ExpData", mode="S4")) {
+    # Create the class union in the global environment
+    methods::setClassUnion("ExpData", c("matrix", "SummarizedExperiment"), 
+                 where = .GlobalEnv)
+  }
+}, error = function(e) {
+  message("Note: Attempted to create ExpData class union but encountered: ", e$message)
+})
 ```
 
 ```{r, label = "load RData", include = F, results = 'asis'}
@@ -508,7 +522,6 @@ cf2 <- cf2[useMarkers]
 ```
 
 ```{r, label = "make sce", results = "hide", dependson = c("import md file", "arrange frames list"), eval = is.null(RDataFolder)}
-setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
 sceList <- setNames(lapply(names(fsList), function(x) {
   prepData(x = fsList[[x]], panel = panel, md = md, features = panel$fcs_colname, cofactor = cf, md_cols = list(factors = conditions))
 }), names(fsList))
