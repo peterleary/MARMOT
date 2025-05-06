@@ -7,6 +7,7 @@ packagesToLoad <- c(
   "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon", 
   "pals", "scales", "MARMOT", "flowCore"
 )
+setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
 invisible(lapply(packagesToLoad, function(pkg) {
   suppressPackageStartupMessages(suppressWarnings(library(pkg, character.only = TRUE, quietly = TRUE)))
 }))

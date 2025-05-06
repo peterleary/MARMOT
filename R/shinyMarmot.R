@@ -9,7 +9,7 @@
 #' shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
 #' }
 shinyMarmot <- function(marmot_output = NA, demo = NA) {
-  setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
+  
   folder <- system.file("app", package = "MARMOT")
   if (!is.na(demo) & is.na(marmot_output)) {
     marmot_output <- system.file("examples/R_files/", package = "MARMOT")
