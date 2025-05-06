@@ -508,6 +508,7 @@ cf2 <- cf2[useMarkers]
 ```
 
 ```{r, label = "make sce", results = "hide", dependson = c("import md file", "arrange frames list"), eval = is.null(RDataFolder)}
+setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
 sceList <- setNames(lapply(names(fsList), function(x) {
   prepData(x = fsList[[x]], panel = panel, md = md, features = panel$fcs_colname, cofactor = cf, md_cols = list(factors = conditions))
 }), names(fsList))
