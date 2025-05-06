@@ -46,11 +46,17 @@ Imports:
   Rcpp,
   fireworks,
   Seurat,
-  openxlsx
+  openxlsx,
+  clustree,
+  yarrr
 Remotes:
   JinmiaoChenLab/Rphenograph,
   hypebright/fireworks,
   bioc::Nebulosa,
   bioc::ComplexHeatmap,
-  bioc::CATALYST
+  bioc::CATALYST,
+  bioc::diffcyt,
+  bioc::flowSpecs,
+  bioc::slingshot,
+  bioc::flowAI
 RoxygenNote: 7.3.2
