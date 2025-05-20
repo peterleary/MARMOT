@@ -4,7 +4,6 @@ author: ''
 date: "`r format(Sys.time(), '%Y-%m-%d_%H.%M.%S')`"
 output:
   html_document:
-    mathjax: https://fgcz-gstore.uzh.ch/reference/mathjax.js
     self_contained: true
     highlight: tango
     theme: sand
@@ -710,12 +709,16 @@ if (dimRedMethodToUse == "pacmap") {
   if (!is.null(cellsToUmap)) {
     cdsce <- as.data.frame(colData(sce))
     set.seed(2)
-    cellsToPacmap <- as.numeric(gtools::mixedsort(unlist(lapply(levels(md$sample_id), function(x) {
-      sample(rownames(cdsce)[which(cdsce[["sample_id"]] == x)], cellsToUmap)
-      }))))
+    cellsToPacmap = lapply(levels(md$sample_id), function(x) {
+      if (length(which(cdsce[["sample_id"]] == x)) > cellsToUmap) {
+        sample(rownames(cdsce)[which(cdsce[["sample_id"]] == x)], cellsToUmap)
+      } else {
+        rownames(cdsce)[which(cdsce[["sample_id"]] == x)]
+      }
+    }) %>% unlist
     esPacmap <- esPacmap[as.numeric(cellsToPacmap), ]
     dimred2 <- pacmap_fit(esPacmap, verbose = TRUE, apply_pca = FALSE, n_neighbors = NULL)
-    m <- matrix(NA, nrow = ncol(sce), ncol = ncol(dimred2))
+    m <- matrix(NA, nrow = ncol(sce), ncol = ncol(dimred2)) %>% data.frame
     m[cellsToPacmap, ] <- dimred2
     reducedDim(sce, dimRedMethodToUse) <- m
   } else {
