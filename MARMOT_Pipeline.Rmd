@@ -170,7 +170,7 @@ suppressPackageStartupMessages({
   library(Seurat)
 })
 plan(multisession, workers = nCores)
-options(future.globals.maxSize = ramPerCore * 1024^3)
+options(future.globals.maxSize = (ramPerCore*nCores) * 1024^3)
 set.seed(2)
 htmltools::tagList(datatable(cars))
 tryCatch({
