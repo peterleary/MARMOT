@@ -4,6 +4,7 @@
 #' @author Peter Leary
 #' @export
 #' @import Rcpp
+#' @importFrom Rcpp evalCpp
 #' @examples
 #' \dontrun{
 #' marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
