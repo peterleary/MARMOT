@@ -4,6 +4,7 @@
 #' @author Peter Leary
 #' @export
 #' @import Rcpp
+#' @importFrom Rcpp evalCpp
 #' @examples
 #' \dontrun{
 #' addMetadataToFCSFolder("Files/MARMOT_Metadata.xlsx")

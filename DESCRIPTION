@@ -7,6 +7,17 @@ Maintainer: Peter Leary <peter.leary@uzh.ch>
 Description: MARMOT
 License: MIT + file LICENSE
 Encoding: UTF-8
+Depends: R (>= 4.5)
+Remotes:
+  JinmiaoChenLab/Rphenograph,
+  hypebright/fireworks,
+  bioc::Nebulosa,
+  bioc::ComplexHeatmap,
+  bioc::CATALYST,
+  bioc::diffcyt,
+  bioc::flowSpecs,
+  bioc::slingshot,
+  bioc::flowAI
 Imports:
   BiocManager,
   shiny,
@@ -48,15 +59,14 @@ Imports:
   Seurat,
   openxlsx,
   clustree,
-  yarrr
-Remotes:
-  JinmiaoChenLab/Rphenograph,
-  hypebright/fireworks,
-  bioc::Nebulosa,
-  bioc::ComplexHeatmap,
-  bioc::CATALYST,
-  bioc::diffcyt,
-  bioc::flowSpecs,
-  bioc::slingshot,
-  bioc::flowAI
+  yarrr,
+  Rphenograph,
+  fireworks,
+  Nebulosa,
+  ComplexHeatmap,
+  CATALYST,
+  diffcyt,
+  flowSpecs,
+  slingshot,
+  flowAI
 RoxygenNote: 7.3.2

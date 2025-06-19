@@ -128,6 +128,7 @@ options(kableExtra_view_html = F)
 ```
 
 ```{r, label = "load packages", include = FALSE}
+loadNamespace("Rcpp")
 suppressPackageStartupMessages({
   library(BiocGenerics)
   library(S4Vectors)
@@ -167,6 +168,7 @@ suppressPackageStartupMessages({
   library(ggbeeswarm)
   library(Rcpp)
   library(Seurat)
+  library(MARMOT)
 })
 plan(multisession, workers = nCores)
 options(future.globals.maxSize = (ramPerCore*nCores) * 1024^3)

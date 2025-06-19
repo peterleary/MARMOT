@@ -4,6 +4,7 @@
 #' @author Peter Leary
 #' @export
 #' @import Rcpp
+#' @importFrom Rcpp evalCpp
 plotUMAPNice <- function(
     df = umapDF, 
     colour_by = "condition", 
@@ -16,10 +17,10 @@ plotUMAPNice <- function(
     name = "Normalised\nExpression\n", 
     show_cluster_labels = FALSE, 
     cluster_labels = 'cluster_id',
-    dimRedMethodToUse = dimRedMethodToUse,
-    useMarkers = useMarkers,
-    coloursList = coloursList,
-    viridisColour = viridisColour
+    dimRed = dimRedMethodToUse,
+    markers = useMarkers,
+    colList = coloursList,
+    pal = viridisColour
 ) {
   gp1 <- ggplot(df, aes_string("x", "y", colour = colour_by))
   if (show_density) {
@@ -36,7 +37,7 @@ plotUMAPNice <- function(
   }
   gp1 <- gp1 + 
     geom_point(size = size, alpha = alpha, shape = 16) + 
-    labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2")) + 
+    labs(x = paste(dimRed, "dim 1"), y = paste(dimRed, "dim 2")) + 
     ggtitle(colour_by) +
     theme_prism() +
     theme(
@@ -55,12 +56,12 @@ plotUMAPNice <- function(
         panel.grid.minor = element_blank()
       )
   }
-  if (colour_by %in% names(useMarkers)) {
+  if (colour_by %in% names(markers)) {
     gp1 <- gp1 +
-      scale_colour_gradientn(name, colors = hcl.colors(64, viridisColour, rev = FALSE))
+      scale_colour_gradientn(name, colors = hcl.colors(64, pal, rev = FALSE))
   } else {
     gp1 <- gp1 +
-      scale_colour_manual(values = coloursList[[colour_by]])
+      scale_colour_manual(values = colList[[colour_by]])
   }
   if (!is.null(facet_by)) {
     gp1 <- gp1 +
