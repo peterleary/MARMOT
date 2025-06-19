@@ -196,15 +196,6 @@ if(!is.null(RDataFolder)) {
   print(paste("Using previously-generated results from folder:", RDataFolder))
 }
 
-# clusteringMethodNames <- list(
-#   "Rphenograph" = c("Rphenograph", "rphenograph", "RPHENOGRAPH", "RPhenograph", "r-phenograph", "rhpenograph", "rphenogarph"),
-#   "FastPG" = c("FastPG", "fastpg", "FASTPG", "Fastpg", "fastPG", "fartPG", "fartyowls"),
-#   "PARC" = c("PARC", "parc", "Parc", "Prac", "Pcra"),
-#   "FlowSOM" = c("FlowSOM", "flowsom", "flowSOM", "FlowSom", "Flow-SOM")
-# )
-# 
-# clusteringMethodToUse <- names(clusteringMethodNames)[grep(clusteringMethodToUse, clusteringMethodNames, ignore.case = TRUE)]
-
 # Get some variables 
 mergeBy <- switch(
   clusteringMethodToUse,
@@ -491,7 +482,7 @@ cofactorDFList <- setNames(lapply(useMarkers, function(marker) {
 cofactorPlotList <- setNames(future_lapply(useMarkers, function(marker) {
   # Make the plots
   markersToPlot <- setNames(future_lapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
-    ggplot(cofactorDFList[[marker]][["df"]], aes_string(x = cofactors, y = "..ndensity..", fill = "condition", color = "condition")) +
+    ggplot(cofactorDFList[[marker]][["df"]], aes(x = .data[[cofactors]], y = "..ndensity..", fill = .data[["condition"]], color = .data[["condition"]])) +
       geom_density(alpha = 0.1) +
       ylab("") +
       xlab("") +
@@ -965,7 +956,6 @@ save <- c(
   "useMarkers",
   "framesList",
   "frames",
-  # "cofactorPlotList",
   "nrowsCofactors",
   "sce",
   "sce2", 
@@ -1004,6 +994,73 @@ lapply(save2, function(s) {
     text = paste0("qs::qsave(x = ", s, ", file = paste0(qsDir, '/', '", s, ".qs'), nthreads = ", nCores, ", preset = 'archive')")
   ))
 })
+```
+
+```{r, label = "nice umap function"}
+# A custom UMAP plotting function 
+plotUMAPNice <- function(
+    df = umapDF, 
+    colour_by = "condition", 
+    show_density = FALSE, 
+    size = 0.7, 
+    alpha = 1,
+    text_size = 12, 
+    facet_by = NULL, 
+    show_grids = FALSE, 
+    name = "Normalised\nExpression\n", 
+    show_cluster_labels = FALSE, 
+    cluster_labels = 'cluster_id'
+    ) {
+  gp1 <- ggplot(df, aes(x = .data[["x"]], .data[["y"]], colour = .data[[colour_by]]))
+  if (show_density) {
+    gp1 <- gp1 + 
+      geom_density_2d(
+        data = df[,c("x","y")],
+        aes(x = x, y = y),
+        colour = "lightgrey",
+        size = 0.5,
+        bins = 20,
+        alpha = 0.8) + 
+      ylim(min(df$y[!is.na(df$y)])-1, max(df$y[!is.na(df$y)])+1) +
+      xlim(min(df$x[!is.na(df$x)])-1, max(df$x[!is.na(df$x)])+1)
+  }
+  gp1 <- gp1 + 
+    geom_point(size = size, alpha = alpha, shape = 16) + 
+    labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2")) + 
+    ggtitle(colour_by) +
+    theme_prism() +
+    theme(
+      axis.text = element_blank(), 
+      axis.ticks = element_blank(), 
+      axis.line = element_blank(), 
+      legend.text = element_text(size = 10), 
+      panel.border = element_rect(colour = "black", fill = NA, size = 1.5))
+  if (colour_by == "condition") {
+    gp1 <- gp1 + guides(colour = guide_legend(override.aes = list(size = 2)))
+  }
+  if (!show_grids) {
+    gp1 <- gp1 + 
+      theme(
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()
+      )
+  }
+  if (colour_by %in% names(useMarkers)) {
+    gp1 <- gp1 +
+      scale_colour_gradientn(name, colors = hcl.colors(64, viridisColour, rev = FALSE))
+  } else {
+    gp1 <- gp1 +
+      scale_colour_manual(values = coloursList[[colour_by]])
+  }
+  if (!is.null(facet_by)) {
+    gp1 <- gp1 +
+      facet_wrap(~ df[[facet_by]])
+  }
+  if (show_cluster_labels) {
+    gp1 <- Seurat::LabelClusters(plot = gp1, id = cluster_labels, color = "black", box = T)
+  }
+  return(gp1)
+}
 ```
 
 Started on `r paste(timeRun)`
@@ -1047,7 +1104,7 @@ y <- assay(sce, "exprs")
 df <- data.frame(t(y), colData(sce), check.names = FALSE)
 gg_df <- melt(df, value.name = "value", variable.name = "antigen", 
   id.vars = names(colData(sce)))
-mh <- ggplot(gg_df, aes_string(x = "value", y ="..ndensity..", fill = "condition", color = "condition")) +
+mh <- ggplot(gg_df, aes(x = value, y = "..ndensity..", fill = condition, color = condition)) +
   geom_density(alpha = 0.1) +
   facet_wrap(~antigen, scales = "free") + 
   ylab("Normalised Density") + 
@@ -1222,13 +1279,13 @@ if (runMarkerPairPlots) {
     plots <- setNames(lapply(toPlot, function(y) {
       markersToPlot <- y %>% strsplit("\\: ") %>% .[[1]] %>% .[[2]] %>% strsplit(., " ") %>% .[[1]]
       if (!quantileNormaliseAll) {
-        q1 <- ggplot(es, aes_string(x = markersToPlot[1], y = markersToPlot[2], color = mergeBy)) + geom_point(size = 0.001) +
+        q1 <- ggplot(es, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
           scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
           theme_prism() +
           theme(legend.position = "hide") +
           ggtitle(paste0(x, "\nTransformed"))
       }
-      p1 <- ggplot(esQN, aes_string(x = markersToPlot[1], y = markersToPlot[2], color = mergeBy)) + geom_point(size = 0.001) +
+      p1 <- ggplot(esQN, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
         scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
         theme_prism() +
         theme(legend.position = "hide") +
@@ -1571,14 +1628,10 @@ for (i in seq_along(selectedClustersList)) {
 }
 ```
 
+```{r, label = "Prepare Seurat object for heatmap", eval = F}
 #### Per-Cell Heatmap
-
-```{r, label = "Prepare Seurat object for heatmap"}
 scData <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
 scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-```
-
-```{r, label = "Draw big heatmap", fig.height=8, fig.width=20}
 Seurat::Idents(scData) <- "cluster_id"
 Seurat::DoHeatmap(
   object = scData,
@@ -1871,7 +1924,7 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   group_by(cluster_id) %>%
   summarize(center_x = mean(x), center_y = mean(y))
 
-  gp <- ggplot(umapDF, aes_string("x", "y", colour = "cluster_id"))
+  gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
   # gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 20, alpha = 0.8)
   gp <- gp + ylim(min(umapDF$y[!is.na(umapDF$y)])-1, max(umapDF$y[!is.na(umapDF$y)])+1)
   gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
@@ -1922,7 +1975,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   group_by(cluster_id) %>%
   summarize(center_x = mean(x), center_y = mean(y))
   
-  gp <- ggplot(umapDF, aes_string("x", "y", col = "cluster_id"))
+  gp <- ggplot(umapDF, aes(x = .datga[["x"]], .data[["y"]], col = .data[["cluster_id"]]))
   # gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
   gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
@@ -2059,7 +2112,7 @@ for (i in seq_along(clustersToMapList)) {
 selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
   cat("\n\n#### DA:", names(dfList)[i], "\n\n")
   if (nrow(dfList[[i]]) >= 1) {
-    g <- ggplot(dfList[[i]], aes_string(x = "sample_id", y = "Freq", fill = "cluster_id"))
+    g <- ggplot(dfList[[i]], aes(x = .data[["sample_id"]], y = .data[["Freq"]], fill = .data[["cluster_id"]]))
     g <- g + geom_bar(stat = "identity")
     g <- g + facet_grid(~condition, scales = "free", space = "free")
     g <- g + scale_fill_manual(values = coloursList[[names(selectedClustersList)[[i]]]])
