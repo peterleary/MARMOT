@@ -1975,7 +1975,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   group_by(cluster_id) %>%
   summarize(center_x = mean(x), center_y = mean(y))
   
-  gp <- ggplot(umapDF, aes(x = .datga[["x"]], .data[["y"]], col = .data[["cluster_id"]]))
+  gp <- ggplot(umapDF, aes(x = .data[["x"]], .data[["y"]], col = .data[["cluster_id"]]))
   # gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
   gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
