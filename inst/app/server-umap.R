@@ -6,7 +6,6 @@ observe({
   fw$stop(fadeOut = TRUE)
 }) |> bindEvent(input$acceptCite)
 observeEvent(input$acceptCite, {
-  showNotification(ui = "Thanks for agreeing to cite us! You made the marmots very happy!", duration = 30)
   # fireworks(id = "myFireworks", options = list(fadeOut = TRUE))
   output$showPDFs <- renderUI({
     column(
@@ -38,6 +37,7 @@ observeEvent(input$acceptCite, {
       helpText("CATALYST; flowCore; FlowSOM; Phenograph; diffcyt; ComplexHeatmap; edgeR; FlowAI, PARC; PacMAP")
     )
   })
+  showNotification(ui = "Thanks for agreeing to cite us! You made the marmots very happy!", duration = 20)
 })
 
 # Get some nice colours for things ----
@@ -125,7 +125,7 @@ updateSelectInput(session = session, inputId = "fpFeatureToPlot", choices = name
 
 # Metadata table ----
 # Output the metadata table
-output$metadataTable <- DT::renderDataTable(inputDataReactive$Results$md)
+output$metadataTable <- DT::renderDataTable((inputDataReactive$Results$md %>% dplyr::select(-file_name)))
 labelList <- setNames(lapply(inputDataReactive$Results$conditions, function(x) {
   levels(as.factor(inputDataReactive$Results$md[[x]]))
 }), inputDataReactive$Results$conditions)
@@ -133,8 +133,17 @@ labelDf <- data.frame(
   "Factor" = unlist(lapply(seq_along(labelList), function(i) {rep(names(labelList)[[i]], lengths(labelList)[[i]])})),
   "Levels" = as.character((unlist(labelList)))
 )
+labelReactive <- reactiveValues(labelList = labelList, labelDf = labelDf)
 # Make a table to be able to edit factor levels for visualisation purposes
 output$changeLabelTable <- DT::renderDataTable(DT::datatable(labelDf, class = "display", selection = 'none', editable = TRUE, rownames = F))
+# If the user edits one of the labels, change the data 
+observeEvent({
+  input$clusterLabelTable_cell_edit
+}, ignoreNULL = FALSE, ignoreInit = TRUE, {
+  clusterTableReactive$table <<- editData(clusterTableReactive$table, input$clusterLabelTable_cell_edit)
+  
+})
+
 
 # posMarkers table ----
 # If the posMarkers xlsx file was loaded, create the UI to display it
@@ -377,7 +386,7 @@ output$downloadInputsR <- downloadHandler(
 # Download current reactive data
 output$downloadData <- downloadHandler(
   filename = function() {
-    paste0("exploreFC_Data_", format(Sys.time(), "%Y-%m-%d_%H.%M.%S"), ".qs")
+    paste0("MARMOT_Data_", format(Sys.time(), "%Y-%m-%d_%H.%M.%S"), ".qs")
   },
   content = function(file) { 
     showNotification(ui = "Preparing data for download. Will download automatically when ready. Please do not click download multiple times!", duration = 30)
@@ -399,7 +408,6 @@ umapReactive <- eventReactive(
     input$umapShowAxes
     input$umapLegendPosition
     input$umapColumnToSplit
-    input$cellBordersFP
     input$pointBorderUMAP
     input$borderSizeUMAP
     input$umapMainNcol
