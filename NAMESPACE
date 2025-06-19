@@ -2,6 +2,7 @@
 
 export(addMetadataToFCSFolder)
 export(marmot)
+export(plotUMAPNice)
 export(shinyMarmot)
 import(Rcpp)
 importFrom(Rcpp,evalCpp)
