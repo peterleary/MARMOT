@@ -482,7 +482,7 @@ cofactorDFList <- setNames(lapply(useMarkers, function(marker) {
 cofactorPlotList <- setNames(future_lapply(useMarkers, function(marker) {
   # Make the plots
   markersToPlot <- setNames(future_lapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
-    ggplot(cofactorDFList[[marker]][["df"]], aes(x = .data[[cofactors]], y = .data[[..ndensity..]], fill = .data[["condition"]], color = .data[["condition"]])) +
+    ggplot(cofactorDFList[[marker]][["df"]], aes(x = .data[[cofactors]], y = ..ndensity.., fill = .data[["condition"]], color = .data[["condition"]])) +
       geom_density(alpha = 0.1) +
       ylab("") +
       xlab("") +
@@ -1104,7 +1104,7 @@ y <- assay(sce, "exprs")
 df <- data.frame(t(y), colData(sce), check.names = FALSE)
 gg_df <- melt(df, value.name = "value", variable.name = "antigen", 
   id.vars = names(colData(sce)))
-mh <- ggplot(gg_df, aes(x = value, y = .data[[..ndensity..]], fill = condition, color = condition)) +
+mh <- ggplot(gg_df, aes(x = value, y = ..ndensity.., fill = condition, color = condition)) +
   geom_density(alpha = 0.1) +
   facet_wrap(~antigen, scales = "free") + 
   ylab("Normalised Density") + 
