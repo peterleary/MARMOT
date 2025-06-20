@@ -17,6 +17,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Get the directory name
   fp <- dirname(metadata)
+  md_fp <- basename(metadata)
   
   # Read Metadata Excel file
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
@@ -55,6 +56,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     }
   }
   params_list[["fp"]] <- fp
+  params_list[["md_fp"]] <- md_fp
   
   # Import the template marmot file 
   rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "MARMOT"))
@@ -91,7 +93,14 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   }
   if (render) {
     message("Now rendering the HTML report. This can take some time...")
-    invisible(rmarkdown::render(output_rmd, output_format = "html_document", clean = TRUE))
+    output_html <- paste0("MARMOT_Pipeline_", name, ".html")
+    invisible(rmarkdown::render(
+      input = output_rmd,
+      output_format = "html_document",
+      output_file = output_html,
+      output_dir = fp,
+      clean = TRUE
+    ))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(fp, "Rplots.pdf"))
   }

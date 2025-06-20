@@ -17,6 +17,7 @@ output:
 
 # Most importantly, tell me where the files live - a directory containing all FCS files and an Excel metadata file
 fp <- NULL
+md_fp <- NULL
 
 # If you want to use PARC and/or PaCMAP, tell me where conda/mamba is installed
 condaDir <- NULL
@@ -213,10 +214,9 @@ if (greyscalePlots) {
 
 ```{r, label = "import md file", results = "hide"}
 # md = sample metadata
-md <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = "File Data")
-
+md <- read_xlsx(file.path(fp, md_fp), sheet = "File Data")
 # smd <- study meatadata
-smd <- read_xlsx(file.path(fp, list.files(fp, pattern = "(?i)metadata|(?i)meta") %>% .[grep("^\\~\\$", ., invert = T)]), sheet = "Study Data")
+smd <- read_xlsx(file.path(fp, md_fp), sheet = "Study Data")
 # where the fcs files are
 fcsDir <- file.path(fp)
 
@@ -482,7 +482,7 @@ cofactorDFList <- setNames(lapply(useMarkers, function(marker) {
 cofactorPlotList <- setNames(future_lapply(useMarkers, function(marker) {
   # Make the plots
   markersToPlot <- setNames(future_lapply(c("pretransform", paste0("Cofactor_", cofactorsToPlot)), function(cofactors) {
-    ggplot(cofactorDFList[[marker]][["df"]], aes(x = .data[[cofactors]], y = "..ndensity..", fill = .data[["condition"]], color = .data[["condition"]])) +
+    ggplot(cofactorDFList[[marker]][["df"]], aes(x = .data[[cofactors]], y = .data[[..ndensity..]], fill = .data[["condition"]], color = .data[["condition"]])) +
       geom_density(alpha = 0.1) +
       ylab("") +
       xlab("") +
@@ -1104,7 +1104,7 @@ y <- assay(sce, "exprs")
 df <- data.frame(t(y), colData(sce), check.names = FALSE)
 gg_df <- melt(df, value.name = "value", variable.name = "antigen", 
   id.vars = names(colData(sce)))
-mh <- ggplot(gg_df, aes(x = value, y = "..ndensity..", fill = condition, color = condition)) +
+mh <- ggplot(gg_df, aes(x = value, y = .data[[..ndensity..]], fill = condition, color = condition)) +
   geom_density(alpha = 0.1) +
   facet_wrap(~antigen, scales = "free") + 
   ylab("Normalised Density") + 
