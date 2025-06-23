@@ -68,5 +68,6 @@ Imports:
   diffcyt,
   flowSpecs,
   slingshot,
-  flowAI
+  flowAI,
+  shinyalert
 RoxygenNote: 7.3.2

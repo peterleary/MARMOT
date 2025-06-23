@@ -101,7 +101,10 @@ tabItem(
           tabPanel(
             title = "Inputs",
             selectInput(inputId = "featurePlotType", label = "Select a plot type", choices = c("Feature Plot", "Nebulosa Plot", "Violin Plot", "Dot Plot", "Ridge Plot", "Heatmap", "Individual Heatmap", "Barplot"), selected = "", multiple = FALSE),
-            selectizeInput(inputId = "fpFeatureToPlot", label = "Select marker to plot", choices = "", selected = "", multiple = TRUE),
+            selectizeInput(
+              inputId = "fpFeatureToPlot", label = "Select markers to plot:", multiple = TRUE, choices = NULL, selected = NULL, 
+              options = list(placeholder = 'Select features', plugins = list('remove_button', 'drag_drop', 'restore_on_backspace', 'clear_button'))
+            ),
             radioButtons(inputId = "fpAssayToPlot", label = "Select counts to plot", choiceNames = c("Quantile Normalised", "Transformed", "Scaled Counts"), choiceValues = c("data", "counts", "scale.data")),
             selectInput(inputId = "fpColumnToPlot", label = "Select a Column to Plot By", choices = NULL, selected = NULL, multiple = FALSE),
             selectInput(inputId = "fpColumnToSplit", label = "Select a Column to Split By", choices = NULL, selected = NULL, multiple = FALSE),
@@ -140,15 +143,6 @@ tabItem(
             uiOutput("splitByBucket")
           )
         )
-      ),
-      box(
-        title = "Feature Bucket", 
-        solidHeader = TRUE,
-        status = "success",
-        collapsible = TRUE,
-        width = NULL,
-        uiOutput(outputId = "geneBucket1"),
-        actionButton(inputId = "resetGeneBucketFP", label = "Empty the bucket?", icon = icon("bucket")),
       ),
     ),
     column(

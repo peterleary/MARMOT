@@ -17,7 +17,7 @@ output:
 
 ### 🔧 File paths
 fp       <- "/Users/peterleary/Desktop/FGCZ/MARMOT/Data/Org19"      # Folder with all FCS files
-md_fp    <- "/Users/peterleary/Desktop/FGCZ/MARMOT/Data/Org19/My_MARMOT_Analysis_metadata.xlsx"      # Full path to metadata Excel file
+md_fp    <- "/Users/peterleary/Desktop/FGCZ/MARMOT/Data/Org19/MARMOT_Metadata_Org19.xlsx"      # Full path to metadata Excel file
 condaDir <- NULL      # Where conda/mamba lives (for PARC/PaCMAP)
 parcScriptDir <- NULL # Folder with f_pacmap.py and f_parc.py
 

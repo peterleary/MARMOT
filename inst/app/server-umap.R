@@ -334,32 +334,6 @@ observeEvent(input$resetGeneBucketFP, {
   updateSelectizeInput(session = session, inputId = "fpFeatureToPlot", choices = names(inputDataReactive$Results$sce), selected = NULL, server = T)
   featurePlotReactive$fp <- NULL
 }, ignoreNULL = T, ignoreInit = T)
-# Create a bucket of genes selected by the user that will be feature plotted
-observeEvent(
-  {
-    genesReactive$genes
-  },
-  ignoreNULL = FALSE,
-  {
-    output$geneBucket1 <- renderUI({
-      bucket_list(
-        header = "Drag and drop features in order to be plotted",
-        group_name = "bucket_list_group",
-        orientation = "horizontal",
-        add_rank_list(
-          text = "Include these features in this order",
-          labels = genesReactive$genes,
-          input_id = "keepBucketFP"
-        ),
-        add_rank_list(
-          text = "Drag features into this bucket to remove them",
-          labels = NULL,
-          input_id = "excludeBucketFP"
-        )
-      )
-    })
-  }
-)
 
 # Download inputs etc. ---- 
 # Download all currently selected inputs 
@@ -399,11 +373,9 @@ output$downloadData <- downloadHandler(
 umapReactive <- eventReactive(
   {
     input$umapDRToPlot
-    input$umapAssayToPlot
     input$umapColumnToPlot
     input$textSizeUMAP
     input$pointSizeUMAP
-    input$umapShowContours
     input$umapShowLabels
     input$umapShowAxes
     input$umapLegendPosition
@@ -618,6 +590,7 @@ observeEvent({
   })
   outputOptions(output, "plotByBucket", suspendWhenHidden = FALSE)
 }, suspended = FALSE)
+
 observeEvent({
   input$fpColumnToSplit
 }, {
@@ -811,9 +784,9 @@ observeEvent(input$featurePlotType, {
 })
 observeEvent(
   {
+    input$fpFeatureToPlot
     input$featurePlotType
     input$fpAssayToPlot
-    input$keepBucketFP
     input$fpColumnToPlot
     input$fpColumnToSplit
     input$pointSizeFP
@@ -858,7 +831,7 @@ observeEvent(
       # req(length(input$plotByKeepBucket) > 1)
       # req(nchar(input$featurePlotType) >= 2)
       scDataToFP <- inputDataReactive$Results$scData
-
+      
       if (input$viridisColourFP %in% viridisColours) {
         use_viridis = TRUE
         viridis.palette = input$viridisColourFP
@@ -925,8 +898,8 @@ observeEvent(
         }
       }
 
-      fpFeaturesToPlot <- input$keepBucketFP %>% gsub("_", "-", .)
-
+      fpFeaturesToPlot <- input$fpFeatureToPlot %>% gsub("_", "-", .)
+      
       # Make the plots!
       if (input$featurePlotType == "Feature Plot") {
         fp <- lapply(fpFeaturesToPlot, function(gene) {
@@ -946,9 +919,10 @@ observeEvent(
           }))
           colnames(median)[1] <- input$fpColumnToPlot
           fp1 <- do_FeaturePlot(
-            reduction = inputDataReactive$Results$dimRedMethodToUse,
             sample = scDataToFP,
+            assay = "originalexp",
             slot = input$fpAssayToPlot,
+            reduction = input$fpDRToPlot,
             features = gene
           )
           fpData <- fp1[[1]][["data"]] %>% data.frame(check.names = F) %>% rownames_to_column("cell-id")
@@ -1043,7 +1017,7 @@ observeEvent(
         fp <- do_NebulosaPlot(
           sample = scDataToFP,
           features = fpFeaturesToPlot,
-          slot = input$fpLayerToPlot,
+          slot = input$fpAssayToPlot,
           reduction = input$fpDRToPlot,
           combine = combine,
           joint = joint,
@@ -1145,21 +1119,6 @@ observeEvent(
           }
           fp2
         })
-      # } else if (input$featurePlotType == "Boxplot") {
-      #   assay <-  Seurat::GetAssayData(object = scDataToFP, assay = "originalexp", layer = input$fpAssayToPlot) %>%
-      #     t %>%
-      #     data.frame(check.names = F) %>%
-      #     rownames_to_column("cell-id") %>%
-      #     left_join((scDataToFP@meta.data %>% data.frame(check.names = F) %>% rownames_to_column("cell-id")), by = "cell-id")
-      #   fp <- lapply(fpFeaturesToPlot, function(gene) {
-      #     gtp <- gene %>% gsub("-", "_", .)
-      #     gene <- gene %>% gsub("_", "-", .)
-      #     ggplot(assay, aes(x = .data[[fpColumnToPlot]], y = .data[[gene]])) +
-      #       # geom_boxplot(outlier.shape = NA, aes(fill = .data[[fpColumnToPlot]])) +
-      #       geom_violin(outlier.shape = NA, aes(fill = .data[[fpColumnToPlot]])) +
-      #       scale_fill_manual(values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]) +
-      #       theme_prism()
-      #   })
       } else if (input$featurePlotType == "Violin Plot") {
         # req(any(nchar(fpFeaturesToPlot) >= 2))
         if (!is.null(fpColumnToSplit)) {
@@ -1319,7 +1278,8 @@ observeEvent(
 
 output$featurePlotOutput <- renderPlot(
   {
-    if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot", "Ridge Plot") && length(input$keepBucketFP) >= 2) {
+    req(!is.null(input$fpFeatureToPlot), length(input$fpFeatureToPlot) > 0)
+    if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot", "Ridge Plot") && length(input$fpFeatureToPlot) >= 2) {
       gridExtra::grid.arrange(grobs = featurePlotReactive$fp, ncol = input$ncolFPGene)
     } else {
       featurePlotReactive$fp
@@ -1331,7 +1291,7 @@ output$featurePlotOutput <- renderPlot(
 
 output$dlFP <- downloadHandler(
   filename = function() {
-    paste((input$featurePlotType %>% gsub(" ", "", .)), paste(input$keepBucketFP, collapse = "_"), tolower(input$dlFormat), sep = ".")
+    paste((input$featurePlotType %>% gsub(" ", "", .)), paste(input$fpFeatureToPlot, collapse = "_"), tolower(input$dlFormat), sep = ".")
   },
   content = function(file) {
     if (input$dlFormat == "PDF") {
@@ -1341,7 +1301,7 @@ output$dlFP <- downloadHandler(
     } else if (input$dlFormat == "PNG") {
       png(filename = file, width = as.numeric(input$figWidthFP / 60), height = as.numeric(input$figHeightFP / 60), units = "in", res = as.numeric(input$pngRes))
     }
-    if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot", "Ridge Plot") && length(input$keepBucketFP) >= 2) {
+    if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot", "Ridge Plot") && length(input$fpFeatureToPlot) >= 2) {
       gridExtra::grid.arrange(grobs = featurePlotReactive$fp, ncol = input$ncolFPGene)
     } else {
       print(featurePlotReactive$fp)
