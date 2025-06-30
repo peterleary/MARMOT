@@ -4,7 +4,7 @@
 \alias{addMetadataToFCSFolder}
 \title{addMetadataToFCSFolder}
 \usage{
-addMetadataToFCSFolder(FCS_folder = ".")
+addMetadataToFCSFolder(FCS_folder = ".", name = NULL)
 }
 \value{
 A message indicating the location of the metadata file.

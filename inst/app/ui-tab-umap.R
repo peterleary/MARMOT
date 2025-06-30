@@ -12,6 +12,7 @@ tabItem(
         tabsetPanel(
           tabPanel(
             title = "Inputs",
+            selectInput(inputId = "umapDRToPlot", label = "Select a DR method to plot", choices = NULL, selected = NULL, multiple = FALSE),
             selectInput(inputId = "umapColumnToPlot", label = "Select a column to colour by", choices = NULL, selected = NULL, multiple = FALSE),
             selectInput(inputId = "umapColumnToSplit", label = "Select a column to split by", choices = NULL, selected = NULL, multiple = FALSE),
             selectInput(inputId = "umapContrastToUse", label = "Select a contrast for DA clusters", choices = NULL, selected = NULL, multiple = FALSE),
@@ -44,6 +45,12 @@ tabItem(
           tabPanel(
             title = "Colours",
             uiOutput(outputId = "uiColourPicker", inline = TRUE)
+          ),
+          tabPanel(
+            title = "Relabel clusters",
+            downloadButton(outputId = "saveClusterLabels", label = "Download New Labels", icon = icon("save")), 
+            fileInput(inputId = "importFile", accept = ".xlsx", width = "85%", label = "Upload previously-filled in table"),
+            DT::dataTableOutput(outputId = "clusterLabelTable")
           )
         )
       ),
@@ -141,6 +148,15 @@ tabItem(
           tabPanel(
             title = "Split-By",
             uiOutput("splitByBucket")
+          ),
+          tabPanel(
+            title = "Subset cells",
+            checkboxInput(inputId = "fpSubsetCells", label = "Subset cells", value = FALSE),
+            uiOutput(outputId = "fpSubsetCellsByColumnUI1"),
+            uiOutput(outputId = "fpSubsetCellsByColumnUI2"),
+            uiOutput(outputId = "fpSubsetCellsByColumnUI3"),
+            hr(style = "border-top: 1px solid #000000;"),
+            uiOutput(outputId = "fpSubsetCellsTableUI"),
           )
         )
       ),
@@ -158,7 +174,7 @@ tabItem(
           h4("Specific Settings"), hr(style = "border-top: 1px solid #000000;"),
           uiOutput(outputId = "fpNebulosaOutputUI1", inline = TRUE),
           uiOutput(outputId = "fpNebulosaOutputUI2", inline = TRUE),
-          lapply(1:11, function(i) {
+          lapply(0:11, function(i) {
             uiOutput(outputId = paste0("umapFeaturePlotSettingsUI", i), inline = TRUE)
           }),
           uiOutput(outputId = "umapFeaturePlotDotPlotUI1", inline = TRUE),
@@ -175,7 +191,6 @@ tabItem(
         column(
           width = 10,
           h4("Plot"), hr(style = "border-top: 1px solid #000000;"),
-          # uiOutput(outputId = "umapFeaturePlotUI", inline = TRUE)
           plotOutput(outputId = "featurePlotOutput", inline = TRUE)
         )
       )
@@ -190,17 +205,11 @@ tabItem(
         status = "warning", 
         collapsible = TRUE,
         width = 4,
-        # tabsetPanel(
-          tabPanel(
-            title = "Metadata",
-            DT::dataTableOutput(outputId = "metadataTable"),
-            style = "overflow-y: scroll;"
-            )
-          # tabPanel(
-          #   title = "Change labels",
-          #   DT::dataTableOutput(outputId = "changeLabelTable")
-          # )
-        # )
+        tabPanel(
+          title = "Metadata",
+          DT::dataTableOutput(outputId = "metadataTable"),
+          style = "overflow-y: scroll;"
+        )
       ),
       box(
         title = "Marker Table", 
@@ -210,16 +219,6 @@ tabItem(
         width = 4,
         uiOutput(outputId = "posMarkerUI"),
         style = "overflow-y: scroll;"
-      ),
-      box(
-        title = "Label Clusters",
-        solidHeader = TRUE,
-        status = "warning",
-        collapsible = TRUE,
-        width = 4,
-        downloadButton(outputId = "saveClusterLabels", label = "Download New Labels", icon = icon("save")), 
-        fileInput(inputId = "importFile", accept = ".xlsx", width = "85%", label = "Upload previously-filled in table"),
-        DT::dataTableOutput(outputId = "clusterLabelTable")
       )
     )
   )

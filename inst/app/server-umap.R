@@ -111,6 +111,8 @@ colsThatCanBePlot <- unlist(lapply(seq_along(allCols), function(i) {
   }
 }))
 
+# Update the DR types that can be plot
+updateSelectInput(session = session, inputId = "umapDRToPlot", choices = reducedDimNames(inputDataReactive$Results$sce), selected = reducedDimNames(inputDataReactive$Results$sce)[[2]])
 # Update the colData columns available to plot by (categorical)
 updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "cluster_id")
 # Update the available categorical metadata columns to split by
@@ -175,165 +177,251 @@ if ("topMarkerTable" %in% names(inputDataReactive$Results)) {
 clusterTableReactive <- reactiveValues(table = NULL)
 clusterTableReactive$table <- data.frame(
   "cluster_id" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "new_clusters" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "colour" = inputDataReactive$Results$coloursList$cluster_id[match(levels(inputDataReactive$Results[["sce"]]@colData$cluster_id), names(inputDataReactive$Results$coloursList$cluster_id))]
+  "relabelled_clusters" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
+  "colours" = inputDataReactive$Results$coloursList$cluster_id[match(levels(inputDataReactive$Results[["sce"]]@colData$cluster_id), names(inputDataReactive$Results$coloursList$cluster_id))]
 )
 rownames(clusterTableReactive$table) <- NULL
 clusterTableReactive$table <- column_to_rownames(clusterTableReactive$table, "cluster_id")
-observeEvent(clusterTableReactive$table, {
-  output$clusterLabelTable <- DT::renderDataTable({
-    DT::datatable(
-      data = clusterTableReactive$table,
-      class = "display",
-      selection = 'none',
-      editable = TRUE,
-      options = list(
-        dom = "ft",
-        pageLength = 10000
-      )
-    )
-  })
-})
-# If user edits cluster label table, add new column to cell meta data
-observeEvent({
-  input$clusterLabelTable_cell_edit
-  }, ignoreNULL = FALSE, ignoreInit = TRUE, {
-  clusterTableReactive$table <<- editData(clusterTableReactive$table, input$clusterLabelTable_cell_edit)
-  
-  # Update the Seurat object used for feature plot 
-  inputDataReactive$Results$scData$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results$scData$cluster_id, rownames(clusterTableReactive$table))]
-  inputDataReactive$Results$scData$new_clusters <- factor(
-    x = inputDataReactive$Results$scData$new_clusters, 
-    levels = mixedsort(unique(inputDataReactive$Results$scData$new_clusters))
-  )
-  
-  # Update the main sce object 
-  inputDataReactive$Results[["sce"]]@colData$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results[["sce"]]@colData$cluster_id, rownames(clusterTableReactive$table))]
-  inputDataReactive$Results[["sce"]]@colData$new_clusters <- factor(
-    x = inputDataReactive$Results[["sce"]]@colData$new_clusters, 
-    levels = mixedsort(unique(inputDataReactive$Results[["sce"]]@colData$new_clusters))
-    )
-  
-  # Update the DR data frames 
-  for (tab in c("All", "Downsampled")) {
-    if (tab %in% names(inputDataReactive$Results$umapDFList)) {
-      inputDataReactive$Results$umapDFList[[tab]]$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results$umapDFList[[tab]]$cluster_id, rownames(clusterTableReactive$table))]
-      inputDataReactive$Results$umapDFList[[tab]]$new_clusters <- factor(
-        x = inputDataReactive$Results$umapDFList[[tab]]$new_clusters, 
-        levels = mixedsort(unique(inputDataReactive$Results$umapDFList[[tab]]$new_clusters))
-      )
-    }
-  }
-  
-  # Put the new colours in the colour list 
-  inputDataReactive$Results$coloursList[["new_clusters"]] <- clusterTableReactive$table$colour
-  names(inputDataReactive$Results$coloursList[["new_clusters"]]) <- clusterTableReactive$table$new_clusters
-  allCols <- colnames(colData(inputDataReactive$Results$sce))
-  colsThatCanBePlot <- unlist(lapply(seq_along(allCols), function(i) {
-    if (length(unique(inputDataReactive$Results$sce[[allCols[i]]])) < 100) {
-      allCols[i]
-    }
-  }))
-  
-  # Update the select inputs accordingly 
-  updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "new_clusters")
-  updateSelectInput(session = session, inputId = "fpColumnToPlot", choices = c("None", colsThatCanBePlot), selected = "new_clusters")
-  updateSelectInput(session = session, inputId = "umapColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$umapColumnToSplit)
-  updateSelectInput(session = session, inputId = "fpColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$fpColumnToSplit)
-})
-# Or if the user uploads a whole excel file 
-observeEvent({
-  clusterTableReactive$table
-}, ignoreNULL = FALSE, ignoreInit = TRUE, {
-  
-  # Update the Seurat object used for feature plot 
-  inputDataReactive$Results$scData$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results$scData$cluster_id, rownames(clusterTableReactive$table))]
-  inputDataReactive$Results$scData$new_clusters <- factor(
-    x = inputDataReactive$Results$scData$new_clusters, 
-    levels = mixedsort(unique(inputDataReactive$Results$scData$new_clusters))
-  )
-  
-  # Update the main sce object 
-  inputDataReactive$Results[["sce"]]@colData$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results[["sce"]]@colData$cluster_id, rownames(clusterTableReactive$table))]
-  inputDataReactive$Results[["sce"]]@colData$new_clusters <- factor(
-    x = inputDataReactive$Results[["sce"]]@colData$new_clusters, 
-    levels = mixedsort(unique(inputDataReactive$Results[["sce"]]@colData$new_clusters))
-  )
-  
-  # Update the DR data frames 
-  for (tab in c("All", "Downsampled")) {
-    if (tab %in% names(inputDataReactive$Results$umapDFList)) {
-      inputDataReactive$Results$umapDFList[[tab]]$new_clusters <- clusterTableReactive$table$new_clusters[match(inputDataReactive$Results$umapDFList[[tab]]$cluster_id, rownames(clusterTableReactive$table))]
-      inputDataReactive$Results$umapDFList[[tab]]$new_clusters <- factor(
-        x = inputDataReactive$Results$umapDFList[[tab]]$new_clusters, 
-        levels = mixedsort(unique(inputDataReactive$Results$umapDFList[[tab]]$new_clusters))
-      )
-    }
-  }
-  
-  # Put the new colours in the colour list 
-  inputDataReactive$Results$coloursList[["new_clusters"]] <- clusterTableReactive$table$colour
-  names(inputDataReactive$Results$coloursList[["new_clusters"]]) <- clusterTableReactive$table$new_clusters
-  allCols <- colnames(colData(inputDataReactive$Results$sce))
-  colsThatCanBePlot <- unlist(lapply(seq_along(allCols), function(i) {
-    if (length(unique(inputDataReactive$Results$sce[[allCols[i]]])) < 100) {
-      allCols[i]
-    }
-  }))
-  
-  # Update the select inputs accordingly 
-  updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "new_clusters")
-  updateSelectInput(session = session, inputId = "fpColumnToPlot", choices = c("None", colsThatCanBePlot), selected = "new_clusters")
-  updateSelectInput(session = session, inputId = "umapColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$umapColumnToSplit)
-  updateSelectInput(session = session, inputId = "fpColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$fpColumnToSplit)
-})
 # Download button for clusterLabels
 output$saveClusterLabels <- downloadHandler(
   filename = function() { "clusterInfos.xlsx" },
   content = function(file) {
-    openxlsx::write.xlsx((data.frame(clusterTableReactive$table, check.names = F) %>% rownames_to_column("original")), file = file)
+    openxlsx::write.xlsx(data.frame(clusterTableReactive$table) %>% rownames_to_column("original"), file = file)
   }
 )
-importedClusters <- reactiveValues(table = NULL)
-observeEvent(input$importFile, {
-  importedClusters$table <- openxlsx::read.xlsx(input$importFile[1, 'datapath'], colNames = T)
-  importedClusters$table <- importedClusters$table %>% data.frame(check.names = F) %>% column_to_rownames("original")
-  if (ncol(importedClusters$table) != 2) {
-    shinyalert::shinyalert(title = "Marmot says no", text = "The file you tried to upload doesn't have the correct number of columns! Please make sure it has only three.", closeOnEsc = TRUE, closeOnClickOutside = TRUE, showCancelButton = TRUE)
-  } else {
-    colnames(importedClusters$table) <- c("new_clusters", "colour")
+# show the cluster table
+output$clusterLabelTable <- DT::renderDataTable({
+  DT::datatable(
+    data = clusterTableReactive$table,
+    class = "display",
+    selection = 'none',
+    editable = TRUE,
+    options = list(
+      dom = "ft",
+      pageLength = 10000
+    )
+  ) %>%
+    DT::formatStyle(
+      columns = "colours",
+      backgroundColor = DT::styleEqual(
+        clusterTableReactive$table$colours,
+        clusterTableReactive$table$colours
+      )
+    )
+})
+
+inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- inputDataReactive$Results$coloursList$cluster_id
+
+# If user edits cluster label table, add new column to cell meta data
+observeEvent({
+  input$clusterLabelTable_cell_edit
+}, ignoreNULL = FALSE, ignoreInit = TRUE, {
+  clusterTableReactive$table <<- editData(clusterTableReactive$table, input$clusterLabelTable_cell_edit)
+  
+  relabelledClusterColour <- clusterTableReactive$table$colours
+  names(relabelledClusterColour) <- clusterTableReactive$table$relabelled_clusters
+  relabelledClusterColour <- relabelledClusterColour[unique(names(relabelledClusterColour))]
+  inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- relabelledClusterColour
+  
+  # Update the main sce and scData objects
+  relabelled_clusters <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$Results[["scData"]]@meta.data$cluster_id, rownames(clusterTableReactive$table))]
+  relabelled_clusters <- factor(relabelled_clusters, levels = unique(gtools::mixedsort(relabelled_clusters)))
+  inputDataReactive$Results[["sce"]]@colData$relabelled_clusters <- relabelled_clusters
+  inputDataReactive$Results[["scData"]]@meta.data$relabelled_clusters <- relabelled_clusters
+  inputDataReactive$clusterInfos$ClusterLabel <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$clusterInfos$Cluster, rownames(clusterTableReactive$table))]
+  # Update the DR data frames 
+  for (tab in names(inputDataReactive$Results$umapDFList)) {
+    if (tab %in% names(inputDataReactive$Results$umapDFList)) {
+      inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$Results$umapDFList[[tab]]$cluster_id, rownames(clusterTableReactive$table))]
+      inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters <- factor(
+        x = inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters, 
+        levels = mixedsort(unique(inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters))
+      )
+    }
   }
-  if(any(!inputDataReactive$Results[["sce"]]@colData$cluster_id %in% rownames(importedClusters$table))) {
-    shinyalert::shinyalert(title = "Marmot says no", text = "You uploaded a file that has different original cluster IDs or different numbers of original clusters. Are you sure it's from this study?", closeOnEsc = TRUE, closeOnClickOutside = TRUE, showCancelButton = TRUE)
+  
+  allCols <- colnames(inputDataReactive$Results[["scData"]]@meta.data[, sapply(inputDataReactive$Results[["scData"]]@meta.data, class) %in% c("character", "factor")])
+  colsThatCanBePlot <- lapply(seq_along(allCols), function(i) {
+    if (length(unique(inputDataReactive$Results[["scData"]]@meta.data[[allCols[i]]])) < 100) {
+      allCols[i]
+    }
+  }) %>% unlist()
+  updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "relabelled_clusters")
+  updateSelectInput(session = session, inputId = "fpColumnToPlot", choices = c("None", colsThatCanBePlot), selected = "relabelled_clusters")
+  updateSelectInput(session = session, inputId = "umapColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$umapColumnToSplit)
+  updateSelectInput(session = session, inputId = "fpColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$fpColumnToSplit)
+})
+
+observeEvent(input$importFile, {
+  importedDf <- openxlsx::read.xlsx(input$importFile[1, 'datapath'], colNames = T)
+  importedDf <- importedDf %>% data.frame(check.names = F) %>% column_to_rownames("original")
+  if(any(!inputDataReactive$Results[["scData"]]@meta.data$cluster_id %in% rownames(importedDf))) {
+    shinyalert::shinyalert(title = "The marmots say no 🦫🚫", text = "You uploaded a file that has different original cluster IDs or different numbers of original clusters. Are you sure it's from this study?", closeOnEsc = TRUE, closeOnClickOutside = TRUE, showCancelButton = TRUE, imageUrl = "./Resetti_CF.webp.png")
   } else {
-    # req(!is.null(clusterTableReactive$table))
-    # req(!is.null(importedClusters$table))
-    clusterTableReactive$table <- importedClusters$table
+    importedDf$relabelled_clusters <- factor(importedDf$relabelled_clusters, levels = unique(gtools::mixedsort(as.character(importedDf$relabelled_clusters))))
+    clusterTableReactive$table <- importedDf
+    
+    relabelledClusterColour <- clusterTableReactive$table$colours
+    names(relabelledClusterColour) <- clusterTableReactive$table$relabelled_clusters
+    relabelledClusterColour <- relabelledClusterColour[unique(names(relabelledClusterColour))]
+    inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- relabelledClusterColour
+    
+    # Update the main sce and scData objects
+    relabelled_clusters <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$Results[["scData"]]@meta.data$cluster_id, rownames(clusterTableReactive$table))]
+    relabelled_clusters <- factor(relabelled_clusters, levels = unique(gtools::mixedsort(relabelled_clusters)))
+    inputDataReactive$Results[["sce"]]@colData$relabelled_clusters <- relabelled_clusters
+    inputDataReactive$Results[["scData"]]@meta.data$relabelled_clusters <- relabelled_clusters
+    inputDataReactive$clusterInfos$ClusterLabel <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$clusterInfos$Cluster, rownames(clusterTableReactive$table))]
+    # Update the DR data frames 
+    for (tab in names(inputDataReactive$Results$umapDFList)) {
+      if (tab %in% names(inputDataReactive$Results$umapDFList)) {
+        inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$Results$umapDFList[[tab]]$cluster_id, rownames(clusterTableReactive$table))]
+        inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters <- factor(
+          x = inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters, 
+          levels = mixedsort(unique(inputDataReactive$Results$umapDFList[[tab]]$relabelled_clusters))
+        )
+      }
+    }
+    
+    allCols <- colnames(inputDataReactive$Results[["scData"]]@meta.data[, sapply(inputDataReactive$Results[["scData"]]@meta.data, class) %in% c("character", "factor")])
+    colsThatCanBePlot <- lapply(seq_along(allCols), function(i) {
+      if (length(unique(inputDataReactive$Results[["scData"]]@meta.data[[allCols[i]]])) < 100) {
+        allCols[i]
+      }
+    }) %>% unlist()
+    colourPaletteList$relabelled_clusters <- clusterTableReactive$table$colours
+    updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "relabelled_clusters")
+    updateSelectInput(session = session, inputId = "fpColumnToPlot", choices = c("None", colsThatCanBePlot), selected = "relabelled_clusters")
+    updateSelectInput(session = session, inputId = "umapColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$umapColumnToSplit)
+    updateSelectInput(session = session, inputId = "fpColumnToSplit", choices = c("None", colsThatCanBePlot), selected = input$fpColumnToSplit)
   }
 })
 
-# Gene bucket ----
-# Create a reactive list of genes from either the input select or marker table
-genesReactive <- reactiveValues(genes = NULL)
-observeEvent(
-  {
-    input$fpFeatureToPlot
-  },
-  ignoreNULL = FALSE,
-  ignoreInit = TRUE,
-  {
-    genesList1 <- input$fpFeatureToPlot
-    genesUnlist <- unique(unlist(c(genesList1)))
-    genesUnlist <- genesUnlist[!genesUnlist == ""]
-    genesReactive$genes <- genesUnlist
+# Subsetting UI and guff ----
+observeEvent({
+  input$fpSubsetCells
+}, ignoreNULL = FALSE, ignoreInit = TRUE, {
+  req(inputDataReactive$Results[["scData"]])
+  if (input$fpSubsetCells) {
+    # Show UI elements when checked
+    output$fpSubsetCellsByColumnUI1 <- renderUI({
+      selectInput(
+        inputId = "fpColumnToSubset",
+        label = "Subset cells proportionally by",
+        choices = colnames(inputDataReactive$Results[["scData"]]@meta.data),
+        selected = "condition"
+      )
+    })
+
+    output$fpSubsetCellsByColumnUI2 <- renderUI({
+      numericInput(
+        inputId = "fpSubsetToGlobal",
+        label = "Subset proportionally to",
+        value = ncol(inputDataReactive$Results[["scData"]]),
+        min = 1,
+        max = ncol(inputDataReactive$Results[["scData"]]),
+        step = 1
+      )
+    })
+  } else {
+    # Reset everything when unchecked
+    output$fpSubsetCellsByColumnUI1 <- NULL
+    output$fpSubsetCellsByColumnUI2 <- NULL
+    output$fpSubsetCellsTableUI <- NULL
+
+    # Reset reactive values
+    cellsToKeepReactive$sc2 <- NULL
+
+    # Reset data to original
+    inputDataReactive$Results[["scDataToFP"]] <- inputDataReactive$Results[["scData"]]
   }
-)
-# Empty the gene bucket if selected
-observeEvent(input$resetGeneBucketFP, {
-  genesReactive$genes <- NULL
-  updateSelectizeInput(session = session, inputId = "fpFeatureToPlot", choices = names(inputDataReactive$Results$sce), selected = NULL, server = T)
-  featurePlotReactive$fp <- NULL
-}, ignoreNULL = T, ignoreInit = T)
+})
+
+# Reactive values for storing subset information
+cellsToKeepReactive <- reactiveValues(sc2 = NULL)
+
+# Observer for column and global subset changes
+observeEvent({
+  input$fpColumnToSubset
+  input$fpSubsetToGlobal
+}, ignoreNULL = FALSE, ignoreInit = TRUE, {
+  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  if (isTRUE(input$fpSubsetCells)) {
+    req(input$fpColumnToSubset, input$fpSubsetToGlobal)
+
+    # Calculate proportions
+    cell_counts <- table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]])
+    proportions <- as.numeric(cell_counts) / sum(cell_counts)
+    names(proportions) <- names(cell_counts)
+
+    # Calculate subset counts
+    sc2 <- floor(input$fpSubsetToGlobal * proportions)
+    # Ensure at least 1 cell per group
+    sc2[sc2 == 0] <- 1
+
+    # Create UI for individual group controls
+    output$fpSubsetCellsTableUI <- renderUI({
+      group_levels <- names(cell_counts)
+      lapply(group_levels, function(x) {
+        numericInput(
+          inputId = paste0("fpSubset", x, "ToThis"),
+          label = paste("Cells for", x),
+          value = sc2[[x]],
+          min = 1,
+          max = as.numeric(cell_counts[[x]]),
+          step = 1
+        )
+      })
+    })
+
+    # Store calculated values
+    cellsToKeepReactive$sc2 <- sc2
+  } else {
+    output$fpSubsetCellsTableUI <- NULL
+    cellsToKeepReactive$sc2 <- NULL
+  }
+})
+
+# Observer for individual group input changes
+observeEvent({
+  if (isTRUE(input$fpSubsetCells) && !is.null(input$fpColumnToSubset)) {
+    group_levels <- names(table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]]))
+    lapply(group_levels, function(x) {
+      input[[paste0("fpSubset", x, "ToThis")]]
+    })
+  }
+}, ignoreNULL = TRUE, ignoreInit = TRUE, {
+  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  if (isTRUE(input$fpSubsetCells) && !is.null(input$fpColumnToSubset)) {
+    group_levels <- names(table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]]))
+
+    # Update reactive values with user inputs
+    for (x in group_levels) {
+      input_id <- paste0("fpSubset", x, "ToThis")
+      if (!is.null(input[[input_id]]) && !is.null(cellsToKeepReactive$sc2)) {
+        cellsToKeepReactive$sc2[[x]] <- as.numeric(input[[input_id]])
+      }
+    }
+  }
+})
+
+# Observer for final subsetting
+observeEvent(cellsToKeepReactive$sc2, ignoreNULL = TRUE, ignoreInit = TRUE, {
+  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  req(input$fpColumnToSubset, cellsToKeepReactive$sc2)
+
+  # Sample cells from each group
+  cellsToKeep <- unlist(lapply(names(cellsToKeepReactive$sc2), function(x) {
+    group_cells <- rownames(inputDataReactive$Results[["scData"]]@meta.data)[
+      inputDataReactive$Results[["scData"]]@meta.data[[input$fpColumnToSubset]] == x
+    ]
+    n_cells <- min(cellsToKeepReactive$sc2[[x]], length(group_cells))
+    sample(group_cells, n_cells)
+  }))
+
+  # Create subset data
+  inputDataReactive$Results[["scDataToFP"]] <- subset(inputDataReactive$Results[["scData"]], cells = cellsToKeep)
+})
 
 # Download inputs etc. ---- 
 # Download all currently selected inputs 
@@ -399,7 +487,6 @@ umapReactive <- eventReactive(
   ignoreNULL = FALSE,
   {
     tryCatch({
-      # req(nchar(input$umapColumnToPlot) >= 2)
 
       if (input$umapColumnToSplit == "None") {
         umapColumnToSplit <- NULL
@@ -408,14 +495,7 @@ umapReactive <- eventReactive(
       } else {
         umapColumnToSplit <- input$umapColumnToSplit
       }
-
-      umapDF <- inputDataReactive$Results$umapDFList$Downsampled
-
-      if (input$umapColumnToPlot == "new_clusters") {
-        # req("new_clusters" %in% colnames(inputDataReactive$Results[["sce"]]@colData))
-        # req(length(inputDataReactive$Results$coloursList[["new_clusters"]]) >= 2)
-        # umapDF$new_clusters <- inputDataReactive$Results[["sce"]]@colData$new_clusters[match(inputDataReactive$Results[["sce"]]@colData$cluster_id, umapDF$cluster_id)]
-      }
+      umapDF <- inputDataReactive$Results$umapDFList[[paste0("Downsampled.", input$umapDRToPlot)]]
 
       contrastToUse <- grep(input$umapContrastToUse, inputDataReactive$Results$smd$`Conditions To Test`)
       contrastIndexes <- seq(1, 11, by = 2)[contrastToUse]
@@ -650,6 +730,9 @@ observeEvent(
       })
     }
     if (input$featurePlotType == "Feature Plot" | input$featurePlotType == "Nebulosa Plot") {
+      output$umapFeaturePlotSettingsUI0 <- renderUI({
+        selectInput(inputId = "fpDRToPlot", label = "DR to plot", choices = names(inputDataReactive$Results$scData@reductions), selected = "UMAP", multiple = FALSE, width = "85%")
+      })
       output$umapFeaturePlotSettingsUI1 <- renderUI({
         checkboxInput(inputId = "fpShowAxes", label = "Show plot axes?", value = FALSE)
       })
@@ -699,6 +782,7 @@ observeEvent(
       output$umapFeaturePlotDotPlotUI2 <- renderUI({
         checkboxInput(inputId = "umapFeaturePlotDotplotFlip", label = "Flip dot plot?", value = TRUE)
       })
+      outputOptions(output, "umapFeaturePlotDotPlotUI2", suspendWhenHidden = FALSE)
     } else {
       output$umapFeaturePlotDotPlotUI1 <- renderUI({
         NULL
@@ -707,6 +791,7 @@ observeEvent(
         NULL
       })
     }
+    
     if (input$featurePlotType == "Heatmap") {
       if (!is.null(input$fpQCToPlot)) {
         output$umapFeaturePlotWarningUI <- renderUI({
@@ -735,6 +820,7 @@ observeEvent(
       output$fpHeatmapOutputUI1 <- renderUI({
         checkboxInput(inputId = "fpHeatmapPlotAll", label = "Plot all available features?", value = FALSE)
       })
+      outputOptions(output, "fpHeatmapOutputUI1", suspendWhenHidden = FALSE)
     } else {
       output$fpHeatmapOutputUI1 <- renderUI({NULL})
     }
@@ -764,8 +850,9 @@ observeEvent({
   input$fpHeatmapPlotAll
   input$featurePlotType
   }, ignoreNULL = TRUE, {
+  req(!is.null(input$featurePlotType))
+  req(!is.null(input$fpHeatmapPlotAll))
   if (input$featurePlotType %in% c("Heatmap", "Individual Heatmap", "Dot Plot")) {
-    # req(!is.null(input$fpHeatmapPlotAll))
     if (input$fpHeatmapPlotAll) {
       currentlySelectedGenes <- previousFeatureSelection(input$fpFeatureToPlot)
       updateSelectInput(session = session, inputId = "fpFeatureToPlot", selected = names(inputDataReactive$Results$sce))
@@ -784,6 +871,7 @@ observeEvent(input$featurePlotType, {
 })
 observeEvent(
   {
+    input$fpDRToPlot
     input$fpFeatureToPlot
     input$featurePlotType
     input$fpAssayToPlot
@@ -803,10 +891,6 @@ observeEvent(
     input$borderSizeFP
     input$fpShowAxes
     input$umapFeaturePlotDotplotFlip
-    input$fpClonalSizeBarplotProptional
-    input$fpClonalOverlapCall
-    input$fpClonalOverlapChain
-    input$fpClonalOverlapMethod
     input$fpBarplotPercentage
     input$fpBarplotShowNumbers
     input$plotByKeepBucket
@@ -828,9 +912,7 @@ observeEvent(
   ignoreNULL = FALSE,
   {
     tryCatch({
-      # req(length(input$plotByKeepBucket) > 1)
-      # req(nchar(input$featurePlotType) >= 2)
-      scDataToFP <- inputDataReactive$Results$scData
+      scDataToFP <- inputDataReactive$Results$scDataToFP
       
       if (input$viridisColourFP %in% viridisColours) {
         use_viridis = TRUE
@@ -1165,8 +1247,6 @@ observeEvent(
           fp <- fp + scale_fill_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
         }
       } else if (input$featurePlotType == "Dot Plot") {
-        # req(any(nchar(fpFeaturesToPlot) >= 2))
-        # req(!is.null(input$umapFeaturePlotDotplotFlip))
         fp <- do_DotPlot(
           sample = scDataToFP,
           features = fpFeaturesToPlot,
@@ -1187,7 +1267,6 @@ observeEvent(
           fp <- fp + scale_fill_distiller(palette = input$viridisColourFP, direction = viridisFlip, type = "div")
         }
       } else if (input$featurePlotType == "Heatmap") {
-        # req(any(nchar(fpFeaturesToPlot) >= 2))
         fp <- do_ExpressionHeatmap(
           sample = scDataToFP,
           features = fpFeaturesToPlot,
@@ -1324,9 +1403,9 @@ output$downloadClusterCodes <- downloadHandler(
       "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
     )
     # If there are new cluster IDs, append them
-    if ("new_clusters" %in% colnames(umap_a)) {
-      clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
-      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
+    if ("relabelled_clusters" %in% colnames(umap_a)) {
+      clusterCodes$relabelled_clusters <- umap_a$relabelled_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
+      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$relabelled_clusters))
     }
     writexl::write_xlsx(clusterCodes, path = file)
   }
@@ -1350,9 +1429,9 @@ output$downloadFCS <- downloadHandler(
       "cluster_id_codes" = 1:nlevels(umap_a$cluster_id)
     )
     # If there are new cluster IDs, append them
-    if ("new_clusters" %in% colnames(umap_a)) {
-      clusterCodes$new_clusters <- umap_a$new_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
-      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$new_clusters))
+    if ("relabelled_clusters" %in% colnames(umap_a)) {
+      clusterCodes$relabelled_clusters <- umap_a$relabelled_clusters[match(clusterCodes$cluster_ids, umap_a$cluster_id)]
+      clusterCodes$new_cluster_codes <- as.numeric(factor(clusterCodes$relabelled_clusters))
     }
 
     # For every sample, add the DR coords
@@ -1361,7 +1440,7 @@ output$downloadFCS <- downloadHandler(
       apps <- data.frame(
         umap_x = umap_xx$x, umap_y = umap_xx$y, cluster_id_codes = clusterCodes$cluster_id_codes[match(umap_xx$cluster_id, clusterCodes$cluster_ids)]
       )
-      if ("new_clusters" %in% colnames(umap_xx)) {
+      if ("relabelled_clusters" %in% colnames(umap_xx)) {
         apps$new_cluster_codes <- clusterCodes$new_cluster_codes[match(umap_xx$cluster_id, clusterCodes$cluster_ids)]
       }
       fn1 <- inputDataReactive$Results$md$file_name[inputDataReactive$Results$md$sample_id == s]

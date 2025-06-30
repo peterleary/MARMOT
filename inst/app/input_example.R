@@ -62,10 +62,9 @@ input <- list(
   
   # Feature Plot settings
   featurePlotType = "Feature Plot",
-  fpAssayToPlot = "Quantile Normalised",
+  fpAssayToPlot = "data",
   fpDRToPlot = "UMAP",
   fpFeatureToPlot = c("MHCII", "CD19"),
-  keepBucketFP = c("MHCII", "CD19"),
   excludeBucketFP = character(0),
   fpColumnToPlot = "condition",
   fpColumnToSplit = "None",
@@ -109,3 +108,16 @@ input <- list(
   # Modal file uploads (mocked)
   importFile = data.frame(datapath = "mock/path/cluster_file.xlsx", stringsAsFactors = FALSE)
 )
+
+input$clusterLabelTable_cell_edit <- data.frame(row = c(1, 2), col = c(1, 1), value = c("hi", "hi"))
+importedDf <- read_xlsx("~/Desktop/FGCZ/MARMOT/Data/Paper/Results_Files_2025-06-30_16.45.46/R_files/clusterInfos.xlsx")
+importedDf <- importedDf %>% data.frame(check.names = F) %>% column_to_rownames("original")
+clusterTableReactive <- reactiveValues(table = NULL)
+clusterTableReactive$table <- data.frame(
+  "cluster_id" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
+  "relabelled_clusters" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
+  "colours" = inputDataReactive$Results$coloursList$cluster_id[match(levels(inputDataReactive$Results[["sce"]]@colData$cluster_id), names(inputDataReactive$Results$coloursList$cluster_id))]
+)
+rownames(clusterTableReactive$table) <- NULL
+clusterTableReactive$table <- column_to_rownames(clusterTableReactive$table, "cluster_id")
+inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- inputDataReactive$Results$coloursList$cluster_id

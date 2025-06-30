@@ -30,7 +30,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     "dimRedMethodToUse", "markersToDimRedBy", "runQC", "useQC", "gimmePDFs",
     "quantileNormaliseAll", "runInParallel", "nCores", "ramPerCore", "themeToUse",
     "viridisColour"
-    )
+  )
   lapply(cantBeBlank, function(p) {
     if (is.na(params_df$Setting[params_df$Variable == p])) {
       stop(p , " is blank! Please enter a value in the Excel Metadata file.")
@@ -44,13 +44,12 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Tidy up the params
   params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, " ") %>% unlist %>% as.numeric
-  params_list$metricsQC <- strsplit(params_list$metricsQC, " ") %>% unlist
   for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
   }
-  for (f in c("runQC", "useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel")) {
+  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.logical(params_list[[f]])
     }
@@ -65,7 +64,6 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
   
   # Remap the variables in the template RMD
-  var_name <- "fp"
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
     
@@ -93,14 +91,18 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   }
   if (render) {
     message("Now rendering the HTML report. This can take some time...")
-    output_html <- paste0("MARMOT_Pipeline_", name, ".html")
-    invisible(rmarkdown::render(
-      input = output_rmd,
-      output_format = "html_document",
-      output_file = output_html,
-      output_dir = fp,
-      clean = TRUE
-    ))
+    output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
+    invisible(
+      rmarkdown::render(
+        input = output_rmd,
+        output_format = "html_document",
+        output_file = output_html,
+        output_dir = fp, 
+        intermediates_dir = fp, 
+        knit_root_dir = fp,
+        clean = TRUE
+      )
+    )
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(fp, "Rplots.pdf"))
   }
