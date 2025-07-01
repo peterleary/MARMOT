@@ -17,6 +17,7 @@ Imports:
   DT,
   Matrix,
   PeacoQC,
+  Nebulosa,
   RColorBrewer,
   Rcpp,
   SCpubr,
@@ -58,7 +59,8 @@ Imports:
   fireworks,
   Rphenograph,
   pacman,
-  Cairo
+  Cairo,
+  chameleon
 Remotes:
   i-cyto/Rphenograph,
   hypebright/fireworks,
@@ -72,3 +74,4 @@ Remotes:
   bioc::slingshot,
   bioc::flowAI,
   bioc::PeacoQC
+  

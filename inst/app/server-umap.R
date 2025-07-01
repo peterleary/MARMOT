@@ -760,7 +760,7 @@ observeEvent(
         numericInput(inputId = "rasterFP_DPI", label = "Raster DPI", value = 1024, min = 0, max = 2000, step = 5, width = "85%")
       })
     } else {
-      lapply(c(1:6, 10, 11), function(i) {
+      lapply(c(0, 1:6, 10, 11), function(i) {
         output[[paste0("umapFeaturePlotSettingsUI", i)]] <- renderUI({
           NULL
         })

@@ -2093,7 +2093,7 @@ if (gimmePDFs) {
 
 ##### All Cells
 
-```{r, label = "DR of selected clusters", fig.height=5, fig.width=5, results = 'asis'}
+```{r, label = "DR of selected clusters", fig.height=5, fig.width=5, results = 'asis', warning = F}
 DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   clustersToMap <- names(clustersToMapList[[i]])
   cTM <- clustersToMapList[[i]]
@@ -2143,7 +2143,7 @@ if (gimmePDFs) {
 }
 ```
 
-```{r, label = "DR of selected clusters 2", fig.height= 6*(ceiling(length(condLevels)/2)), fig.width=10, results = 'asis'}
+```{r, label = "DR of selected clusters 2", fig.height= 6*(ceiling(length(condLevels)/2)), fig.width=10, results = 'asis', warning = F}
 DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   cat("#####" , names(clustersToMapList)[i], "\n\n")
   clustersToMap <- (names(clustersToMapList[[i]]))
