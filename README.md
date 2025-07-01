@@ -30,7 +30,8 @@ For additional information, guidelines, and tips, please refer to the [Wiki](../
 This is all the R code you will need to run the MARMOT pipeline and load the Shiny app. 
 
 ```{r eval = F}
-# Step 1. Install and load 
+# Step 1. Install and load
+install.packages("devtools")
 devtools::install_github("peterleary/MARMOT")
 library(MARMOT)
 
