@@ -75,7 +75,7 @@ useQC <- NULL            # Whether to keep only QC-passed cells
 RDataFolder <- NULL # Use existing results (skip re-analysis)
 excludeTheseSamples <- NULL           # e.g. c("Sample_001", "Sample_026"), or NULL
 gimmePDFs <- NULL
-greyscalePlots <- NULL
+greyscalePlots <- FALSE
 quantileNormaliseAll <- NULL
 
 ## 🧠 Parallelism
