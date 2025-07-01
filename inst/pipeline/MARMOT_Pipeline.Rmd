@@ -247,7 +247,7 @@ md$patient_id <- factor(md$sample_id, levels = md$sample_id)
 md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
 ```
 
-```{r cluster_colours, results = "hide"}
+```{r cluster_colours, results = "hide", cache = TRUE}
 
 # Define base palette used in CATALYST-inspired plots
 catalystCols <- c(
@@ -328,7 +328,7 @@ framesList <- list(
 )
 ```
 
-```{r create_panel, results = "hide", eval = is.null(RDataFolder)}
+```{r create_panel, results = "hide", eval = is.null(RDataFolder), cache = TRUE}
 
 # Extract parameter metadata
 param_df <- pData(parameters(framesList$Untransformed[[1]])) %>%
@@ -381,7 +381,7 @@ framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), fun
 }) %>% setNames(names(framesList$Untransformed))
 ```
 
-```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
+```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder), cache = TRUE}
 
 if (runQC == "FlowAI") {
 
@@ -1416,7 +1416,7 @@ if(length(kValuesIWant) >= 2) {
 }
 ```
 
-```{r, label = "marker pair scatterplots", results = 'asis', fig.height=5, fig.width=5}
+```{r, label = "marker pair scatterplots", results = 'asis', fig.height=5, fig.width=5, warning = F}
 runMarkerPairPlots <- ("type" %in% markerType) && ("state" %in% markerType) && ("Marker Pairs" %in% colnames(smd))
 if (runMarkerPairPlots) {
   cat("\n\n")
