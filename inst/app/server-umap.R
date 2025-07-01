@@ -303,14 +303,14 @@ observeEvent(input$importFile, {
 observeEvent({
   input$fpSubsetCells
 }, ignoreNULL = FALSE, ignoreInit = TRUE, {
-  req(inputDataReactive$Results[["scData"]])
+  req(inputDataReactive$Results[["scDataToFP"]])
   if (input$fpSubsetCells) {
     # Show UI elements when checked
     output$fpSubsetCellsByColumnUI1 <- renderUI({
       selectInput(
         inputId = "fpColumnToSubset",
         label = "Subset cells proportionally by",
-        choices = colnames(inputDataReactive$Results[["scData"]]@meta.data),
+        choices = colnames(inputDataReactive$Results[["scDataToFP"]]@meta.data),
         selected = "condition"
       )
     })
@@ -319,9 +319,11 @@ observeEvent({
       numericInput(
         inputId = "fpSubsetToGlobal",
         label = "Subset proportionally to",
-        value = ncol(inputDataReactive$Results[["scData"]]),
+        value = isolate({
+          if (!is.null(input$fpSubsetToGlobal)) input$fpSubsetToGlobal else ncol(inputDataReactive$Results[["scDataToFP"]])
+        }),
         min = 1,
-        max = ncol(inputDataReactive$Results[["scData"]]),
+        max = ncol(inputDataReactive$Results[["scDataToFP"]]),
         step = 1
       )
     })
@@ -335,7 +337,7 @@ observeEvent({
     cellsToKeepReactive$sc2 <- NULL
 
     # Reset data to original
-    inputDataReactive$Results[["scDataToFP"]] <- inputDataReactive$Results[["scData"]]
+    inputDataReactive$Results[["scDataToFP"]] <- inputDataReactive$Results[["scDataToFP"]]
   }
 })
 
@@ -347,12 +349,12 @@ observeEvent({
   input$fpColumnToSubset
   input$fpSubsetToGlobal
 }, ignoreNULL = FALSE, ignoreInit = TRUE, {
-  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  req(nrow(inputDataReactive$Results[["scDataToFP"]]) > 10)
   if (isTRUE(input$fpSubsetCells)) {
     req(input$fpColumnToSubset, input$fpSubsetToGlobal)
 
     # Calculate proportions
-    cell_counts <- table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]])
+    cell_counts <- table(inputDataReactive$Results[["scDataToFP"]][[input$fpColumnToSubset]])
     proportions <- as.numeric(cell_counts) / sum(cell_counts)
     names(proportions) <- names(cell_counts)
 
@@ -387,15 +389,15 @@ observeEvent({
 # Observer for individual group input changes
 observeEvent({
   if (isTRUE(input$fpSubsetCells) && !is.null(input$fpColumnToSubset)) {
-    group_levels <- names(table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]]))
+    group_levels <- names(table(inputDataReactive$Results[["scDataToFP"]][[input$fpColumnToSubset]]))
     lapply(group_levels, function(x) {
       input[[paste0("fpSubset", x, "ToThis")]]
     })
   }
 }, ignoreNULL = TRUE, ignoreInit = TRUE, {
-  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  req(nrow(inputDataReactive$Results[["scDataToFP"]]) > 10)
   if (isTRUE(input$fpSubsetCells) && !is.null(input$fpColumnToSubset)) {
-    group_levels <- names(table(inputDataReactive$Results[["scData"]][[input$fpColumnToSubset]]))
+    group_levels <- names(table(inputDataReactive$Results[["scDataToFP"]][[input$fpColumnToSubset]]))
 
     # Update reactive values with user inputs
     for (x in group_levels) {
@@ -409,20 +411,20 @@ observeEvent({
 
 # Observer for final subsetting
 observeEvent(cellsToKeepReactive$sc2, ignoreNULL = TRUE, ignoreInit = TRUE, {
-  req(nrow(inputDataReactive$Results[["scData"]]) > 10)
+  req(nrow(inputDataReactive$Results[["scDataToFP"]]) > 10)
   req(input$fpColumnToSubset, cellsToKeepReactive$sc2)
 
   # Sample cells from each group
   cellsToKeep <- unlist(lapply(names(cellsToKeepReactive$sc2), function(x) {
-    group_cells <- rownames(inputDataReactive$Results[["scData"]]@meta.data)[
-      inputDataReactive$Results[["scData"]]@meta.data[[input$fpColumnToSubset]] == x
+    group_cells <- rownames(inputDataReactive$Results[["scDataToFP"]]@meta.data)[
+      inputDataReactive$Results[["scDataToFP"]]@meta.data[[input$fpColumnToSubset]] == x
     ]
     n_cells <- min(cellsToKeepReactive$sc2[[x]], length(group_cells))
     sample(group_cells, n_cells)
   }))
 
   # Create subset data
-  inputDataReactive$Results[["scDataToFP"]] <- subset(inputDataReactive$Results[["scData"]], cells = cellsToKeep)
+  inputDataReactive$Results[["scDataToFPSubset"]] <- subset(inputDataReactive$Results[["scDataToFP"]], cells = cellsToKeep)
 })
 
 # Download inputs etc. ---- 
@@ -905,6 +907,8 @@ observeEvent(
     input$fpContrastToUse
     input$fpShowDAClusters
     input$fpHeatmapPlotAll
+    input$fpSubsetCells
+    input$fpSubsetToGlobal
     lapply(names(colsList1), function(col) {
       lapply(names(colsList1[[col]]), function(lor) {
         input[[paste0("GroupColour", col, lor)]]
@@ -914,7 +918,11 @@ observeEvent(
   ignoreNULL = FALSE,
   {
     tryCatch({
-      scDataToFP <- inputDataReactive$Results$scDataToFP
+      if (input$fpSubsetCells) {
+        scDataToFP <- inputDataReactive$Results$scDataToFPSubset
+      } else {
+        scDataToFP <- inputDataReactive$Results$scDataToFP
+      }
       
       if (input$viridisColourFP %in% viridisColours) {
         use_viridis = TRUE

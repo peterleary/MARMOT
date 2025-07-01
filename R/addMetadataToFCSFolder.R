@@ -10,18 +10,19 @@
 #' addMetadataToFCSFolder("Files/MARMOT_Metadata.xlsx")
 #' }
 addMetadataToFCSFolder <- function(FCS_folder = ".", name = NULL) {
-  # Define the path to the metadata file inside the package
   metadata_file <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT", mustWork = TRUE)
   
   if (is.null(name)) {
-    name = basename(metadata_file)
+    name <- basename(metadata_file)
   } else {
-    name = paste0("MARMOT_Metadata_", name, ".xlsx")
+    name <- paste0("MARMOT_Metadata_", name, ".xlsx")
   }
   
-  # Copy the file to the user-defined destination
-  require(readr)
-  write_file(x = metadata_file, file = file.path(FCS_folder, name))
+  success <- file.copy(from = metadata_file, to = file.path(FCS_folder, name), overwrite = TRUE)
   
-  message("Metadata file has been saved to: ", FCS_folder)
+  if (!success) {
+    stop("❌ Failed to copy metadata file.")
+  }
+  
+  message("✅ Metadata file has been saved to: ", file.path(FCS_folder, name))
 }
