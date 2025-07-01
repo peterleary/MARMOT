@@ -228,6 +228,7 @@ observeEvent({
   relabelled_clusters <- factor(relabelled_clusters, levels = unique(gtools::mixedsort(relabelled_clusters)))
   inputDataReactive$Results[["sce"]]@colData$relabelled_clusters <- relabelled_clusters
   inputDataReactive$Results[["scData"]]@meta.data$relabelled_clusters <- relabelled_clusters
+  inputDataReactive$Results[["scDataToFP"]]@meta.data$relabelled_clusters <- relabelled_clusters
   inputDataReactive$clusterInfos$ClusterLabel <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$clusterInfos$Cluster, rownames(clusterTableReactive$table))]
   # Update the DR data frames 
   for (tab in names(inputDataReactive$Results$umapDFList)) {
@@ -271,6 +272,7 @@ observeEvent(input$importFile, {
     relabelled_clusters <- factor(relabelled_clusters, levels = unique(gtools::mixedsort(relabelled_clusters)))
     inputDataReactive$Results[["sce"]]@colData$relabelled_clusters <- relabelled_clusters
     inputDataReactive$Results[["scData"]]@meta.data$relabelled_clusters <- relabelled_clusters
+    inputDataReactive$Results[["scDataToFP"]]@meta.data$relabelled_clusters <- relabelled_clusters
     inputDataReactive$clusterInfos$ClusterLabel <- clusterTableReactive$table$relabelled_clusters[match(inputDataReactive$clusterInfos$Cluster, rownames(clusterTableReactive$table))]
     # Update the DR data frames 
     for (tab in names(inputDataReactive$Results$umapDFList)) {
