@@ -90,28 +90,34 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     rmd_content <- gsub(pattern, replacement, rmd_content)
   }
   
-  output_rmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".Rmd")
-  writeLines(rmd_content, output_rmd)
-  message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
+  output_rmd_path <- file.path(fp, paste0("MARMOT_Pipeline_", name, ".Rmd"))
+  writeLines(rmd_content, con = output_rmd_path)
+  Sys.sleep(0.2)  # just in case of I/O delays
+  
+  message("\nGenerated a modified copy of the MARMOT script to the folder.\n")
+  
   if (!render) {
     message("\nYou chose not to render the HTML report. You can either Knit it yourself in RStudio, or run this function again with `render = TRUE`.\n")
-  }
-  if (render) {
+  } else {
     message("Now rendering the HTML report. This can take some time...")
-    output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
+    
+    output_html_path <- paste0("MARMOT_Pipeline_", name, ".html")  # just the filename
     invisible(
       rmarkdown::render(
-        input = output_rmd,
+        input = output_rmd_path,
         output_format = "html_document",
-        output_file = output_html,
-        output_dir = fp, 
-        intermediates_dir = fp, 
+        output_file = output_html_path,
+        output_dir = fp,
+        intermediates_dir = fp,
         knit_root_dir = fp,
-        clean = TRUE
+        clean = TRUE,
+        envir = new.env(parent = globalenv())
       )
     )
+    
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
-    unlink(file.path(fp, "Rplots.pdf"))
+    
+    unlink(file.path(fp, "Rplots.pdf"))  # tidy
   }
   
 }

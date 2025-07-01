@@ -92,8 +92,6 @@ viridisColour <- NULL     # Palette: "magma", "inferno", "plasma", etc.
 
 ```{r check_variables, include = FALSE}
 
-library(rlang)
-
 required_vars <- c(
   "fp", "md_fp", "condaDir", "parcScriptDir", "downsampleTo",
   "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
@@ -103,14 +101,14 @@ required_vars <- c(
   "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour"
 )
 
-missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
+missingVariables <- names(unlist(setNames(lapply(required_vars, function(x) {
+  if (!exists(x)) {
+    x
+  }
+}), required_vars)))
 
-if (length(missing_vars)) {
-  abort(paste0(
-    "❌ Missing required variables: ",
-    paste(missing_vars, collapse = ", "),
-    ".\nPlease define them in the 'input settings' chunk."
-  ))
+if(!is.null(missingVariables)) {
+  stop(paste0("❌ Error: ", missingVariables, " is missing. Please check in the input settings chunk and make sure the variable exists/isn't commented out."))
 }
 ```
 
@@ -129,6 +127,7 @@ pacman::p_load(
 # Parallel processing setup
 plan(multisession, workers = nCores)
 options(future.globals.maxSize = (ramPerCore * nCores) * 1024^3)
+future.seed = TRUE
 set.seed(2)
 
 # Define class union for ExpData (if not already present)
