@@ -204,7 +204,7 @@ tabItem(
         solidHeader = TRUE,
         status = "warning", 
         collapsible = TRUE,
-        width = 4,
+        width = 6,
         tabPanel(
           title = "Metadata",
           DT::dataTableOutput(outputId = "metadataTable"),
@@ -216,7 +216,7 @@ tabItem(
         solidHeader = TRUE,
         status = "warning",
         collapsible = TRUE,
-        width = 4,
+        width = 6,
         uiOutput(outputId = "posMarkerUI"),
         style = "overflow-y: scroll;"
       )
