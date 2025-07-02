@@ -995,8 +995,8 @@ observeEvent(
       # Make the plots!
       if (input$featurePlotType == "Feature Plot") {
         fp <- lapply(fpFeaturesToPlot, function(gene) {
-          gtp <- gene %>% gsub("-", "_", .)
-          gene <- gene %>% gsub("_", "-", .)
+          gtp <- gene #%>% gsub("-", "_", .)
+          # gene <- gene %>% gsub("_", "-", .)
           umapDF <- inputDataReactive$Results$umapDFList$Downsampled
           umapDF <- umapDF[order(umapDF[[gtp]], decreasing = F),]
           median <- data.table::rbindlist(lapply(levels(as.factor(umapDF[[input$fpColumnToPlot]])), function(x) {
@@ -1025,7 +1025,7 @@ observeEvent(
           fp2 <- ggplot(fPData, aes(x = dim1, y = dim2))
           if (!input$rasteriseFP) {
             if(!input$cellBordersFP | input$borderSizeFP == 0) {
-              fp2 <- fp2 + eval(parse(text = paste0("geom_point(aes(colour = `", gene, "`), size = ", input$pointSizeFP, ")")))
+              fp2 <- fp2 + geom_point(aes(colour = .data[[gene]]), size = input$pointSizeFP)
               if (input$viridisColourFP %in% viridisColours) {
                 fp2 <- fp2 + scale_colour_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
               } else if (input$viridisColourFP %in% scicoColours) {
@@ -1034,7 +1034,7 @@ observeEvent(
                 fp2 <- fp2 + scale_colour_distiller(palette = input$viridisColourFP, direction = viridisFlip, type = "div")
               }
             } else {
-              fp2 <- fp2 + eval(parse(text = paste0("geom_point(aes(fill = `", gene, "`), size = ", input$pointSizeFP, ", pch = 21, stroke = ", input$borderSizeFP/10, ")")))
+              fp2 <- fp2 + geom_point(aes(colour = .data[[gene]]), size = input$pointSizeFP, pch = 21, stroke = input$borderSizeFP/10)
               if (input$viridisColourFP %in% viridisColours) {
                 fp2 <- fp2 + scale_fill_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
               } else if (input$viridisColourFP %in% scicoColours) {
@@ -1044,8 +1044,7 @@ observeEvent(
               }
             }
           } else {
-            # req(!is.null(input$rasterFP_DPI))
-            fp2 <- fp2 + eval(parse(text = paste0("geom_scattermore(pointsize = ", (input$pointSizeFP*2)+0.6, ", pixels = c(", input$rasterFP_DPI, ",", input$rasterFP_DPI,"), aes(colour = `", gene, "`))")))
+            fp2 <- fp2 + geom_scattermore(pointsize = (input$pointSizeFP*2)+0.6, pixels = c(input$rasterFP_DPI, input$rasterFP_DPI), aes(colour = .data[[gene]]))
             if (input$viridisColourFP %in% viridisColours) {
               fp2 <- fp2 + scale_colour_viridis_c(option = input$viridisColourFP, direction = viridisFlip)
             } else if (input$viridisColourFP %in% scicoColours) {
