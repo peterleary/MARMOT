@@ -1,7 +1,7 @@
 Package: MARMOT
 Type: Package
 Title: MARMOT
-Version: 0.1.0
+Version: 0.2.0
 Author: Peter Leary [aut, cre]
 Maintainer: Peter Leary <peter.leary@uzh.ch>
 Description: MARMOT provides an extensible framework for high-dimensional single-cell cytometry analysis, including quality control, clustering, dimensionality reduction, differential testing, and visualisation.

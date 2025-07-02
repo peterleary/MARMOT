@@ -1080,6 +1080,13 @@ names(clustersToMapList) <- names(selectedClustersList)
 message("✅ DA and DS analysis complete.")
 ```
 
+```{r make_seurat_object, include = F, eval = is.null(RDataFolder)}
+message("🖼️Generating Seurat object...")
+# Seurat conversion and scaling
+scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
+scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+```
+
 ```{r output_directories, results = "hide"}
 
 # Create Results root directory if not resuming from saved RData
