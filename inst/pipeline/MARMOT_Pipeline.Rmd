@@ -1190,7 +1190,7 @@ excelDir <- if (is.null(RDataFolder)) {
 dir.create(excelDir, showWarnings = FALSE)
 ```
 
-```{r write_results_to_file, message = T}
+```{r write_results_to_file}
 
 if (is.null(RDataFolder)) {
   message("💾 Saving R objects to disk...")

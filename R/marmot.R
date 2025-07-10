@@ -102,7 +102,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
     invisible(rmarkdown::render(
       input = output_rmd, output_format = "html_document", 
-      output_file = output_html, output_dir = fp, clean = FALSE))
+      output_file = output_html, output_dir = fp, clean = TRUE))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(fp, "Rplots.pdf"))
   }
