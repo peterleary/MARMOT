@@ -735,7 +735,7 @@ if (quantileNormaliseAll) {
 if (is.null(RDataFolder)) {
     
   if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
-    cat("\n🧠 Running clustering using", clusteringMethodToUse, "...\n\n")
+    message("🧠 Running clustering using", clusteringMethodToUse, "...")
   
     # Expression matrix for clustering
     es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
