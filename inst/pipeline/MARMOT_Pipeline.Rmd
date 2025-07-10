@@ -21,7 +21,7 @@ output:
 </style>
 ```
 
-```{r knitr_settings, include = FALSE}
+```{r knitr_settings}
 
 # Global chunk defaults
 knitr::opts_chunk$set(
@@ -90,7 +90,7 @@ viridisColour <- NULL     # Palette: "magma", "inferno", "plasma", etc.
 ## ✅ Done editing? Knit away!
 ```
 
-```{r check_variables, include = FALSE}
+```{r check_variables}
 
 required_vars <- c(
   "fp", "md_fp", "condaDir", "parcScriptDir", "downsampleTo",
@@ -112,7 +112,7 @@ if(!is.null(missingVariables)) {
 }
 ```
 
-```{r load_packages, include = FALSE}
+```{r load_packages}
 
 # Use pacman for convenience
 pacman::p_load(
@@ -171,7 +171,7 @@ future.seed <- TRUE
 set.seed(2)
 ```
 
-```{r load_rdata, include = FALSE, results = 'asis'}
+```{r load_rdata}
 
 if (!is.null(RDataFolder)) {
   message(glue::glue("🔁 Loading results from: {RDataFolder}"))
@@ -203,7 +203,7 @@ hmPalToUse <- if (greyscalePlots) {
 }
 ```
 
-```{r import_metadata, results = "hide"}
+```{r import_metadata}
 
 # Load metadata
 md  <- readxl::read_xlsx(md_fp, sheet = "File Data")
@@ -280,7 +280,7 @@ md$patient_id <- factor(md$sample_id, levels = md$sample_id)
 md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
 ```
 
-```{r cluster_colours, results = "hide", cache = TRUE}
+```{r cluster_colours}
 
 # Define base palette used in CATALYST-inspired plots
 catalystCols <- c(
@@ -296,284 +296,297 @@ darkenedCols <- colorspace::darken(catalystCols, 0.4)
 catalystCols <- paste0(c(catalystCols, darkenedCols), "FF")  # Add full opacity
 ```
 
-```{r sample_colours, results = "hide", dependson = -1, eval = is.null(RDataFolder)}
+```{r sample_colours}
 
-# Collect all unique factor levels from the specified metadata columns
-allConditionLevels <- unlist(lapply(conditions, \(x) levels(factor(md[[x]]))), use.names = FALSE)
-
-# Assign colours to each unique level using a palette combo (expand as needed)
-palettePool <- c(
-  RColorBrewer::brewer.pal(9, "Set1"),
-  RColorBrewer::brewer.pal(8, "Dark2"),
-  as.character(yarrr::piratepal("basel")),
-  RColorBrewer::brewer.pal(12, "Paired")
-)
-
-allConditionLevelColours <- setNames(palettePool[seq_along(allConditionLevels)], allConditionLevels)
-
-# Create named list of colours per condition
-coloursList <- setNames(
-  lapply(conditions, \(x) {
-    levels <- levels(factor(md[[x]]))
-    allConditionLevelColours[levels]
-  }),
-  conditions
-)
-
-# Assign sample-level colours
-sampleCols <- setNames(
-  colorRampPalette(brewer.pal(8, "Dark2"))(length(levels(md$sample_id))),
-  levels(md$sample_id)
-)
-
-# Assign condition-level colours
-conditionCols <- setNames(
-  colorRampPalette(brewer.pal(8, "Set1"))(length(levels(md$condition))),
-  levels(md$condition)
-)
-```
-
-```{r import_fcs_files, include = FALSE, results = "asis", eval = is.null(RDataFolder)}
-
-message("📥 Importing FCS files...")
-
-# List all .fcs files
-fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
-fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
-fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
-
-# Read each FCS file into a named list
-frames <- setNames(
-  lapply(fcs_files, function(f) {
-    flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
-  }),
-  fcs_names
-)
-
-# Exclude samples, if specified
-if (!is.null(excludeTheseSamples)) {
-  keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
-  frames <- frames[keep_samples]
-}
-
-framesList <- list(
-  "Untransformed" = frames
-)
-```
-
-```{r create_panel, results = "hide", eval = is.null(RDataFolder), cache = TRUE}
-
-# Extract parameter metadata
-param_df <- pData(parameters(framesList$Untransformed[[1]])) %>%
-  as.data.frame() %>%
-  mutate(desc = ifelse(is.na(desc), name, desc))
-
-# Build panel
-panel <- param_df %>%
-  select(fcs_colname = name, marker_name = desc) %>%
-  mutate(
-    antigen       = marker_name,
-    marker_class  = ifelse(marker_name %in% useMarkers, markerType, "none"),
-    use_channel   = marker_name %in% useMarkers
-  ) %>%
-  dplyr::filter(!marker_name %in% removeMarkers) %>%
-  dplyr::filter(marker_name %in% useMarkers) %>%
-  arrange(match(marker_name, useMarkers))
-
-# Sanity check
-missing <- setdiff(useMarkers, panel$marker_name)
-if (length(missing)) {
-  stop("❌ Markers in metadata not found in FCS: ", paste(missing, collapse = ", "))
-}
-
-message("⚙️ Preparing cofactors for arcsinh transformation...")
-
-# Base cofactor vector, matched to FCS column names
-cf <- setNames(cfToUse, panel$fcs_colname[match(useMarkers, panel$marker_name)])
-
-# Fill in default (5) for other channels
-all_channels <- panel$fcs_colname
-extra_channels <- setdiff(all_channels, names(cf))
-cf[extra_channels] <- 2500 # Default cofactor for unused channels
-
-# Ensure correct order
-cf <- cf[match(all_channels, names(cf))]
-
-# Alternative version cf2, named by marker name
-cf2 <- setNames(cf[match(panel$fcs_colname, names(cf))], panel$marker_name)
-cf2 <- cf2[panel$use_channel]
-
-# Assume `fs` is your flowSet and `cofactors` is a named numeric vector
-asinh_transforms <- transformList(
-  names(cf),
-  lapply(cf, function(cof) arcsinhTransform(a = 0, b = 1 / cof, c = 0))
-)
-# Apply to the flowSet
-framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), function(i) {
-  flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
-}, future.seed = TRUE) %>% setNames(names(framesList$Untransformed))
-```
-
-```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder), cache = TRUE}
-
-if (runQC == "FlowAI") {
-
-  message("🔍 Starting automated quality control...")
-
-  metricsQC <- "FR_FS"
-
-  qc_dir <- file.path(fp, "resultsQC_flowAI")
-  expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
-  qc_present <- dir.exists(qc_dir) &&
-    all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC.fcs"))
-
-  if (qc_present) {
-    message("📁 QC files found — loading from disk.")
-  } else {
-    message("⚙️  QC files not found — running `flow_auto_qc()`.")
-    flow_auto_qc(
-      fcsfiles      = as(framesList$Untransformed, "flowSet"),
-      folder_results = qc_dir,
-      remove_from   = metricsQC,
-      fcs_highQ     = "_QC_highQ",
-      fcs_lowQ      = "_QC_lowQ"
-    )
-  }
-
-  # Load the QC FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
-  fcsFilesQC <- fcsFilesQC[grep(paste((md$file_name %>% gsub("\\.fcs", "", .)), collapse = "|"), fcsFilesQC)]
-  fcsNames <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
-
-  message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
-  framesList[["FlowAI"]] <- setNames(
-    lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    fcsNames
+if (is.null(RDataFolder)) {
+  # Collect all unique factor levels from the specified metadata columns
+  allConditionLevels <- unlist(lapply(conditions, \(x) levels(factor(md[[x]]))), use.names = FALSE)
+  
+  # Assign colours to each unique level using a palette combo (expand as needed)
+  palettePool <- c(
+    RColorBrewer::brewer.pal(9, "Set1"),
+    RColorBrewer::brewer.pal(8, "Dark2"),
+    as.character(yarrr::piratepal("basel")),
+    RColorBrewer::brewer.pal(12, "Paired")
   )
-
-  # Force evaluation of ranges to avoid downstream surprises
-  invisible(lapply(framesList[["QC"]], range, type = "data"))
-
-  # Load and annotate QC summary table
-  QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
-    distinct(`Name file`, .keep_all = TRUE)
-  QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$`Name file`), ]
-
-  message("🧾 Processing QC summary metadata...")
-
-  qc_names_clean <- sub("_QC_highQ|\\.fcs", "", QCmini$`Name file`)
-  md_names_clean <- sub("\\.fcs$", "", md$file_name)
-
-  QCmini$`Sample Name` <- md$sample_id[match(qc_names_clean, md_names_clean)]
-  QCmini <- QCmini[gtools::mixedorder(QCmini$`Name file`), ]
-
-  # Use QC data as default if requested
-  if (useQC) {
-    
-    framesList <- framesList[c("QC", setdiff(names(framesList), "QC"))]
-  } else {
-    message("📦 QC-filtered data loaded but not used in primary workflow.")
-  }
-
-  message("🎉 QC step complete.")
+  
+  allConditionLevelColours <- setNames(palettePool[seq_along(allConditionLevels)], allConditionLevels)
+  
+  # Create named list of colours per condition
+  coloursList <- setNames(
+    lapply(conditions, \(x) {
+      levels <- levels(factor(md[[x]]))
+      allConditionLevelColours[levels]
+    }),
+    conditions
+  )
+  
+  # Assign sample-level colours
+  sampleCols <- setNames(
+    colorRampPalette(brewer.pal(8, "Dark2"))(length(levels(md$sample_id))),
+    levels(md$sample_id)
+  )
+  
+  # Assign condition-level colours
+  conditionCols <- setNames(
+    colorRampPalette(brewer.pal(8, "Set1"))(length(levels(md$condition))),
+    levels(md$condition)
+  )
 }
 ```
 
-```{r run_peacoqc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
-if (runQC == "PeacoQC") {
+```{r import_fcs_files}
 
-  message("🔍 Starting automated quality control with PeacoQC...🦚")
-
-  qc_dir <- file.path(fp, "resultsQC_peacoQC")
-  qc_present <- dir.exists(qc_dir) && {
-    expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
-    actual_qc_paths <- list.files(qc_dir, pattern = "_QC\\.fcs$", recursive = TRUE, full.names = TRUE)
-    all(expected_qc_files %in% basename(actual_qc_paths))
-  }
-
-  if (qc_present) {
-    message("📁 QC files found — loading from disk.")
-  } else {
-    message("⚙️  QC files not found — running PeacoQC...")
-
-    dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
-
-    fs <- as(framesList$Transformed, "flowSet")
-    all_channels <- colnames(fs[[1]])
-    fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
-    # Also exclude common technical channels if present
-    fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
-    message("🔬 Using channels for QC: ", paste(fluor_channels, collapse = ", "))
-    message("🚫 Excluded channels: ", paste(setdiff(all_channels, fluor_channels), collapse = ", "))
-    
-    fs_qc <- lapply(seq_along(fs), function(i) {
-      fcs_name <- sampleNames(fs)[i]
-      ff <- fs[[i]]
-      qc_result <- PeacoQC::PeacoQC(
-        ff = ff, 
-        channels = fluor_channels, 
-        plot = TRUE, 
-        save_fcs = TRUE, 
-        output_directory = qc_dir, 
-        name_directory = fcs_name, 
-        report = TRUE, 
-        determine_good_cells = "all", 
-        time_channel_parameter = "Time"
-      )
-      keep <- qc_result$GoodCells
-      ff[keep, ]
-    })
-    fs_qc <- flowSet(fs_qc)
-    
-    # Generate a QC summary table
-    qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
-    QCmini <- read_tsv(qc_files[[1]], show_col_types = FALSE)
-    for (i in 2:length(qc_files)) {
-      xx <- read_tsv(qc_files[[i]], show_col_types = FALSE)
-      QCmini[i,] <- xx[1,]
-    }
-    write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
-    message("✅ PeacoQC processing complete. QC files saved to: ", qc_dir)
+if (is.null(RDataFolder)) {
+  message("📥 Importing FCS files...")
+  
+  # List all .fcs files
+  fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
+  fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
+  fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
+  
+  # Read each FCS file into a named list
+  frames <- setNames(
+    lapply(fcs_files, function(f) {
+      flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+    }),
+    fcs_names
+  )
+  
+  # Exclude samples, if specified
+  if (!is.null(excludeTheseSamples)) {
+    keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
+    frames <- frames[keep_samples]
   }
   
-  # Load the QC FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = T)
-  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
-  fcsNames <- sub("_QC.fcs$", "", basename(fcsFilesQC))
-
-  message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
-  framesList[["PeacoQC"]] <- setNames(
-    lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    fcsNames
+  framesList <- list(
+    "Untransformed" = frames
   )
-
-  # Force evaluation of ranges
-  invisible(lapply(framesList[["QC"]], range, type = "data"))
-
-  # Load QC summary table
-  QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
-  QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$Filename), ]
-  message("🧾 Processing QC summary metadata...")
-
-  message("🎉 QC step complete.")
 }
 ```
 
-```{r arrange_frames_list, include = FALSE, results = "asis", eval = is.null(RDataFolder)}
+```{r create_panel}
 
-message("📦 Converting frame lists into flowSets...")
-
-# Convert to flowSet and set $CYT keyword to "FACS"
-fsList <- purrr::imap(framesList, function(sample_list, name) {
-  fs <- as(sample_list, "flowSet")
-  for (j in seq_along(fs)) {
-    keyword(fs[[j]])[["$CYT"]] <- "FACS"
+if (is.null(RDataFolder)) {
+  # Extract parameter metadata
+  param_df <- pData(parameters(framesList$Untransformed[[1]])) %>%
+    as.data.frame() %>%
+    mutate(desc = ifelse(is.na(desc), name, desc))
+  
+  # Build panel
+  panel <- param_df %>%
+    select(fcs_colname = name, marker_name = desc) %>%
+    mutate(
+      antigen       = marker_name,
+      marker_class  = ifelse(marker_name %in% useMarkers, markerType, "none"),
+      use_channel   = marker_name %in% useMarkers
+    ) %>%
+    dplyr::filter(!marker_name %in% removeMarkers) %>%
+    dplyr::filter(marker_name %in% useMarkers) %>%
+    arrange(match(marker_name, useMarkers))
+  
+  # Sanity check
+  missing <- setdiff(useMarkers, panel$marker_name)
+  if (length(missing)) {
+    stop("❌ Markers in metadata not found in FCS: ", paste(missing, collapse = ", "))
   }
-  fs
-})
+  
+  message("⚙️ Preparing cofactors for arcsinh transformation...")
+  
+  # Base cofactor vector, matched to FCS column names
+  cf <- setNames(cfToUse, panel$fcs_colname[match(useMarkers, panel$marker_name)])
+  
+  # Fill in default (5) for other channels
+  all_channels <- panel$fcs_colname
+  extra_channels <- setdiff(all_channels, names(cf))
+  cf[extra_channels] <- 2500 # Default cofactor for unused channels
+  
+  # Ensure correct order
+  cf <- cf[match(all_channels, names(cf))]
+  
+  # Alternative version cf2, named by marker name
+  cf2 <- setNames(cf[match(panel$fcs_colname, names(cf))], panel$marker_name)
+  cf2 <- cf2[panel$use_channel]
+  
+  # Assume `fs` is your flowSet and `cofactors` is a named numeric vector
+  asinh_transforms <- transformList(
+    names(cf),
+    lapply(cf, function(cof) arcsinhTransform(a = 0, b = 1 / cof, c = 0))
+  )
+  # Apply to the flowSet
+  framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), function(i) {
+    flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
+  }, future.seed = TRUE) %>% setNames(names(framesList$Untransformed))
+}
 ```
 
-```{r plot_cofactor_histograms, results = "hide", eval = TRUE}
+```{r run_flow_auto_qc}
+
+if (is.null(RDataFolder)) {
+  if (runQC == "FlowAI") {
+  
+    message("🔍 Starting automated quality control...")
+  
+    metricsQC <- "FR_FS"
+  
+    qc_dir <- file.path(fp, "resultsQC_flowAI")
+    expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
+    qc_present <- dir.exists(qc_dir) &&
+      all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC.fcs"))
+  
+    if (qc_present) {
+      message("📁 QC files found — loading from disk.")
+    } else {
+      message("⚙️  QC files not found — running `flow_auto_qc()`.")
+      flow_auto_qc(
+        fcsfiles      = as(framesList$Untransformed, "flowSet"),
+        folder_results = qc_dir,
+        remove_from   = metricsQC,
+        fcs_highQ     = "_QC_highQ",
+        fcs_lowQ      = "_QC_lowQ"
+      )
+    }
+  
+    # Load the QC FCS files
+    fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
+    fcsFilesQC <- fcsFilesQC[grep(paste((md$file_name %>% gsub("\\.fcs", "", .)), collapse = "|"), fcsFilesQC)]
+    fcsNames <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
+  
+    message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
+    framesList[["FlowAI"]] <- setNames(
+      lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
+      fcsNames
+    )
+  
+    # Force evaluation of ranges to avoid downstream surprises
+    invisible(lapply(framesList[["QC"]], range, type = "data"))
+  
+    # Load and annotate QC summary table
+    QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
+      distinct(`Name file`, .keep_all = TRUE)
+    QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$`Name file`), ]
+  
+    message("🧾 Processing QC summary metadata...")
+  
+    qc_names_clean <- sub("_QC_highQ|\\.fcs", "", QCmini$`Name file`)
+    md_names_clean <- sub("\\.fcs$", "", md$file_name)
+  
+    QCmini$`Sample Name` <- md$sample_id[match(qc_names_clean, md_names_clean)]
+    QCmini <- QCmini[gtools::mixedorder(QCmini$`Name file`), ]
+  
+    # Use QC data as default if requested
+    if (useQC) {
+      
+      framesList <- framesList[c("QC", setdiff(names(framesList), "QC"))]
+    } else {
+      message("📦 QC-filtered data loaded but not used in primary workflow.")
+    }
+  
+    message("🎉 QC step complete.")
+  }
+}
+```
+
+```{r run_peacoqc}
+
+if (is.null(RDataFolder)) {
+  if (runQC == "PeacoQC") {
+  
+    message("🔍 Starting automated quality control with PeacoQC...🦚")
+  
+    qc_dir <- file.path(fp, "resultsQC_peacoQC")
+    qc_present <- dir.exists(qc_dir) && {
+      expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
+      actual_qc_paths <- list.files(qc_dir, pattern = "_QC\\.fcs$", recursive = TRUE, full.names = TRUE)
+      all(expected_qc_files %in% basename(actual_qc_paths))
+    }
+  
+    if (qc_present) {
+      message("📁 QC files found — loading from disk.")
+    } else {
+      message("⚙️  QC files not found — running PeacoQC...")
+  
+      dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
+  
+      fs <- as(framesList$Transformed, "flowSet")
+      all_channels <- colnames(fs[[1]])
+      fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
+      # Also exclude common technical channels if present
+      fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
+      message("🔬 Using channels for QC: ", paste(fluor_channels, collapse = ", "))
+      message("🚫 Excluded channels: ", paste(setdiff(all_channels, fluor_channels), collapse = ", "))
+      
+      fs_qc <- lapply(seq_along(fs), function(i) {
+        fcs_name <- sampleNames(fs)[i]
+        ff <- fs[[i]]
+        qc_result <- PeacoQC::PeacoQC(
+          ff = ff, 
+          channels = fluor_channels, 
+          plot = TRUE, 
+          save_fcs = TRUE, 
+          output_directory = qc_dir, 
+          name_directory = fcs_name, 
+          report = TRUE, 
+          determine_good_cells = "all", 
+          time_channel_parameter = "Time"
+        )
+        keep <- qc_result$GoodCells
+        ff[keep, ]
+      })
+      fs_qc <- flowSet(fs_qc)
+      
+      # Generate a QC summary table
+      qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
+      QCmini <- read_tsv(qc_files[[1]], show_col_types = FALSE)
+      for (i in 2:length(qc_files)) {
+        xx <- read_tsv(qc_files[[i]], show_col_types = FALSE)
+        QCmini[i,] <- xx[1,]
+      }
+      write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
+      message("✅ PeacoQC processing complete. QC files saved to: ", qc_dir)
+    }
+    
+    # Load the QC FCS files
+    fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = T)
+    fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
+    fcsNames <- sub("_QC.fcs$", "", basename(fcsFilesQC))
+  
+    message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
+    framesList[["PeacoQC"]] <- setNames(
+      lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
+      fcsNames
+    )
+  
+    # Force evaluation of ranges
+    invisible(lapply(framesList[["QC"]], range, type = "data"))
+  
+    # Load QC summary table
+    QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
+    QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$Filename), ]
+    message("🧾 Processing QC summary metadata...")
+  
+    message("🎉 QC step complete.")
+  }
+}
+```
+
+```{r arrange_frames_list}
+
+if (is.null(RDataFolder)) {
+  message("📦 Converting frame lists into flowSets...")
+  
+  # Convert to flowSet and set $CYT keyword to "FACS"
+  fsList <- purrr::imap(framesList, function(sample_list, name) {
+    fs <- as(sample_list, "flowSet")
+    for (j in seq_along(fs)) {
+      keyword(fs[[j]])[["$CYT"]] <- "FACS"
+    }
+    fs
+  })
+}
+```
+
+```{r plot_cofactor_histograms}
 
 message("📉 Generating cofactor histograms for visualising transformations...")
 
@@ -640,56 +653,59 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
 names(cofactorPlotList) <- useMarkers
 ```
 
-```{r create_sce, results = "hide", eval = is.null(RDataFolder)}
-if (useQC) {
-  message("✅ Using QC-filtered data for downstream analysis.")
-  fsToUse <- fsList[[runQC]]
-} else {
-  fsToUse <- fsList[["Transformed"]]
+```{r create_sce}
+
+if (is.null(RDataFolder)) {
+  if (useQC) {
+    message("✅ Using QC-filtered data for downstream analysis.")
+    fsToUse <- fsList[[runQC]]
+  } else {
+    fsToUse <- fsList[["Transformed"]]
+  }
+  
+  if (!is.null(downsampleTo)) {
+    message("🔽 Downsampling to ", downsampleTo, " cells per sample.")
+    fsToUse <- fsApply(fsToUse, function(x) {
+      set.seed(2)
+      n_events <- nrow(x)
+      sample_size <- min(downsampleTo, n_events)
+      sampled_indices <- sample(n_events, sample_size)
+      x[sampled_indices, ]
+    })
+  }
+  
+  message("📦 Creating SingleCellExperiment objects with CATALYST::prepData...")
+  
+  sce <- CATALYST::prepData(
+    x = fsToUse,
+    panel = panel,
+    md = md,
+    features = panel$fcs_colname,
+    transform = FALSE,
+    md_cols = list(factors = conditions)
+  )
+  assay(sce, "exprs") <- assay(sce, "counts")
+  assay(sce, "exprsTransformed") <- assay(sce, "exprs")
+  
+  # 99% quantile normalisation
+  message("📐 Applying quantile normalisation...")
+  
+  exprs_mat <- assay(sce, "exprs")
+  qs <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
+  norm_exprs <- sweep(exprs_mat, 1, qs[, 1], "-")
+  norm_exprs <- sweep(norm_exprs, 1, qs[, 2] - qs[, 1], "/")
+  norm_exprs[norm_exprs < 0 | is.na(norm_exprs)] <- 0
+  norm_exprs[norm_exprs > 1] <- 1
+  
+  assay(sce, "exprsQuantNorm") <- norm_exprs
+  
+  # Also include a scaled version
+  scale.coef <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
+  assay(sce, "norm") <- t(scale(t(exprs_mat), center = scale.coef[, 1], scale = scale.coef[, 2] - scale.coef[, 1]))
 }
-
-if (!is.null(downsampleTo)) {
-  message("🔽 Downsampling to ", downsampleTo, " cells per sample.")
-  fsToUse <- fsApply(fsToUse, function(x) {
-    set.seed(2)
-    n_events <- nrow(x)
-    sample_size <- min(downsampleTo, n_events)
-    sampled_indices <- sample(n_events, sample_size)
-    x[sampled_indices, ]
-  })
-}
-
-message("📦 Creating SingleCellExperiment objects with CATALYST::prepData...")
-
-sce <- CATALYST::prepData(
-  x = fsToUse,
-  panel = panel,
-  md = md,
-  features = panel$fcs_colname,
-  transform = FALSE,
-  md_cols = list(factors = conditions)
-)
-assay(sce, "exprs") <- assay(sce, "counts")
-assay(sce, "exprsTransformed") <- assay(sce, "exprs")
-
-# 99% quantile normalisation
-message("📐 Applying quantile normalisation...")
-
-exprs_mat <- assay(sce, "exprs")
-qs <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
-norm_exprs <- sweep(exprs_mat, 1, qs[, 1], "-")
-norm_exprs <- sweep(norm_exprs, 1, qs[, 2] - qs[, 1], "/")
-norm_exprs[norm_exprs < 0 | is.na(norm_exprs)] <- 0
-norm_exprs[norm_exprs > 1] <- 1
-
-assay(sce, "exprsQuantNorm") <- norm_exprs
-
-# Also include a scaled version
-scale.coef <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
-assay(sce, "norm") <- t(scale(t(exprs_mat), center = scale.coef[, 1], scale = scale.coef[, 2] - scale.coef[, 1]))
 ```
 
-```{r select_assay_and_markers, results = "hide"}
+```{r select_assay_and_markers}
 
 # Define which markers to use for clustering
 if (!is.null(featureType) && markersToClusterBy == "type") {
@@ -714,239 +730,252 @@ if (quantileNormaliseAll) {
 }
 ```
 
-```{r clustering_graph, results = "hide", eval = is.null(RDataFolder)}
+```{r clustering_graph}
 
-if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
-  cat("\n🧠 Running clustering using", clusteringMethodToUse, "...\n\n")
-
-  # Expression matrix for clustering
-  es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
-
-  # Define cluster function to use
-  cluster_fn <- function(k) {
-    set.seed(2)
-    if (clusteringMethodToUse == "FastPG") {
-      clusters <- FastPG::fastCluster(data = es, k = k, num_threads = max(1, floor(nCores / length(kValuesIWant))))
-      ids <- factor(clusters$communities + 1)
-    } else if (clusteringMethodToUse == "Rphenograph") {
-      clusters <- Rphenograph::Rphenograph(data = es, k = k)
-      ids <- factor(membership(clusters[[2]]))
+if (is.null(RDataFolder)) {
+    
+  if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
+    cat("\n🧠 Running clustering using", clusteringMethodToUse, "...\n\n")
+  
+    # Expression matrix for clustering
+    es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
+  
+    # Define cluster function to use
+    cluster_fn <- function(k) {
+      set.seed(2)
+      if (clusteringMethodToUse == "FastPG") {
+        clusters <- FastPG::fastCluster(data = es, k = k, num_threads = max(1, floor(nCores / length(kValuesIWant))))
+        ids <- factor(clusters$communities + 1)
+      } else if (clusteringMethodToUse == "Rphenograph") {
+        clusters <- Rphenograph::Rphenograph(data = es, k = k)
+        ids <- factor(membership(clusters[[2]]))
+      }
+      ids <- factor(ids, levels = 1:nlevels(ids))
+      list(kids = ids, clusters = clusters)
     }
-    ids <- factor(ids, levels = 1:nlevels(ids))
-    list(kids = ids, clusters = clusters)
-  }
-
-  # Run clustering (parallel if requested)
-  kList <- if (runInParallel && length(kValuesIWant) > 1) {
-    tryCatch({
-      setNames(future_lapply(kValuesIWant, cluster_fn, future.seed = TRUE), paste0("k", kValuesIWant))
-    }, error = function(e) {
-      message("Parallel failed, using sequential: ", e$message)
+  
+    # Run clustering (parallel if requested)
+    kList <- if (runInParallel && length(kValuesIWant) > 1) {
+      tryCatch({
+        setNames(future_lapply(kValuesIWant, cluster_fn, future.seed = TRUE), paste0("k", kValuesIWant))
+      }, error = function(e) {
+        message("Parallel failed, using sequential: ", e$message)
+        setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+      })
+    } else {
       setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
-    })
+    }
+  
+    # Store all clusterings in SCE object
+    for (k in names(kList)) {
+      sce[[k]] <- kList[[k]]$kids
+    }
+  
+    # Select default cluster to use
+    selected_k <- paste0("k", knn)
+    sce$cluster_id <- sce[[selected_k]]
+    
+    metadata(sce)$cluster_codes <- eval(parse(text = paste0(
+      "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
+    )))
+    kids <- unlist(sce[[paste0("k", knn)]])
+    numbersOfClusters <- unique(kids)
+  }
+}
+```
+
+```{r parc_clustering}
+
+if (is.null(RDataFolder)) {
+  if (clusteringMethodToUse == "PARC") {
+    message("🐍 Running PARC clustering via reticulate...")
+  
+    use_condaenv("p4r", conda = condaDir)
+    source_python(file.path(parcScriptDir, "f_parc.py"))
+  
+    set.seed(2)
+    esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
+  
+    parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
+      parc_clust(esPARC, knn = as.integer(k), num_threads = max(1L, floor(nCores / length(kValuesIWant))))
+    }, future.seed = TRUE), paste0("p", kValuesIWant))
+  
+    for (k in kValuesIWant) {
+      cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
+      cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
+      sce[[paste0("p", k)]] <- cluster_labels
+    }
+  
+    chosen_k <- paste0("p", knn)
+    sce$cluster_id <- sce[[chosen_k]]
+    metadata(sce)$cluster_codes <- setNames(
+      list(factor(levels(sce[[chosen_k]]))),
+      clusteringMethodToUse
+    )
+    kids <- unlist(parcClustList[[paste0("p", knn)]])
+    numbersOfClusters <- unique(kids)
+  }
+}
+```
+
+```{r FlowSOM}
+
+if (is.null(RDataFolder)) {
+  if (clusteringMethodToUse == "FlowSOM") {
+    message("🌾 Running FlowSOM clustering...")
+  
+    sceSOM <- cluster(
+      sce,
+      features = featuresToCluster,
+      xdim = 10,
+      ydim = 10,
+      maxK = max(kValuesIWant),
+      seed = 42
+    )
+  
+    # Store all clusterings
+    for (k in kValuesIWant) {
+      sce[[paste0("meta", k)]] <- cluster_ids(sceSOM, paste0("meta", k))
+    }
+  
+    # Assign selected clustering
+    selected_k <- paste0("meta", knn)
+    sce$cluster_id <- cluster_ids(sceSOM, selected_k)
+  
+    metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]])))
+    kids <- unlist(sce[[paste0("meta", knn)]])
+    numbersOfClusters <- unique(kids)
+  }
+}
+```
+
+```{r dim_reduction}
+
+if (is.null(RDataFolder)) {
+  message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
+  
+  # Select features for DR
+  if (!is.null(featureType) && markersToDimRedBy == "type") {
+    featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
+  } else if (!is.null(featureType) && markersToDimRedBy == "state") {
+    featuresToUmap <- panel$marker_name[panel$marker_class == "state"]
   } else {
-    setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+    featuresToUmap <- panel$marker_name
   }
-
-  # Store all clusterings in SCE object
-  for (k in names(kList)) {
-    sce[[k]] <- kList[[k]]$kids
-  }
-
-  # Select default cluster to use
-  selected_k <- paste0("k", knn)
-  sce$cluster_id <- sce[[selected_k]]
   
-  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
-    "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
-  )))
-  kids <- unlist(sce[[paste0("k", knn)]])
-  numbersOfClusters <- unique(kids)
+  # Always run PCA first (needed for pacmap, helpful for others)
+  sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
+  
+  # PaCMAP (via Python)
+  if (dimRedMethodToUse == "pacmap") {
+    use_condaenv("p4r", conda = condaDir)
+    source_python(file.path(parcScriptDir, "f_pacmap.py"))
+    es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+    reducedDim(sce, dimRedMethodToUse) <- pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
+  }
+  
+  # Native DRs
+  sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
+  sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse)
 }
 ```
 
-```{r parc_clustering, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+```{r prepare_dimreds_all}
 
-if (clusteringMethodToUse == "PARC") {
-  message("🐍 Running PARC clustering via reticulate...")
+if (is.null(RDataFolder)) {
+  message("🧭 Preparing dimensionality reduction dataframes for all methods...")
+  
+  # Get available DR methods with 2D coords
+  dr_methods <- reducedDimNames(sce)
+  valid_methods <- dr_methods[sapply(dr_methods, function(m) ncol(reducedDim(sce, m)) >= 2)]
+  
+  # Function to build one DR dataframe
+  build_dr_df <- function(method) {
+    coords <- reducedDim(sce, method)[, 1:2]
+    colnames(coords) <- c("x", "y")
+    df <- data.frame(
+      colData(sce),
+      coords,
+      DRMethod = method,
+      check.names = FALSE
+    )
+    
+    # Add cluster annotations
+    if (!is.null(metadata(sce)$cluster_codes)) {
+      df <- left_join(df, cluster_codes(sce), by = c("cluster_id" = clusteringMethodToUse))
+    }
+    df[[clusteringMethodToUse]] <- df$cluster_id
+    
+    # Add quantile-normalised expression
+    qn <- t(assay(sce, "exprsQuantNorm"))
+    df <- bind_cols(df, as.data.frame(qn))
+    
+    # Clean NAs (likely from cells not subsampled)
+    df <- na.omit(df)
+    
+    return(df)
+  }
+  
+  # Build full DR list
+  umapDFList <- lapply(valid_methods, build_dr_df)
+  names(umapDFList) <- valid_methods
+  
+  # Optionally downsample per condition
+  if (!is.null(drCellPerCondition)) {
+    for (method in valid_methods) {
+      df <- umapDFList[[method]]
+      down_df <- df %>%
+        group_by(sample_id) %>%
+        group_modify(~ {
+          cond <- unique(md$condition[md$sample_id == .y$sample_id])
+          target_n <- as.numeric(drCellPerCondition[as.character(cond)])
+          if (nrow(.x) > target_n) .x[sample(nrow(.x), target_n), ] else .x
+        }) %>%
+        ungroup()
+      umapDFList[[paste0("Downsampled.", method)]] <- down_df
+    }
+  }
+  
+  # Create label vectors for each DR method
+  labsList <- lapply(valid_methods, function(method) {
+    source_group <- if (!is.null(drCellPerCondition)) paste0("Downsampled.", method) else method
+    df <- umapDFList[[source_group]]
+    labs <- df %>%
+      group_by(condition) %>%
+      summarise(n = n(), .groups = "drop") %>%
+      mutate(label = paste0(condition, "\n n = ", n)) %>%
+      deframe()
+    names(labs) <- levels(factor(df$condition))
+    return(labs)
+  })
+  names(labsList) <- valid_methods
+  
+  umapDFList$All <- umapDFList[[dimRedMethodToUse]]
+  umapDFList$Downsampled <- umapDFList[[paste0("Downsampled.", dimRedMethodToUse)]]
+}
+```
 
-  use_condaenv("p4r", conda = condaDir)
-  source_python(file.path(parcScriptDir, "f_parc.py"))
+```{r cluster_colours2}
 
-  set.seed(2)
-  esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
-
-  parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
-    parc_clust(esPARC, knn = as.integer(k), num_threads = max(1L, floor(nCores / length(kValuesIWant))))
-  }, future.seed = TRUE), paste0("p", kValuesIWant))
-
+if (is.null(RDataFolder)) {
+  message("🎨 Assigning colours to clusters...")
+  
+  # Base cluster_id colours
+  cluster_levels <- levels(factor(umapDFList$All$cluster_id))
+  coloursList[["cluster_id"]] <- setNames(catalystCols[seq_along(cluster_levels)], cluster_levels)
+  
+  # Add colours for each k-based clustering
   for (k in kValuesIWant) {
-    cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
-    cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
-    sce[[paste0("p", k)]] <- cluster_labels
-  }
-
-  chosen_k <- paste0("p", knn)
-  sce$cluster_id <- sce[[chosen_k]]
-  metadata(sce)$cluster_codes <- setNames(
-    list(factor(levels(sce[[chosen_k]]))),
-    clusteringMethodToUse
-  )
-  kids <- unlist(parcClustList[[paste0("p", knn)]])
-  numbersOfClusters <- unique(kids)
-}
-```
-
-```{r FlowSOM, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
-
-if (clusteringMethodToUse == "FlowSOM") {
-  message("🌾 Running FlowSOM clustering...")
-
-  sceSOM <- cluster(
-    sce,
-    features = featuresToCluster,
-    xdim = 10,
-    ydim = 10,
-    maxK = max(kValuesIWant),
-    seed = 42
-  )
-
-  # Store all clusterings
-  for (k in kValuesIWant) {
-    sce[[paste0("meta", k)]] <- cluster_ids(sceSOM, paste0("meta", k))
-  }
-
-  # Assign selected clustering
-  selected_k <- paste0("meta", knn)
-  sce$cluster_id <- cluster_ids(sceSOM, selected_k)
-
-  metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]])))
-  kids <- unlist(sce[[paste0("meta", knn)]])
-  numbersOfClusters <- unique(kids)
-}
-```
-
-```{r dim_reduction, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
-
-message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
-
-# Select features for DR
-if (!is.null(featureType) && markersToDimRedBy == "type") {
-  featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
-} else if (!is.null(featureType) && markersToDimRedBy == "state") {
-  featuresToUmap <- panel$marker_name[panel$marker_class == "state"]
-} else {
-  featuresToUmap <- panel$marker_name
-}
-
-# Always run PCA first (needed for pacmap, helpful for others)
-sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
-
-# PaCMAP (via Python)
-if (dimRedMethodToUse == "pacmap") {
-  use_condaenv("p4r", conda = condaDir)
-  source_python(file.path(parcScriptDir, "f_pacmap.py"))
-  es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-  reducedDim(sce, dimRedMethodToUse) <- pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
-}
-
-# Native DRs
-sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
-sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse)
-```
-
-```{r prepare_dimreds_all, results = "hide", dependson = c("input settings", "make sce"), eval = is.null(RDataFolder)}
-
-message("🧭 Preparing dimensionality reduction dataframes for all methods...")
-
-# Get available DR methods with 2D coords
-dr_methods <- reducedDimNames(sce)
-valid_methods <- dr_methods[sapply(dr_methods, function(m) ncol(reducedDim(sce, m)) >= 2)]
-
-# Function to build one DR dataframe
-build_dr_df <- function(method) {
-  coords <- reducedDim(sce, method)[, 1:2]
-  colnames(coords) <- c("x", "y")
-  df <- data.frame(
-    colData(sce),
-    coords,
-    DRMethod = method,
-    check.names = FALSE
-  )
-  
-  # Add cluster annotations
-  if (!is.null(metadata(sce)$cluster_codes)) {
-    df <- left_join(df, cluster_codes(sce), by = c("cluster_id" = clusteringMethodToUse))
-  }
-  df[[clusteringMethodToUse]] <- df$cluster_id
-  
-  # Add quantile-normalised expression
-  qn <- t(assay(sce, "exprsQuantNorm"))
-  df <- bind_cols(df, as.data.frame(qn))
-  
-  # Clean NAs (likely from cells not subsampled)
-  df <- na.omit(df)
-  
-  return(df)
-}
-
-# Build full DR list
-umapDFList <- lapply(valid_methods, build_dr_df)
-names(umapDFList) <- valid_methods
-
-# Optionally downsample per condition
-if (!is.null(drCellPerCondition)) {
-  for (method in valid_methods) {
-    df <- umapDFList[[method]]
-    down_df <- df %>%
-      group_by(sample_id) %>%
-      group_modify(~ {
-        cond <- unique(md$condition[md$sample_id == .y$sample_id])
-        target_n <- as.numeric(drCellPerCondition[as.character(cond)])
-        if (nrow(.x) > target_n) .x[sample(nrow(.x), target_n), ] else .x
-      }) %>%
-      ungroup()
-    umapDFList[[paste0("Downsampled.", method)]] <- down_df
-  }
-}
-
-# Create label vectors for each DR method
-labsList <- lapply(valid_methods, function(method) {
-  source_group <- if (!is.null(drCellPerCondition)) paste0("Downsampled.", method) else method
-  df <- umapDFList[[source_group]]
-  labs <- df %>%
-    group_by(condition) %>%
-    summarise(n = n(), .groups = "drop") %>%
-    mutate(label = paste0(condition, "\n n = ", n)) %>%
-    deframe()
-  names(labs) <- levels(factor(df$condition))
-  return(labs)
-})
-names(labsList) <- valid_methods
-
-umapDFList$All <- umapDFList[[dimRedMethodToUse]]
-umapDFList$Downsampled <- umapDFList[[paste0("Downsampled.", dimRedMethodToUse)]]
-```
-
-```{r cluster_colours2, results = "hide", dependson = c("input settings", "generate UMAP df"), eval = is.null(RDataFolder)}
-
-message("🎨 Assigning colours to clusters...")
-
-# Base cluster_id colours
-cluster_levels <- levels(factor(umapDFList$All$cluster_id))
-coloursList[["cluster_id"]] <- setNames(catalystCols[seq_along(cluster_levels)], cluster_levels)
-
-# Add colours for each k-based clustering
-for (k in kValuesIWant) {
-  colname <- paste0(mergeBy, k)
-  if (colname %in% names(umapDFList$All)) {
-    cluster_levels_k <- levels(factor(umapDFList$All[[colname]]))
-    coloursList[[colname]] <- setNames(catalystCols[seq_along(cluster_levels_k)], cluster_levels_k)
+    colname <- paste0(mergeBy, k)
+    if (colname %in% names(umapDFList$All)) {
+      cluster_levels_k <- levels(factor(umapDFList$All[[colname]]))
+      coloursList[[colname]] <- setNames(catalystCols[seq_along(cluster_levels_k)], cluster_levels_k)
+    }
   }
 }
 ```
 
-```{r da_ds_analysis, results = "hide", dependson = c("input settings", "make sce", "import md file")}
+```{r da_ds_analysis}
 message("🚀 Starting differential abundance (DA) and differential state (DS) analysis...")
 
 daPValToUse <- "p_adj"
@@ -1122,14 +1151,16 @@ names(clustersToMapList) <- names(selectedClustersList)
 message("✅ DA and DS analysis complete.")
 ```
 
-```{r make_seurat_object, include = F, eval = is.null(RDataFolder)}
-message("🖼️Generating Seurat object...")
-# Seurat conversion and scaling
-scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
-scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+```{r make_seurat_object}
+if (is.null(RDataFolder)) {
+  message("🖼️Generating Seurat object...")
+  # Seurat conversion and scaling
+  scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
+  scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+}
 ```
 
-```{r output_directories, results = "hide"}
+```{r output_directories}
 
 # Create Results root directory if not resuming from saved RData
 if (is.null(RDataFolder)) {
@@ -1159,30 +1190,37 @@ excelDir <- if (is.null(RDataFolder)) {
 dir.create(excelDir, showWarnings = FALSE)
 ```
 
-```{r write_results_to_file, eval = is.null(RDataFolder), include = FALSE}
+```{r write_results_to_file, message = T}
 
-message("Generating Seurat object...")
-# Seurat conversion and scaling
-scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
-scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-
-message("💾 Saving R objects to disk...")
-
-vars_to_save <- c(
-  "QCmini", "cf2", "dimRedMethodToUse", "useMarkers", "framesList", "frames", "nrowsCofactors",
-  "sce", "sce2", "sceDS", "coloursList", "md", "downsampleTo", "sceList", "lvlsColours",
-  "featuresToCluster", "featuresToUmap", "markerType", "smd", "knn", "clusteringMethodToUse",
-  "selectedClustersList", "kids", "numbersOfClusters", "kList", "umapDFList", "kValuesIWant",
-  "clustersToMapList", "daList", "dsList", "daPValToUse", "panel", "labs", "scData"
-)
-
-existing_vars <- Filter(exists, vars_to_save)
-
-purrr::walk(existing_vars, function(varname) {
-  out_path <- file.path(qsDir, paste0(varname, ".qs"))
-  qs::qsave(get(varname, envir = .GlobalEnv), file = out_path, nthreads = nCores, preset = "archive")
-  message("✔️ Saved: ", varname)
-})
+if (is.null(RDataFolder)) {
+  message("💾 Saving R objects to disk...")
+  vars_to_save <- c(
+    "QCmini", "cf2", "dimRedMethodToUse", "useMarkers", "framesList", "frames", "nrowsCofactors",
+    "sce", "sce2", "sceDS", "coloursList", "md", "downsampleTo", "sceList", "lvlsColours",
+    "featuresToCluster", "featuresToUmap", "markerType", "smd", "knn", "clusteringMethodToUse",
+    "selectedClustersList", "kids", "numbersOfClusters", "kList", "umapDFList", "kValuesIWant",
+    "clustersToMapList", "daList", "dsList", "daPValToUse", "panel", "labs", "scData"
+  )
+  
+  # Use knitr::knit_global() instead of .GlobalEnv
+  knit_env <- knitr::knit_global()
+  existing_vars <- vars_to_save[sapply(vars_to_save, exists, envir = knit_env)]
+  missing_vars <- setdiff(vars_to_save, existing_vars)
+  
+  message("📊 Found ", length(existing_vars), " out of ", length(vars_to_save), " variables")
+  if(length(missing_vars) > 0) {
+    message("❌ Missing variables: ", paste(missing_vars, collapse = ", "))
+  }
+  
+  write_tsv(data.frame(variable = existing_vars), file = file.path(qsDir, "existing_vars.txt"))
+  
+  # Save each variable from the correct environment
+  purrr::walk(existing_vars, function(varname) {
+    out_path <- file.path(qsDir, paste0(varname, ".qs"))
+    qs::qsave(get(varname, envir = knit_env), file = out_path, nthreads = nCores, preset = "archive")
+    message("✔️ Saved: ", varname)
+  })
+}
 ```
 
 ```{r nice_umap_function}
