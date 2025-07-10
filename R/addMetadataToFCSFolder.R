@@ -9,7 +9,7 @@
 #' \dontrun{
 #' addMetadataToFCSFolder("Files/MARMOT_Metadata.xlsx")
 #' }
-addMetadataToFCSFolder <- function(FCS_folder = ".", name = NULL) {
+addMetadataToFCSFolder <- function(FCS_folder = ".", name = NULL, overwrite = FALSE) {
   metadata_file <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT", mustWork = TRUE)
   
   if (is.null(name)) {
@@ -18,7 +18,7 @@ addMetadataToFCSFolder <- function(FCS_folder = ".", name = NULL) {
     name <- paste0("MARMOT_Metadata_", name, ".xlsx")
   }
   
-  success <- file.copy(from = metadata_file, to = file.path(FCS_folder, name), overwrite = TRUE)
+  success <- file.copy(from = metadata_file, to = file.path(FCS_folder, name), overwrite = overwrite)
   
   if (!success) {
     stop("❌ Failed to copy metadata file.")
