@@ -572,9 +572,8 @@ umapReactive <- eventReactive(
       if (input$umapColumnToSplit != "None") {
         split_col <- input$umapColumnToSplit
         split_levels <- unique(umapDF[[split_col]])
-        if (input$umapMainNcol == length(split_levels)) {
-          input$umapMainNcol <- NULL
-        }
+        umapMainNcol <- input$umapMainNcol
+        umapMainNcol <- floor(length(split_levels)/umapMainNcol)
         plots <- umapDF %>%
           split(.[[input$umapColumnToSplit]]) %>%
           imap(function(df_sub, i) {
@@ -604,7 +603,7 @@ umapReactive <- eventReactive(
           })
         umapInteractive <- subplot(
           plots,
-          ncols = input$umapMainNcol,
+          nrows = umapMainNcol,
           shareX = TRUE,
           shareY = TRUE,
           titleX = TRUE,
