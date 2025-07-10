@@ -5,7 +5,7 @@ packagesToLoad <- c(
   "ggprism", "rstatix", "gridExtra", "Matrix", "SCpubr", "fresh", "viridis", 
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",
   "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon", 
-  "pals", "scales", "MARMOT", "flowCore", "Seurat", "plotly"
+  "pals", "scales", "MARMOT", "flowCore", "Seurat", "plotly", "readxl"
 )
 library(SummarizedExperiment)
 setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
