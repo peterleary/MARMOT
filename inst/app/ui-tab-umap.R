@@ -89,7 +89,7 @@ tabItem(
           ),
           tabPanel(
             title = "Interactive Plot",
-            uiOutput(outputId = "umapInteractive", inline = TRUE)
+            plotlyOutput(outputId = "umapInteractive", inline = TRUE, height = "100%", width = "100%")
           )
         )
       )

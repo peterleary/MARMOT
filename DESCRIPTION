@@ -57,15 +57,18 @@ Imports:
   writexl,
   yarrr,
   fireworks,
-  Rphenograph,
   pacman,
   Cairo,
-  chameleon
+  chameleon,
+  readxl
+Suggests:
+  Rphenograph,
+  FastPG
 Remotes:
   i-cyto/Rphenograph,
+  sararselitsky/FastPG,
   hypebright/fireworks,
   enblacar/SCpubr,
-  sararselitsky/FastPG,
   bioc::Nebulosa,
   bioc::ComplexHeatmap,
   bioc::CATALYST,

@@ -499,12 +499,12 @@ umapReactive <- eventReactive(
       } else {
         umapColumnToSplit <- input$umapColumnToSplit
       }
-      umapDF <- inputDataReactive$Results$umapDFList[[paste0("Downsampled.", input$umapDRToPlot)]]
-
+      
       contrastToUse <- grep(input$umapContrastToUse, inputDataReactive$Results$smd$`Conditions To Test`)
       contrastIndexes <- seq(1, 11, by = 2)[contrastToUse]
       clustersToPlot <- inputDataReactive$Results$selectedClustersList[c(contrastIndexes, contrastIndexes+1)]
-
+      
+      umapDF <- inputDataReactive$Results$umapDFList[[paste0("Downsampled.", input$umapDRToPlot)]]
       umapDF$cluster_id <- as.character(umapDF$cluster_id)
       if (input$umapShowDAClusters == "All") {
         ctp <- unlist(clustersToPlot)
@@ -541,29 +541,93 @@ umapReactive <- eventReactive(
         inputDataReactive$Results$coloursList$cluster_id[["Other"]] <- "grey80"
       }
 
-      umapPlot <- ggplot(umapDF, aes(x = x, y = y))
-      umapInteractive <- umapPlot
-      umapStatic <- umapPlot
 
-      # Interactive plot settings
-      if (input$borderSizeUMAP > 0) {
-        umapInteractive <- umapInteractive + geom_point(pch = 21, alpha = input$pointAlphaUMAP, size = input$pointSizeUMAP*0.8, stroke = input$borderSizeUMAP, colour = input$umapBorderColour, aes_string(fill = input$umapColumnToPlot))
-        umapInteractive <- umapInteractive + scale_fill_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]], na.value = "grey78")
-        umapInteractive <- umapInteractive + guides(fill = guide_legend(override.aes = list(shape = 21, size = 5, stroke = 0.2)))
-      } else {
-        umapInteractive <- umapInteractive + geom_point(pch = 20, alpha = input$pointAlphaUMAP, size = input$pointSizeUMAP*0.4, aes_string(colour = input$umapColumnToPlot))
-        umapInteractive <- umapInteractive + scale_colour_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]], na.value = "grey78")
-        umapInteractive <- umapInteractive + guides(colour = guide_legend(override.aes = list(shape = 20, size = 6, stroke = 0.2)))
-      }
-      umapInteractive <- umapInteractive + theme_void()
-      umapInteractive <- umapInteractive + theme(
-        legend.text = element_text(size = input$textSizeUMAP, face = "bold"),
-        legend.title = element_text(size = input$textSizeUMAP, face = "bold")
+      # Interactive plot ----
+      ## No facet
+      colour_column <- as.formula(paste0("~", input$umapColumnToPlot))
+      umapInteractive <- plot_ly(
+        data = umapDF, 
+        x = ~x,
+        y = ~y,
+        type = 'scattergl', 
+        mode = 'markers', 
+        color = colour_column, 
+        colors = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]],
+        text = colour_column,
+        hovertemplate = paste(
+          input$umapColumnToPlot, ": %{text}<br>",
+          "<extra></extra>"
+        ),
+        marker = list(
+          size = input$pointSizeUMAP*2,
+          color = "fill_colour",
+          line = list(
+            color = "black",
+            width =  input$borderSizeUMAP
+          )
+        )
       )
-      if (!is.null(umapColumnToSplit)) {
-        umapInteractive <- eval(parse(text = paste0("umapInteractive + facet_wrap(~", umapColumnToSplit, ", ncol = ", input$umapMainNcol, ")")))
+      ## With facet
+      # Create a list of plots for each facet level
+      if (input$umapColumnToSplit != "None") {
+        split_col <- input$umapColumnToSplit
+        split_levels <- unique(umapDF[[split_col]])
+        if (input$umapMainNcol == length(split_levels)) {
+          input$umapMainNcol <- NULL
+        }
+        plots <- umapDF %>%
+          split(.[[input$umapColumnToSplit]]) %>%
+          imap(function(df_sub, i) {
+            plot_ly(
+              data = df_sub,
+              x = ~x,
+              y = ~y,
+              type = 'scattergl',
+              mode = 'markers',
+              color = colour_column,
+              colors = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]],
+              text = colour_column,
+              hovertemplate = paste0(
+                input$umapColumnToPlot, ": %{text}<br>",
+                split_col, ": ", i, "<br>",
+                "<extra></extra>"
+              ),
+              marker = list(
+                size = input$pointSizeUMAP * 3,
+                color = "fill_colour",
+                line = list(
+                  color = "black",
+                  width = input$borderSizeUMAP
+                )
+              )
+            ) %>% layout(title = NULL)
+          })
+        umapInteractive <- subplot(
+          plots,
+          ncols = input$umapMainNcol,
+          shareX = TRUE,
+          shareY = TRUE,
+          titleX = TRUE,
+          titleY = TRUE,
+          margin = 0.05
+        ) %>% 
+          layout(showlegend = TRUE) %>%
+          plotly_build() %>%
+          {
+            trace_names <- map_chr(.$x$data, ~.x$name %||% "")
+            unique_names <- unique(trace_names)
+            first_occurrences <- match(unique_names, trace_names)
+            for(i in seq_along(.$x$data)) {
+              trace_name <- .$x$data[[i]]$name %||% ""
+              .$x$data[[i]]$legendgroup <- trace_name
+              .$x$data[[i]]$showlegend <- i %in% first_occurrences
+            }
+            .
+          }
       }
-
+      # Static DR plot ----
+      umapPlot <- ggplot(umapDF, aes(x = x, y = y))
+      umapStatic <- umapPlot
       if (input$borderSizeUMAP > 0) {
         umapStatic <- umapStatic + geom_point(pch = 21, alpha = input$pointAlphaUMAP, size = input$pointSizeUMAP, stroke = input$borderSizeUMAP, colour = input$umapBorderColour, aes_string(fill = input$umapColumnToPlot))
         umapStatic <- umapStatic + guides(fill = guide_legend(override.aes = list(shape = 21, size = 5, stroke = 0.2)))

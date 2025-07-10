@@ -64,7 +64,7 @@ input <- list(
   featurePlotType = "Feature Plot",
   fpAssayToPlot = "data",
   fpDRToPlot = "UMAP",
-  fpFeatureToPlot = c("MHCII", "CD19"),
+  fpFeatureToPlot = c("MHC-II", "CD19"),
   excludeBucketFP = character(0),
   fpColumnToPlot = "condition",
   fpColumnToSplit = "None",
@@ -121,3 +121,4 @@ clusterTableReactive$table <- data.frame(
 rownames(clusterTableReactive$table) <- NULL
 clusterTableReactive$table <- column_to_rownames(clusterTableReactive$table, "cluster_id")
 inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- inputDataReactive$Results$coloursList$cluster_id
+input$fpSubsetCells <- FALSE
