@@ -10,7 +10,7 @@ output:
     code_folding: hide
     toc: true
     toc_depth: 6
-    dev: png
+    dev: ragg_png
 ---
 
 ```{=html}
@@ -33,8 +33,7 @@ knitr::opts_chunk$set(
   message = FALSE,
   cache = FALSE,
   cache.lazy = FALSE,
-  echo = FALSE,
-  dev = "png"
+  echo = FALSE
 )
 
 # Timestamp tag for output folder

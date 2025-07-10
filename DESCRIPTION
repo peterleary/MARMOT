@@ -63,7 +63,8 @@ Imports:
   chameleon,
   readxl,
   glue,
-  RColorBrewer
+  RColorBrewer,
+  ragg
 Suggests:
   Rphenograph,
   FastPG
