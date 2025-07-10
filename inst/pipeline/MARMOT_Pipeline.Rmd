@@ -1224,6 +1224,9 @@ if (is.null(RDataFolder)) {
 ```
 
 ```{r nice_umap_function}
+geom_text_repel_quiet <- function(..., max.overlaps = 10) {
+  suppressWarnings(ggrepel::geom_text_repel(..., max.overlaps = max.overlaps))
+}
 
 plotUMAPNice <- function(
   df = umapDF,
@@ -2200,7 +2203,7 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
   gp <- gp + geom_point(data = umapDF3, size = 0.2, alpha = 0.2, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.3, alpha = 0.95, shape = 16) 
-  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4)
+  gp <- gp + geom_text_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4)
   gp <- gp + scale_color_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
   gp <- gp + ggtitle(names(clustersToMapList)[i])
@@ -2249,7 +2252,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   ## gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
   gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
-  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4, show.legend = F)
+  gp <- gp + geom_text_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4, show.legend = F)
   gp <- gp + scale_color_manual(
     values = c(cTM, na.value = "black"),
     breaks = levels(as.factor(umapDF2[["cluster_id"]])))
