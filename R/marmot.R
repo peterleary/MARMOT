@@ -50,7 +50,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable) 
   
   # Tidy up the params
-  params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, " ") %>% unlist %>% as.numeric
+  params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, "\\ |\\,|\\,\\ ") %>% unlist %>% as.numeric
   for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])

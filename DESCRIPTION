@@ -33,6 +33,7 @@ Imports:
   ggnewscale,
   ggprism,
   gplots,
+  gtools,
   glue,
   gridExtra,
   kableExtra,
@@ -60,7 +61,9 @@ Imports:
   pacman,
   Cairo,
   chameleon,
-  readxl
+  readxl,
+  glue,
+  RColorBrewer
 Suggests:
   Rphenograph,
   FastPG

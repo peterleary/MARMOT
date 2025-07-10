@@ -122,14 +122,8 @@ pacman::p_load(
   ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
   RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
   DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, Rcpp, Seurat,
-  PeacoQC, MARMOT
+  PeacoQC, MARMOT, future
 )
-
-# Parallel processing setup
-plan(multisession, workers = nCores)
-options(future.globals.maxSize = (ramPerCore * nCores) * 1024^3)
-future.seed = TRUE
-set.seed(2)
 
 # Define class union for ExpData (if not already present)
 if (!methods::isClass("ExpData")) {
@@ -137,6 +131,45 @@ if (!methods::isClass("ExpData")) {
     methods::setClassUnion("ExpData", c("matrix", "SummarizedExperiment"), where = .GlobalEnv)
   }, silent = TRUE)
 }
+
+# Cross-platform parallel processing setup
+# Detect available cores safely
+max_cores <- parallel::detectCores(logical = FALSE)
+nCores <- min(nCores, max_cores - 1)  # Leave one core free
+
+# Platform-specific optimisations
+if (.Platform$OS.type == "windows") {
+  # Windows: Force multisession, disable forking
+  options(future.fork.enable = FALSE)
+  plan(multisession, workers = nCores)
+} else if (Sys.info()["sysname"] == "Darwin") {
+  # macOS: Check if running under Rosetta or native
+  arch_info <- system("uname -m", intern = TRUE)
+  r_arch <- R.version$arch
+  
+  if (r_arch == "x86_64" && arch_info == "arm64") {
+    # Running x86_64 R on Apple Silicon (Rosetta)
+    options(future.fork.enable = FALSE)
+    plan(multisession, workers = min(nCores, 4))  # Limit workers under Rosetta
+  } else {
+    # Native macOS (Intel or ARM)
+    options(future.fork.enable = TRUE)
+    plan(multicore, workers = nCores)
+  }
+} else {
+  # Linux and other Unix-like systems
+  options(future.fork.enable = TRUE)
+  plan(multicore, workers = nCores)
+}
+
+# Universal settings
+options(future.globals.maxSize = (ramPerCore * nCores) * 1024^3)
+options(future.wait.timeout = 120)
+options(future.rng.onMisuse = "ignore")
+
+# Set seed for reproducibility
+future.seed <- TRUE
+set.seed(2)
 ```
 
 ```{r load_rdata, include = FALSE, results = 'asis'}
@@ -379,7 +412,7 @@ asinh_transforms <- transformList(
 # Apply to the flowSet
 framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), function(i) {
   flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
-}) %>% setNames(names(framesList$Untransformed))
+}, future.seed = TRUE) %>% setNames(names(framesList$Untransformed))
 ```
 
 ```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder), cache = TRUE}
@@ -685,11 +718,12 @@ if (quantileNormaliseAll) {
 ```{r clustering_graph, results = "hide", eval = is.null(RDataFolder)}
 
 if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
-  message("🧠 Running clustering using ", clusteringMethodToUse, "...")
+  cat("\n🧠 Running clustering using", clusteringMethodToUse, "...\n\n")
 
   # Expression matrix for clustering
   es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
 
+  # Define cluster function to use
   cluster_fn <- function(k) {
     set.seed(2)
     if (clusteringMethodToUse == "FastPG") {
@@ -704,8 +738,16 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
   }
 
   # Run clustering (parallel if requested)
-  run_fn <- if (runInParallel) future_lapply else lapply
-  kList <- setNames(run_fn(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+  kList <- if (runInParallel && length(kValuesIWant) > 1) {
+    tryCatch({
+      setNames(future_lapply(kValuesIWant, cluster_fn, future.seed = TRUE), paste0("k", kValuesIWant))
+    }, error = function(e) {
+      message("Parallel failed, using sequential: ", e$message)
+      setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+    })
+  } else {
+    setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+  }
 
   # Store all clusterings in SCE object
   for (k in names(kList)) {
@@ -737,7 +779,7 @@ if (clusteringMethodToUse == "PARC") {
 
   parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
     parc_clust(esPARC, knn = as.integer(k), num_threads = max(1L, floor(nCores / length(kValuesIWant))))
-  }), paste0("p", kValuesIWant))
+  }, future.seed = TRUE), paste0("p", kValuesIWant))
 
   for (k in kValuesIWant) {
     cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
@@ -1927,7 +1969,7 @@ if (gimmePDFs) {
 
 ##### All Samples: Other k values
 
-```{r, label = "plot k DRs", fig.height=ceiling(6*length(kValuesIWant)), fig.width=9}
+```{r, label = "plot k DRs", fig.height=ceiling(6*length(kValuesIWant)), fig.width=7}
 pDRList <- setNames(lapply(kValuesIWant, function(i) {
   plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = F, size = 0.4)  + 
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
@@ -2101,7 +2143,7 @@ if (gimmePDFs) {
 
 ##### All Cells
 
-```{r, label = "DR of selected clusters", fig.height=5, fig.width=5, results = 'asis', warning = F}
+```{r, label = "DR of selected clusters", fig.height=5, fig.width=5, results = 'asis', warning = F, message = F}
 DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   clustersToMap <- names(clustersToMapList[[i]])
   cTM <- clustersToMapList[[i]]
@@ -2151,7 +2193,7 @@ if (gimmePDFs) {
 }
 ```
 
-```{r, label = "DR of selected clusters 2", fig.height= 6*(ceiling(length(condLevels)/2)), fig.width=10, results = 'asis', warning = F}
+```{r, label = "DR of selected clusters 2", fig.height= 6*(ceiling(length(condLevels)/2)), fig.width=10, results = 'asis', warning = F, message = F}
 DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   cat("#####" , names(clustersToMapList)[i], "\n\n")
   clustersToMap <- (names(clustersToMapList[[i]]))
