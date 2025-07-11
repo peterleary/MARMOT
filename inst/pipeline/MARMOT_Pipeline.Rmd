@@ -87,6 +87,9 @@ ramPerCore <- NULL
 themeToUse <- NULL    # ggplot2 theme
 viridisColour <- NULL     # Palette: "magma", "inferno", "plasma", etc.
 
+## WIP
+runScGate <- FALSE
+
 ## ✅ Done editing? Knit away!
 ```
 
@@ -1160,6 +1163,38 @@ if (is.null(RDataFolder)) {
   # Seurat conversion and scaling
   scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
   scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+}
+```
+
+```{r running_scGate}
+if (is.null(RDataFolder) && runScGate) {
+  message("🌉 Running scGate on marker pairs...")
+  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
+  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
+  markerPairs2 <- markerPairs
+  names(markerPairs2) <- markerPairTypes
+  models <- lapply(markerPairTypes, function(x) {
+    markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
+  }) %>% setNames(markerPairTypes)
+  for (x in names(models)) {
+    
+    if (!models[[x]][[1]] %in% rownames(scData)) {
+        models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+    }
+    if (!models[[x]][[2]] %in% rownames(scData)) {
+        models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+    }
+    
+    model <- gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
+    scData <- scGate(data = scData, model = model, pos.thr = 0.65)
+    y <- x %>% gsub("\\ |\\-", "", .)
+    scData[[paste0("is_", y)]] <- scData$scGate_multi
+    scData[[paste0("is_", y)]][!is.na(scData[[paste0("is_", y)]])] <- x
+  }
+  ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
+  scData$Gated_Cells <- lapply(1:nrow(scData@meta.data), function(i) {
+    (ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .))
+  }) %>% unlist
 }
 ```
 
@@ -2319,6 +2354,78 @@ if (gimmePDFs) {
   })
 }
 ```
+
+##### All 
+
+```{r label = "print gated DRs", fig.height=6, fig.width=18, results = 'asis'}
+if (runScGate) {
+  cat("#### Labelled Cells {.tabset}\n\n")
+  cat("\n\n##### All \n\n")
+  catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
+  names(catalystColsGates) <- unique(scData$Gated_Cells)
+  do_DimPlot(
+    sample = scData, 
+    group.by = "Gated_Cells", 
+    reduction = dimRedMethodToUse, 
+    label = TRUE, 
+    label.box = TRUE, 
+    legend.position = "right",
+    label.size = 3,
+    split.by = "condition",
+    pt.size = 0.1, 
+    order = "Gated_Cells", 
+    plot.axes = TRUE, 
+    colors.use = catalystColsGates, 
+    label.color = catalystColsGates
+    ) +
+    theme_bw() +
+    theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+  lapply(markerPairTypes, function(x) {
+    cat("#####", x, "\n\n")
+    y <- x %>% gsub("\\ |\\-", "", .)
+    print(
+      cowplot::plot_grid(
+        SCpubr::do_DimPlot(
+          sample = scData, 
+          group.by = paste0("is_", y), 
+          reduction = dimRedMethodToUse,
+          legend.position = "none", 
+          label = T, pt.size = 0.2) + 
+          ggtitle(paste0("Are ", x, "?")) +
+            theme(panel.border = element_rect(color = "black", fill = NA, size = 1)),
+        SCpubr::do_FeaturePlot(
+          sample = scData, 
+          features = paste0(x, "_UCell"), 
+          reduction = dimRedMethodToUse, 
+          legend.position = "none", 
+          use_viridis = T, 
+          viridis.palette = "mako", 
+          viridis.direction = 1, 
+          pt.size = 0.2) + 
+          ggtitle(paste0(x, " UCell Score")) +
+          theme(panel.border = element_rect(color = "black", fill = NA, size = 1)),
+        SCpubr::do_NebulosaPlot(
+          sample = scData,
+          reduction = dimRedMethodToUse, 
+          features = c(models[[x]][[1]],  models[[x]][[2]]),
+          joint = T, 
+          return_only_joint = T, 
+          use_viridis = T, 
+          viridis.palette = "mako",
+          viridis.direction = 1, 
+          legend.position = "none", 
+          pt.size = 0.2) +
+          theme(panel.border = element_rect(color = "black", fill = NA, size = 1)),
+        align = "hv", ncol = 3
+      )
+    )
+    cat("\n\n")
+  })
+  cat("\n\n")
+}
+```
+
 
 ### Barplots {.tabset}
 
