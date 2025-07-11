@@ -1532,6 +1532,8 @@ if (runMarkerPairPlots) {
     }
   }
   
+  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
+  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
   markerPairsList <- setNames(lapply(markerPairTypes, function(x) {
     toPlot <- markerPairs[grep(paste0("^", x), markerPairs)]
     plots <- lapply(toPlot, function(y) {
