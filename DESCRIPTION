@@ -65,7 +65,8 @@ Imports:
   glue,
   RColorBrewer,
   ragg,
-  scGate
+  scGate,
+  UCell
 Suggests:
   Rphenograph,
   FastPG
@@ -81,4 +82,5 @@ Remotes:
   bioc::flowSpecs,
   bioc::slingshot,
   bioc::flowAI,
-  bioc::PeacoQC
+  bioc::PeacoQC,
+  bioc::UCell
