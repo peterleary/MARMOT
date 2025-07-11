@@ -114,59 +114,61 @@ if(!is.null(missingVariables)) {
 
 ```{r load_packages}
 
-# Use pacman for convenience
+# Load packages
 pacman::p_load(
   BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
   flowCore, FlowSOM, tidyverse, CATALYST, readxl, cowplot, diffcyt, ggpubr, flowSpecs,
   ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
   RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
   DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, Rcpp, Seurat,
-  PeacoQC, MARMOT, future
+  PeacoQC, MARMOT, future, SCpubr, scGate
 )
 
-# Define class union for ExpData (if not already present)
+# Define class union for ExpData
 if (!methods::isClass("ExpData")) {
   try({
     methods::setClassUnion("ExpData", c("matrix", "SummarizedExperiment"), where = .GlobalEnv)
   }, silent = TRUE)
 }
 
-# Cross-platform parallel processing setup
-# Detect available cores safely
+# Detect available cores
 max_cores <- parallel::detectCores(logical = FALSE)
-nCores <- min(nCores, max_cores - 1)  # Leave one core free
+nCores <- min(nCores, max_cores - 1)  # leave one core free
 
-# Platform-specific optimisations
-if (.Platform$OS.type == "windows") {
-  # Windows: Force multisession, disable forking
+# Set future plan based on OS and core count
+if (nCores <= 1) {
+  # Single-core mode — no parallelism
+  plan(sequential)
+} else if (.Platform$OS.type == "windows") {
+  # Windows: use multisession
   options(future.fork.enable = FALSE)
   plan(multisession, workers = nCores)
 } else if (Sys.info()["sysname"] == "Darwin") {
-  # macOS: Check if running under Rosetta or native
+  # macOS (Intel or Apple Silicon)
   arch_info <- system("uname -m", intern = TRUE)
   r_arch <- R.version$arch
-  
+
   if (r_arch == "x86_64" && arch_info == "arm64") {
-    # Running x86_64 R on Apple Silicon (Rosetta)
+    # Running x86_64 R under Rosetta on ARM Mac
     options(future.fork.enable = FALSE)
-    plan(multisession, workers = min(nCores, 4))  # Limit workers under Rosetta
+    plan(multisession, workers = min(nCores, 4))
   } else {
-    # Native macOS (Intel or ARM)
+    # Native macOS (ARM or Intel)
     options(future.fork.enable = TRUE)
     plan(multicore, workers = nCores)
   }
 } else {
-  # Linux and other Unix-like systems
+  # Linux or other Unix-like systems
   options(future.fork.enable = TRUE)
   plan(multicore, workers = nCores)
 }
 
-# Universal settings
+# Set future options
 options(future.globals.maxSize = (ramPerCore * nCores) * 1024^3)
 options(future.wait.timeout = 120)
 options(future.rng.onMisuse = "ignore")
 
-# Set seed for reproducibility
+# Reproducibility
 future.seed <- TRUE
 set.seed(2)
 ```

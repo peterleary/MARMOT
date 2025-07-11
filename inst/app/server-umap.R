@@ -662,7 +662,11 @@ umapReactive <- eventReactive(
           )
         }))
         colnames(median)[1] <- input$umapColumnToPlot
-        umapStatic <- umapStatic + geom_label_repel(data = median, aes_string(label = input$umapColumnToPlot, x = "x", y = "y", fill = input$umapColumnToPlot), show.legend = FALSE, size = input$labelSizeUMAP, nudge_y = input$labelShiftUMAP/5, nudge_x = input$labelShiftUMAP/5)
+        umapStatic <- umapStatic + 
+          geom_label_repel(
+            data = median, 
+            aes(label = .data[[input$umapColumnToPlot]], x = x, y = y, fill = .data[[input$umapColumnToPlot]]), 
+            show.legend = FALSE, size = input$labelSizeUMAP, nudge_y = input$labelShiftUMAP/5, nudge_x = input$labelShiftUMAP/5)
       }
       umapStatic <- umapStatic + scale_fill_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]])
       umapStatic <- umapStatic + scale_colour_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]])

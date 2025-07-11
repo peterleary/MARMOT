@@ -64,7 +64,8 @@ Imports:
   readxl,
   glue,
   RColorBrewer,
-  ragg
+  ragg,
+  scGate
 Suggests:
   Rphenograph,
   FastPG
