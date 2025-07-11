@@ -344,7 +344,8 @@ if (is.null(RDataFolder)) {
   
   # List all .fcs files
   fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
-  fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
+  matches <- unlist(lapply(md$file_name, function(x) grep(x, fcs_files, fixed = TRUE)))
+  fcs_files <- fcs_files[unique(matches)]
   fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
   
   # Read each FCS file into a named list
@@ -1229,6 +1230,9 @@ if (is.null(RDataFolder)) {
 geom_text_repel_quiet <- function(..., max.overlaps = 10) {
   suppressWarnings(ggrepel::geom_text_repel(..., max.overlaps = max.overlaps))
 }
+geom_label_repel_quiet <- function(..., max.overlaps = 10) {
+  suppressWarnings(ggrepel::geom_label_repel(..., max.overlaps = max.overlaps))
+}
 
 plotUMAPNice <- function(
   df = umapDF,
@@ -1528,35 +1532,61 @@ if (runMarkerPairPlots) {
     }
   }
   
-  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
-  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
   markerPairsList <- setNames(lapply(markerPairTypes, function(x) {
     toPlot <- markerPairs[grep(paste0("^", x), markerPairs)]
-    plots <- setNames(lapply(toPlot, function(y) {
+    plots <- lapply(toPlot, function(y) {
       markersToPlot <- y %>% strsplit("\\: ") %>% .[[1]] %>% .[[2]] %>% strsplit(., " ") %>% .[[1]]
+      if (!markersToPlot[[1]] %in% colnames(es)) {
+        markersToPlot[[1]] <- agrep(markersToPlot[[1]], colnames(df), value = TRUE)
+      }
+      if (!markersToPlot[[2]] %in% colnames(es)) {
+        markersToPlot[[2]] <- agrep(markersToPlot[[1]], colnames(df), value = TRUE)
+      }
+      
       if (!quantileNormaliseAll) {
+        median <- data.table::rbindlist(lapply(unique(es[[mergeBy]]), function(x) {
+          data.frame(
+            "V1" = x,
+            "x" = median(es[[markersToPlot[[1]]]][es[[mergeBy]] == x]),
+            "y" = median(es[[markersToPlot[[2]]]][es[[mergeBy]] == x])
+          )
+        }))
+        colnames(median)[1] <- mergeBy
         q1 <- ggplot(es, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
+          geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y), show.legend = FALSE, size = 2) +
           scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
           theme_prism() +
           theme(legend.position = "hide") +
           ggtitle(paste0(x, "\nTransformed"))
+      
       }
+      
+      median <- data.table::rbindlist(lapply(unique(esQN[[mergeBy]]), function(x) {
+        data.frame(
+          "V1" = x,
+          "x" = median(esQN[[markersToPlot[[1]]]][esQN[[mergeBy]] == x]),
+          "y" = median(esQN[[markersToPlot[[2]]]][esQN[[mergeBy]] == x])
+        )
+      }))
+      colnames(median)[1] <- mergeBy
       p1 <- ggplot(esQN, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
+        geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y), show.legend = FALSE, size = 2) +
         scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
         theme_prism() +
         theme(legend.position = "hide") +
         ggtitle(paste0(x, "\nTransformed & QN"))
+      
       return(list(q1, p1))
-    }), toPlot)
+    }) %>% setNames(toPlot)
   }), markerPairTypes)
   
   lapply(names(markerPairsList), function(x) {
     cat("####", x, " {.tabset} \n\n")
     lapply(names(markerPairsList[[x]]), function(y) {
       cat("#####", y, " {.tabset} \n\n")
-      print(Seurat::LabelClusters(plot = markerPairsList[[x]][[y]][[1]], id = mergeBy, color = "black", box = T))
+      print(markerPairsList[[x]][[y]][[1]])
       if (length(markerPairsList[[x]][[y]]) == 2)
-        print(Seurat::LabelClusters(plot = markerPairsList[[x]][[y]][[2]], id = mergeBy, color = "black", box = T))
+        print(markerPairsList[[x]][[y]][[2]])
       cat("\n\n")
     })
     cat("\n\n")
