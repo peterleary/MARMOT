@@ -2355,31 +2355,31 @@ if (gimmePDFs) {
 }
 ```
 
-##### All 
-
 ```{r label = "print gated DRs", fig.height=6, fig.width=18, results = 'asis'}
 if (runScGate) {
   cat("#### Labelled Cells {.tabset}\n\n")
   cat("\n\n##### All \n\n")
   catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
   names(catalystColsGates) <- unique(scData$Gated_Cells)
-  do_DimPlot(
-    sample = scData, 
-    group.by = "Gated_Cells", 
-    reduction = dimRedMethodToUse, 
-    label = TRUE, 
-    label.box = TRUE, 
-    legend.position = "right",
-    label.size = 3,
-    split.by = "condition",
-    pt.size = 0.1, 
-    order = "Gated_Cells", 
-    plot.axes = TRUE, 
-    colors.use = catalystColsGates, 
-    label.color = catalystColsGates
-    ) +
-    theme_bw() +
-    theme(axis.text = element_blank(), axis.ticks = element_blank())
+  print(
+    do_DimPlot(
+      sample = scData, 
+      group.by = "Gated_Cells", 
+      reduction = dimRedMethodToUse, 
+      label = TRUE, 
+      label.box = TRUE, 
+      legend.position = "right",
+      label.size = 3,
+      split.by = "condition",
+      pt.size = 0.1, 
+      order = "Gated_Cells", 
+      plot.axes = TRUE, 
+      colors.use = catalystColsGates, 
+      label.color = catalystColsGates
+      ) +
+      theme_bw() +
+      theme(axis.text = element_blank(), axis.ticks = element_blank())
+  )
 
   lapply(markerPairTypes, function(x) {
     cat("#####", x, "\n\n")
