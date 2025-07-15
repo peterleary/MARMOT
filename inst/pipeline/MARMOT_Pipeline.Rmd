@@ -881,8 +881,11 @@ if (is.null(RDataFolder)) {
   }
   
   # Native DRs
-  sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
-  sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse)
+  if (dimRedMethodToUse == "UMAP") {
+    sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
+  } else if (dimRedMethodToUse == "TSNE") {
+    sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse)
+  }
 }
 ```
 
@@ -2359,6 +2362,13 @@ if (gimmePDFs) {
 if (runScGate) {
   cat("#### Labelled Cells {.tabset}\n\n")
   cat("\n\n##### All \n\n")
+  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
+  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
+  markerPairs2 <- markerPairs
+  names(markerPairs2) <- markerPairTypes
+  models <- lapply(markerPairTypes, function(x) {
+    markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
+  }) %>% setNames(markerPairTypes)
   catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
   names(catalystColsGates) <- unique(scData$Gated_Cells)
   print(
@@ -2380,7 +2390,7 @@ if (runScGate) {
       theme_bw() +
       theme(axis.text = element_blank(), axis.ticks = element_blank())
   )
-
+  cat("\n\n")
   lapply(markerPairTypes, function(x) {
     cat("#####", x, "\n\n")
     y <- x %>% gsub("\\ |\\-", "", .)
