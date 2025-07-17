@@ -6,62 +6,17 @@ channels:
   - defaults
 
 dependencies:
+  - libgit2
+  - curl
+  - openssl
+  - pkg-config
+  - git
   - r-base>=4.3
+  - r-pak
   - r-devtools
   - r-usethis
   - r-roxygen2
   - r-matrix
   - r-rcpp
-  - r-dt
-  - r-rcolorbrewer
-  - r-circlize
-  - r-clustree
-  - r-colourpicker
-  - r-fresh
-  - r-ggrepel
-  - r-ggnewscale
-  - r-ggprism
-  - r-gplots
-  - r-gtools
-  - r-glue
-  - r-gridextra
-  - r-kableextra
-  - r-openxlsx
-  - r-pals
-  - r-plotly
-  - r-qs
-  - r-rstatix
-  - r-scales
-  - r-scattermore
-  - r-scico
-  - r-shiny
-  - r-shinybs
-  - r-shinyalert
-  - r-shinycssloaders
-  - r-shinydashboard
-  - r-sortable
-  - r-tidyverse
-  - r-viridis
-  - r-waiter
-  - r-writexl
-  - r-yarrr
-  - r-pacman
-  - r-cairo
-  - r-readxl
-  - r-ragg
-  - r-seurat
-  - r-biocmanager
-  - r-cowplot
-  - r-patchwork
-  # Bioconductor packages
-  - bioconductor-catalyst
-  - bioconductor-complexheatmap
-  - bioconductor-nebulosa
-  - bioconductor-diffcyt
-  - bioconductor-flowspecs
-  - bioconductor-slingshot
-  - bioconductor-flowai
-  - bioconductor-peacoqc
-  - bioconductor-ucell
   # Python packages (if needed for interoperability)
   - pip

@@ -1,2 +1,2 @@
-install.packages("scGate", repos = "https://cloud.r-project.org")
-devtools::install_github("peterleary/MARMOT")
+if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
+pak::pkg_install(c("peterleary/MARMOT", "scGate"), ask = F, dependencies = T)
