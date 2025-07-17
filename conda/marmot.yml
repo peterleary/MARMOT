@@ -12,7 +12,6 @@ dependencies:
   - pkg-config
   - git
   - r-base>=4.3
-  - r-pak
   - r-devtools
   - r-usethis
   - r-roxygen2
