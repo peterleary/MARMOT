@@ -12,11 +12,9 @@ Depends:
   R (>= 4.3)
 Imports:
   BiocManager,
-  CATALYST,
   ComplexHeatmap,
   DT,
   Matrix,
-  PeacoQC,
   Nebulosa,
   RColorBrewer,
   Rcpp,
@@ -25,9 +23,6 @@ Imports:
   circlize,
   clustree,
   colourpicker,
-  diffcyt,
-  flowAI,
-  flowSpecs,
   fresh,
   ggrepel,
   ggnewscale,
@@ -68,7 +63,12 @@ Imports:
   UCell
 Suggests:
   Rphenograph,
-  FastPG
+  FastPG,
+  CATALYST,
+  PeacoQC,
+  diffcyt,
+  flowAI,
+  flowSpecs
 Remotes:
   i-cyto/Rphenograph,
   sararselitsky/FastPG,
