@@ -311,8 +311,8 @@ if (is.null(RDataFolder)) {
   palettePool <- c(
     RColorBrewer::brewer.pal(9, "Set1"),
     RColorBrewer::brewer.pal(8, "Dark2"),
-    as.character(yarrr::piratepal("basel")),
-    RColorBrewer::brewer.pal(12, "Paired")
+    RColorBrewer::brewer.pal(12, "Paired"),
+    RColorBrewer::brewer.pal(8, "Set3")
   )
   
   allConditionLevelColours <- setNames(palettePool[seq_along(allConditionLevels)], allConditionLevels)

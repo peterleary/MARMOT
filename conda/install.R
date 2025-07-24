@@ -1,2 +1,5 @@
 install.packages("pak", repos = "https://cran.rstudio.com", type = "source")
+pak::pkg_install("ComplexHeatmap", ask = FALSE, dependencies = TRUE)
+pak::pkg_install("bioc::CATALYST", upgrade = FALSE, ask = FALSE, dependencies = TRUE)
+pak::pkg_install("bioc::CATALYST", upgrade = FALSE, ask = FALSE, dependencies = TRUE)
 pak::pkg_install(c("peterleary/MARMOT", "scGate"), ask = F, dependencies = T)

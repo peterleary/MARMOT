@@ -324,7 +324,6 @@ allConditionLevels <- unlist(lapply(conditions, \(x) levels(factor(md[[x]]))), u
 palettePool <- c(
   RColorBrewer::brewer.pal(9, "Set1"),
   RColorBrewer::brewer.pal(8, "Dark2"),
-  as.character(yarrr::piratepal("basel")),
   RColorBrewer::brewer.pal(12, "Paired")
 )
 
@@ -1287,9 +1286,9 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
 }
 ```
 
+::: panel-tabset
 #### Cofactor Histograms
 
-::: panel-tabset
 ```{r, label = "print cofactor plots", results = 'asis', fig.height=12, fig.width=12}
 for (marker in useMarkers) {
   cat("#####", marker, "\n")
@@ -1300,7 +1299,6 @@ for (marker in useMarkers) {
 }
 nrowsCofactors <- ceiling(length(useMarkers)/4)
 ```
-::: 
 
 #### Marker Histograms
 
@@ -1391,9 +1389,10 @@ if (!is.null(downsampleTo)) {
   cat("\n\n")
 }
 ```
+::::
 
+::: panel-tabset
 ### Pseudo-bulk MDS Plots
-
 
 ```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
 mdsList <- setNames(lapply(conditions, function(x) {
@@ -1681,7 +1680,9 @@ if (gimmePDFs) {
   dev.off()
 }
 ```
+:::
 
+::: panel-tabset
 #### Sample Per Cluster
 
 ##### All Clusters
