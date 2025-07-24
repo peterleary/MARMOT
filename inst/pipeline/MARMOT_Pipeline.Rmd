@@ -841,12 +841,13 @@ if (is.null(RDataFolder)) {
   
     # Store all clusterings
     for (k in kValuesIWant) {
-      sce[[paste0("meta", k)]] <- cluster_ids(sceSOM, paste0("meta", k))
+      sce[[paste0("meta", k)]] <- as.character(cluster_ids(sceSOM, paste0("meta", k)))
+      sce[[paste0("meta", k)]] <- paste0("m", sce[[paste0("meta", k)]])
+      sce[[paste0("meta", k)]] <- factor(sce[[paste0("meta", k)]], levels = unique(gtools::mixedsort(sce[[paste0("meta", k)]])))
     }
   
     # Assign selected clustering
-    selected_k <- paste0("meta", knn)
-    sce$cluster_id <- cluster_ids(sceSOM, selected_k)
+    sce$cluster_id <- sce[[paste0("meta", knn)]]
   
     metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]])))
     kids <- unlist(sce[[paste0("meta", knn)]])
@@ -1444,15 +1445,15 @@ The number of cells per sample is:
 n_cells(sce)
 ```
 
-```{r, label = "plot cell counts 1", fig.height=4, fig.width=ceiling(length(conditions)*2)}
+```{r, label = "plot cell counts 1", fig.height=5, fig.width=ceiling(length(conditions)*3)}
 plotCounts(sce, color_by = "condition") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
-```{r, label = "plot cell counts 2", fig.height=4, fig.width=ceiling(length(conditions)*3)}
+```{r, label = "plot cell counts 2", fig.height=4, fig.width=ceiling(length(conditions)*4)}
 plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
-```{r, label = "plot full counts", results = 'asis', fig.height=4, fig.width=ceiling(length(conditions)*3)}
+```{r, label = "plot full counts", results = 'asis', fig.height=4, fig.width=ceiling(length(conditions)*4)}
 if (!is.null(downsampleTo)) {
   cat("\n\nHowever, because you downsampled, here are those numbers for the full dataset. The black line is what you downsampled to.\n\n")
   cat("\n\n")
@@ -1477,7 +1478,7 @@ if (!is.null(downsampleTo)) {
 
 ### Pseudo-bulk MDS Plots {.tabset}
 
-```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
+```{r, label = "plot mds by condition", fig.height=6, fig.width=9, results = 'asis'}
 mdsList <- setNames(lapply(conditions, function(x) {
   mds1 <- CATALYST::pbMDS(x = sce, color_by = x, size_by = T, features = featureType)
   mds1 <- mds1 + scale_colour_manual(values = coloursList[[x]]) + theme_prism(base_size = 16) + theme(panel.grid = element_blank())
@@ -1592,9 +1593,11 @@ if (runMarkerPairPlots) {
           )
         }))
         colnames(median)[1] <- mergeBy
-        q1 <- ggplot(es, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
-          geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y), show.legend = FALSE, size = 2) +
+        q1 <- ggplot(es, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + 
+          geom_point(size = 0.001) +
+          geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y, fill = .data[[mergeBy]]), show.legend = FALSE, size = 4, colour = "black") +
           scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
+          scale_fill_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
           theme_prism() +
           theme(legend.position = "hide") +
           ggtitle(paste0(x, "\nTransformed"))
@@ -1609,9 +1612,11 @@ if (runMarkerPairPlots) {
         )
       }))
       colnames(median)[1] <- mergeBy
-      p1 <- ggplot(esQN, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + geom_point(size = 0.001) +
-        geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y), show.legend = FALSE, size = 2) +
+      p1 <- ggplot(esQN, aes(x = .data[[markersToPlot[1]]], y = .data[[markersToPlot[2]]], color = .data[[mergeBy]])) + 
+        geom_point(size = 0.001) +
+        geom_label_repel_quiet(data = median, aes(label = .data[[mergeBy]], x = x, y = y, fill = .data[[mergeBy]]), show.legend = FALSE, size = 4, colour = "black") +
         scale_color_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
+        scale_fill_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
         theme_prism() +
         theme(legend.position = "hide") +
         ggtitle(paste0(x, "\nTransformed & QN"))
@@ -1640,9 +1645,9 @@ if (gimmePDFs) {
   lapply(names(markerPairsList), function(x) {
     lapply(names(markerPairsList[[x]]), function(y) {
       pdf(file = file.path(pdfDir, paste0(y, "_scatter.pdf")), width = 5, height = 5, bg = "transparent")
-      print(Seurat::LabelClusters(plot = markerPairsList[[x]][[y]][[1]], id = mergeBy, color = "black", box = T))
+      print(markerPairsList[[x]][[y]][[1]])
       if (length(markerPairsList[[x]][[y]]) == 2)
-        print(Seurat::LabelClusters(plot = markerPairsList[[x]][[y]][[2]], id = mergeBy, color = "black", box = T))
+        print(markerPairsList[[x]][[y]][[2]])
       dev.off()
     })
   })
@@ -1655,6 +1660,9 @@ if (gimmePDFs) {
 
 ```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(useMarkers)/3.5)}
 heatmapsList <- list()
+
+cl <- coloursList[[paste0(mergeBy, knn)]]
+
 if("type" %in% markerType & "state" %in% markerType) {
   cat("##### Type Markers Only \n\n")
   pET <- plotExprHeatmap(
@@ -1667,8 +1675,9 @@ if("type" %in% markerType & "state" %in% markerType) {
     perc = TRUE, 
     col_clust = FALSE, 
     hm_pal = hmPalToUse,
-    k_pal = coloursList[[paste0(mergeBy, knn)]]
+    k_pal = cl[sort(names(cl))]
     )
+  pET
   heatmapsList[["Type"]] <- pET
   print(pET)
   pETdf <- pET@matrix[row_order(pET),]
@@ -1703,7 +1712,7 @@ if("type" %in% markerType & "state" %in% markerType) {
     perc = TRUE, 
     col_clust = FALSE, 
     hm_pal = hmPalToUse,
-    k_pal = coloursList[[paste0(mergeBy, knn)]]
+    k_pal = cl[sort(names(cl))]
     )
   heatmapsList[["State"]] <- pES
   print(pES)
@@ -1747,7 +1756,17 @@ if (gimmePDFs) {
 ##### All Markers
 
 ```{r, label = "plot marker expression cluster", fig.height=ceiling(length(numbersOfClusters)/4), fig.width=if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/2.5))}}
-exH <- plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]])
+exH <- plotExprHeatmap(
+  x = sce, 
+  features = NULL, 
+  by = "cluster_id", 
+  k = clusteringMethodToUse, 
+  bars = TRUE, 
+  perc = TRUE, 
+  col_clust = FALSE, 
+  hm_pal = hmPalToUse, 
+  k_pal = cl[sort(names(cl))]
+  )
 exH
 ```
 
@@ -1784,7 +1803,20 @@ if (gimmePDFs) {
     width = if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/3))}, 
     height = ceiling(length(numbersOfClusters)/4.5), bg = "transparent"
     )
-  print(plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]]))
+  draw(
+    plotExprHeatmap(
+      x = sce, 
+      features = NULL, 
+      by = "cluster_id", 
+      k = clusteringMethodToUse, 
+      bars = TRUE, 
+      perc = TRUE, 
+      col_clust = FALSE, 
+      hm_pal = hmPalToUse, 
+      k_pal = cl[sort(names(cl))]
+      ),
+    merge_legend = TRUE
+    )
   dev.off()
 }
 ```
@@ -1802,7 +1834,7 @@ pFH <- plotFreqHeatmap(
   bars = TRUE, 
   perc = TRUE, 
   hm_pal = hmPalToUse,
-  k_pal = coloursList[[paste0(mergeBy, knn)]]
+  k_pal = cl[sort(names(cl))]
   )
 for (con in conditions) {
   pFH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -1810,7 +1842,7 @@ for (con in conditions) {
   pFH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
   pFH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
 }
-pFH
+draw(pFH, merge_legend = TRUE)
 ```
 
 ```{r, label = "save cluster per sample", results = "hide"}
@@ -2022,7 +2054,16 @@ if (!is.null(drCellPerCondition)) {
 ```{r, label = "DR all cells unlabelled", fig.height=6, fig.width=(3.5*ceiling(length(levels(umapDFList$All$cluster_id))/18))+0.5, results = 'asis'}
 if (!is.null(drCellPerCondition)) {
   cat("\n\n")
-  dr0a <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.9, show_cluster_labels = FALSE, show_grids = F, text_size = 14) + 
+  dr0a <- plotUMAPNice(
+    df = umapDFList$All, 
+    colour_by = "cluster_id", 
+    show_density = FALSE, 
+    size = 0.2, 
+    alpha = 0.9, 
+    show_cluster_labels = FALSE, 
+    show_grids = F, 
+    text_size = 14
+    ) + 
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
   dr0a
   cat("\n\n")
@@ -2063,7 +2104,16 @@ dr1a
 ```
 
 ```{r, label = "main cluster DR 2", fig.height=6, fig.width=7}
-dr1b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.8, show_cluster_labels = FALSE, show_grids = F, text_size = 14) + 
+dr1b <- plotUMAPNice(
+  df = as.data.frame(umapDFList[[umapsDFToPlot]]), 
+  colour_by = "cluster_id", 
+  show_density = FALSE, 
+  size = 0.2, 
+  alpha = 0.8, 
+  show_cluster_labels = FALSE, 
+  show_grids = F, 
+  text_size = 14
+  ) + 
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 dr1b
 ```
@@ -2081,7 +2131,7 @@ if (gimmePDFs) {
 
 ##### All Samples: Other k values
 
-```{r, label = "plot k DRs", fig.height=ceiling(6*length(kValuesIWant)), fig.width=7}
+```{r, label = "plot k DRs", fig.height=ceiling(6*length(kValuesIWant)), fig.width=8}
 pDRList <- setNames(lapply(kValuesIWant, function(i) {
   plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = F, size = 0.4)  + 
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
@@ -2275,8 +2325,9 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
   gp <- gp + geom_point(data = umapDF3, size = 0.2, alpha = 0.2, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.3, alpha = 0.95, shape = 16) 
-  gp <- gp + geom_text_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4)
+  gp <- gp + geom_label_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black")
   gp <- gp + scale_color_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  gp <- gp + scale_fill_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
   gp <- gp + ggtitle(names(clustersToMapList)[i])
   gp <- gp + theme_prism() +
@@ -2324,10 +2375,9 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   ## gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
   gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
-  gp <- gp + geom_text_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, colour = cluster_id), size = 4, show.legend = F)
-  gp <- gp + scale_color_manual(
-    values = c(cTM, na.value = "black"),
-    breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  gp <- gp + geom_label_repel_quiet(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, show.legend = F, colour = "black")
+  gp <- gp + scale_color_manual(values = c(cTM, na.value = "black"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  gp <- gp + scale_fill_manual(values = c(cTM, na.value = "black"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + ylim(min(umapDF$y[!is.na(umapDF$y)])-1, max(umapDF$y[!is.na(umapDF$y)])+1)
   gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))

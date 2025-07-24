@@ -12,14 +12,10 @@ Depends:
   R (>= 4.3)
 Imports:
   BiocManager,
-  ComplexHeatmap,
   DT,
   Matrix,
-  Nebulosa,
   RColorBrewer,
   Rcpp,
-  SCpubr,
-  Seurat,
   circlize,
   clustree,
   colourpicker,
@@ -45,7 +41,6 @@ Imports:
   shinyalert,
   shinycssloaders,
   shinydashboard,
-  slingshot,
   sortable,
   tidyverse,
   viridis,
@@ -54,13 +49,14 @@ Imports:
   fireworks,
   pacman,
   Cairo,
-  chameleon,
   readxl,
-  glue,
-  RColorBrewer,
   ragg,
-  scGate,
-  UCell
+  Seurat,
+  ComplexHeatmap,
+  Nebulosa,
+  slingshot,
+  UCell,
+  scGate
 Suggests:
   Rphenograph,
   FastPG,
@@ -68,7 +64,8 @@ Suggests:
   PeacoQC,
   diffcyt,
   flowAI,
-  flowSpecs
+  flowSpecs,
+  SCpubr
 Remotes:
   i-cyto/Rphenograph,
   sararselitsky/FastPG,
