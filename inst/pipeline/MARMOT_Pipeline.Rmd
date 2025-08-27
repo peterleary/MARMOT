@@ -229,21 +229,10 @@ if (length(conditionOrder) > 0) {
   md$condition <- as.factor(md$condition)
 }
 
-# Extract marker names
-useMarkers <- smd[[colnames(smd)[grep("include|cluster", colnames(smd))]]]
-useMarkers <- useMarkers[!is.na(useMarkers)]
-names(useMarkers) <- gsub("-|\\ |\\/", "_", useMarkers)
-
-if ("Marker Type" %in% colnames(smd)) {
-  markerType <- smd$`Marker Type`[!is.na(smd$`Marker Type`)]
-  if ("type" %in% markerType) {
-    featureType <- "type"
-  } else {
-    featureType <- NULL
-  }
-} else {
-  knitr::knit_exit()
-}
+# Extract marker names and types 
+markers_to_use_and_their_type <- smd$`Marker Type`[!is.na(smd$`Marker Type`)]
+names(markers_to_use_and_their_type) <- smd$`Markers to include`[!is.na(smd$`Marker Type`)]
+# knitr::knit_exit()
 
 # Define feature type from marker type
 featureType <- if ("Marker Type" %in% names(smd)) {
@@ -384,15 +373,15 @@ if (is.null(RDataFolder)) {
     select(fcs_colname = name, marker_name = desc) %>%
     mutate(
       antigen       = marker_name,
-      marker_class  = ifelse(marker_name %in% useMarkers, markerType, "none"),
-      use_channel   = marker_name %in% useMarkers
+      marker_class  = ifelse(marker_name %in% names(markers_to_use_and_their_type), markers_to_use_and_their_type[marker_name], "state"),
+      use_channel   = marker_name %in% names(markers_to_use_and_their_type)
     ) %>%
     dplyr::filter(!marker_name %in% removeMarkers) %>%
-    dplyr::filter(marker_name %in% useMarkers) %>%
-    arrange(match(marker_name, useMarkers))
+    dplyr::filter(marker_name %in% names(markers_to_use_and_their_type)) %>%
+    arrange(match(marker_name, names(markers_to_use_and_their_type)))
   
   # Sanity check
-  missing <- setdiff(useMarkers, panel$marker_name)
+  missing <- setdiff(names(markers_to_use_and_their_type), panel$marker_name)
   if (length(missing)) {
     stop("❌ Markers in metadata not found in FCS: ", paste(missing, collapse = ", "))
   }
@@ -400,7 +389,7 @@ if (is.null(RDataFolder)) {
   message("⚙️ Preparing cofactors for arcsinh transformation...")
   
   # Base cofactor vector, matched to FCS column names
-  cf <- setNames(cfToUse, panel$fcs_colname[match(useMarkers, panel$marker_name)])
+  cf <- setNames(cfToUse, panel$fcs_colname[match(names(markers_to_use_and_their_type), panel$marker_name)])
   
   # Fill in default (5) for other channels
   all_channels <- panel$fcs_colname
@@ -617,7 +606,7 @@ minify_plot_data <- function(p, colname, group_col = "condition") {
 }
 
 # Plot generation without persistent cofactorDFList
-cofactorPlotList <- lapply(useMarkers, function(marker) {
+cofactorPlotList <- lapply(names(markers_to_use_and_their_type), function(marker) {
   colname <- panel$fcs_colname[panel$marker_name == marker]
   marker_expr <- purrr::map(framesList[["Marker Histos"]], ~ exprs(.x)[, colname])
   
@@ -656,7 +645,7 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
   setNames(plot_set, plot_names)
 })
 
-names(cofactorPlotList) <- useMarkers
+names(cofactorPlotList) <- names(markers_to_use_and_their_type)
 ```
 
 ```{r create_sce}
@@ -847,9 +836,10 @@ if (is.null(RDataFolder)) {
     }
   
     # Assign selected clustering
+    selected_k <- paste0("meta", knn)
     sce$cluster_id <- sce[[paste0("meta", knn)]]
   
-    metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]])))
+    metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]]), levels = levels(sce[[selected_k]])))
     kids <- unlist(sce[[paste0("meta", knn)]])
     numbersOfClusters <- unique(kids)
   }
@@ -1237,9 +1227,9 @@ dir.create(excelDir, showWarnings = FALSE)
 if (is.null(RDataFolder)) {
   message("💾 Saving R objects to disk...")
   vars_to_save <- c(
-    "QCmini", "cf2", "dimRedMethodToUse", "useMarkers", "framesList", "frames", "nrowsCofactors",
+    "QCmini", "cf2", "dimRedMethodToUse", "markers_to_use_and_their_type", "framesList", "frames", "nrowsCofactors",
     "sce", "sce2", "sceDS", "coloursList", "md", "downsampleTo", "sceList", "lvlsColours",
-    "featuresToCluster", "featuresToUmap", "markerType", "smd", "knn", "clusteringMethodToUse",
+    "featuresToCluster", "featuresToUmap", "smd", "knn", "clusteringMethodToUse",
     "selectedClustersList", "kids", "numbersOfClusters", "kList", "umapDFList", "kValuesIWant",
     "clustersToMapList", "daList", "dsList", "daPValToUse", "panel", "labs", "scData"
   )
@@ -1330,7 +1320,7 @@ plotUMAPNice <- function(
   }
 
   # Gradient or manual colour scale
-  if (colour_by %in% useMarkers) {
+  if (colour_by %in% names(markers_to_use_and_their_type)) {
     gp <- gp + scale_colour_gradientn(name, colours = hcl.colors(64, viridisColour))
   } else {
     gp <- gp + scale_colour_manual(values = coloursList[[colour_by]])
@@ -1376,14 +1366,14 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
 ### Cofactor Histograms {.tabset}
 
 ```{r, label = "print cofactor plots", results = 'asis', fig.height=12, fig.width=12}
-for (marker in useMarkers) {
+for (marker in names(markers_to_use_and_their_type)) {
   cat("####", marker, "\n")
   cat(paste(marker, "Cofactor you chose:", cf2[[marker]]))
   cat("\n\n")
   grid.arrange(grobs = cofactorPlotList[[marker]], ncol = 3, top = marker)
   cat("\n\n")
 }
-nrowsCofactors <- ceiling(length(useMarkers)/4)
+nrowsCofactors <- ceiling(length(names(markers_to_use_and_their_type))/4)
 ```
 
 ### Marker Histograms
@@ -1552,7 +1542,7 @@ if(length(kValuesIWant) >= 2) {
 ```
 
 ```{r, label = "marker pair scatterplots", results = 'asis', fig.height=5, fig.width=5, warning = F}
-runMarkerPairPlots <- ("type" %in% markerType) && ("state" %in% markerType) && ("Marker Pairs" %in% colnames(smd))
+runMarkerPairPlots <- ("type" %in% as.character(markers_to_use_and_their_type)) && ("state" %in% as.character(markers_to_use_and_their_type)) && ("Marker Pairs" %in% colnames(smd))
 if (runMarkerPairPlots) {
   cat("\n\n")
   cat("### Marker-Pair Scatterplots {.tabset} \n\n")
@@ -1658,12 +1648,12 @@ if (gimmePDFs) {
 
 #### Marker Per Cluster {.tabset}
 
-```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(useMarkers)/3.5)}
+```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(names(markers_to_use_and_their_type))/3.5)}
 heatmapsList <- list()
 
 cl <- coloursList[[paste0(mergeBy, knn)]]
 
-if("type" %in% markerType & "state" %in% markerType) {
+if("type" %in% as.character(markers_to_use_and_their_type) & "state" %in% as.character(markers_to_use_and_their_type)) {
   cat("##### Type Markers Only \n\n")
   pET <- plotExprHeatmap(
     x = sce, 
@@ -1745,7 +1735,7 @@ if("type" %in% markerType & "state" %in% markerType) {
 if (gimmePDFs) {
   if (length(heatmapsList) == 2) {
     for (n in names(heatmapsList)) {
-      pdf(file = file.path(pdfDir, paste0(n, "_Marker_Heatmap.pdf")), height = ceiling(length(numbersOfClusters)/4.5), width = ceiling(length(useMarkers)/4))
+      pdf(file = file.path(pdfDir, paste0(n, "_Marker_Heatmap.pdf")), height = ceiling(length(numbersOfClusters)/4.5), width = ceiling(length(names(markers_to_use_and_their_type))/4))
       print(heatmapsList[[n]])
       dev.off()
     }
@@ -1755,7 +1745,7 @@ if (gimmePDFs) {
 
 ##### All Markers
 
-```{r, label = "plot marker expression cluster", fig.height=ceiling(length(numbersOfClusters)/4), fig.width=if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/2.5))}}
+```{r, label = "plot marker expression cluster", fig.height=ceiling(length(numbersOfClusters)/4), fig.width=if((length(names(markers_to_use_and_their_type))/2) < 10){10}else{(ceiling(length(names(markers_to_use_and_their_type))/2.5))}}
 exH <- plotExprHeatmap(
   x = sce, 
   features = NULL, 
@@ -1771,7 +1761,7 @@ exH
 ```
 
 ```{r, label = "top marker table", include = T}
-if("type" %in% markerType & "state" %in% markerType) { 
+if("type" %in% as.character(markers_to_use_and_their_type) & "state" %in% as.character(markers_to_use_and_their_type)) { 
   topMarkerTable <- left_join(topLineageTable, topStateTable)
   openxlsx::write.xlsx(as.data.frame(topMarkerTable), file.path(excelDir, "topMarkerTable.xlsx"))
   DT::datatable(
@@ -1800,7 +1790,7 @@ if("type" %in% markerType & "state" %in% markerType) {
 if (gimmePDFs) {
   pdf(
     file = file.path(pdfDir, "marker_per_cluster_heatmap.pdf"), 
-    width = if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/3))}, 
+    width = if((length(names(markers_to_use_and_their_type))/2) < 10){10}else{(ceiling(length(names(markers_to_use_and_their_type))/3))}, 
     height = ceiling(length(numbersOfClusters)/4.5), bg = "transparent"
     )
   draw(
@@ -1995,7 +1985,7 @@ Seurat::DoHeatmap(
   object = scData,
   assay = "originalexp",
   slot = "scale.data",
-  features = (useMarkers %>% gsub("_", "-", .)),
+  features = (names(markers_to_use_and_their_type) %>% gsub("_", "-", .)),
   group.by = "cluster_id",
   group.colors = coloursList[[paste0(mergeBy, knn)]],
   size = 4,
@@ -2006,16 +1996,16 @@ Seurat::DoHeatmap(
 
 ### Ridge Plot
 
-```{r, label = "ridge plot", fig.height=ceiling(length(useMarkers)/3)*2.5, fig.width=16}
+```{r, label = "ridge plot", fig.height=ceiling(length(names(markers_to_use_and_their_type))/3)*2.5, fig.width=16}
 pCE <- plotClusterExprs(sce, k = clusteringMethodToUse, features = NULL)
 pCE$facet$params$ncol <- 12
-pCE$facet$params$nrow <- ceiling(length(useMarkers)/12)
+pCE$facet$params$nrow <- ceiling(length(names(markers_to_use_and_their_type))/12)
 pCE + theme_prism()
 ```
 
 ```{r, label = "save ridge plot", include = F}
 if (gimmePDFs) {
-  pdf(file = file.path(pdfDir, "Ridge_Plot.pdf"), width = 16, height = ceiling(length(useMarkers)/3)*2.5)
+  pdf(file = file.path(pdfDir, "Ridge_Plot.pdf"), width = 16, height = ceiling(length(names(markers_to_use_and_their_type))/3)*2.5)
   print(pCE + theme_prism())
   dev.off()
 }
@@ -2197,7 +2187,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
     "With" = TRUE,
     "Without" = FALSE
   )
-  l1 <- setNames(lapply(useMarkers, function(marker) {
+  l1 <- setNames(lapply(names(markers_to_use_and_their_type), function(marker) {
     m1 <- plotUMAPNice(
       df = as.data.frame(umapDFList[[umapsDFToPlot]]), 
       colour_by = marker, 
@@ -2208,16 +2198,16 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
     m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank())
     m1 <- m1 + annotate(geom = "text", x = max(m1$data$x)*0.8, y = max(m1$data$y)*0.95, label = marker, color = "black", size = 6)
     m1
-  }), useMarkers)
+  }), names(markers_to_use_and_their_type))
   l1[["legend"]] <- cowplot::get_legend(l1[[1]])
-  for (marker in useMarkers) {
+  for (marker in names(markers_to_use_and_their_type)) {
     l1[[marker]] <- l1[[marker]] + theme(legend.position = "hide")
   }
   return(l1)
 }), c("With Labels", "Without Labels"))
 ```
 
-```{r, label = "DR per per marker 2", fig.width=16, fig.height=ceiling(length(useMarkers)/3)*3, dependson="umaps_per_marker1", results = 'asis'}
+```{r, label = "DR per per marker 2", fig.width=16, fig.height=ceiling(length(names(markers_to_use_and_their_type))/3)*3, dependson="umaps_per_marker1", results = 'asis'}
 lapply(names(UMAPList), function(yn){
   cat("#####", yn, "\n\n")
   print(plot_grid(plotlist = UMAPList[[yn]], ncol = 4, align = "hv"))
@@ -2230,7 +2220,7 @@ if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse)))
   lapply(names(UMAPList), function(m) {
     dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse), m))
-    pdf(file = file.path(pdfDir, paste0(m, "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
+    pdf(file = file.path(pdfDir, paste0(m, "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(names(markers_to_use_and_their_type))/3)*3)
     print(plot_grid(plotlist = UMAPList[[m]], ncol = 4))
     dev.off()
     lapply(names(UMAPList[[m]]), function(n) {
@@ -2255,7 +2245,7 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
     "With" = TRUE,
     "Without" = FALSE
   )
-  l1 <- setNames(lapply(useMarkers, function(marker) {
+  l1 <- setNames(lapply(names(markers_to_use_and_their_type), function(marker) {
     m1 <- plotUMAPNice(
       df = as.data.frame(umapDFList[[umapsDFToPlot]]), 
       colour_by = marker, 
@@ -2266,7 +2256,7 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
       facet_wrap(~condition, ncol = 2)
     m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank(), legend.position = "hide")
     m1
-  }), useMarkers)
+  }), names(markers_to_use_and_their_type))
   return(l1)
 }), c("With Labels", "Without Labels"))
 ```
@@ -2519,14 +2509,14 @@ x1 <- as.data.frame(t(assay(sce, "exprsQuantNorm")))
 x1$cluster_id <- cluster_ids(sce, clusteringMethodToUse)
 
 x1mean <- data.frame("cluster_id" = levels(as.factor(x1$cluster_id)))
-for (m in useMarkers) {
+for (m in names(markers_to_use_and_their_type)) {
   x1mean[[m]] <- NA
   for (cl in levels(as.factor(x1$cluster_id))) {
     x1mean[cl,m] <- mean(x1[[m]][which(x1$cluster_id == cl)])
   }
 }
 x1rf <- x1mean
-for (m in useMarkers) {
+for (m in names(markers_to_use_and_their_type)) {
   for (cl in levels(as.factor(x1$cluster_id))) {
     x1rf[cl,m] <- x1mean[cl,m]/sum(x1mean[cl,-1])
   }
@@ -2702,7 +2692,7 @@ openxlsx::write.xlsx(as.data.frame(medianScaledDF), file = file.path(excelDir, "
 ```
 
 ```{r, label = "draw marker boxplots", fig.height = heightToPlot*0.7, fig.width = widthToPlot}
-markerPvalues <- lapply(useMarkers, function(marker) {
+markerPvalues <- lapply(names(markers_to_use_and_their_type), function(marker) {
   pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) %>% setNames(names(dsList)[grep("Merged", names(dsList))]) %>% unlist
   if(length(pvals) == 0) {pvals <- 1}
   y_max <- max(markerBoxplotsMeltDF$value)
@@ -2716,10 +2706,10 @@ markerPvalues <- lapply(useMarkers, function(marker) {
   )
   pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
   pval_df
-}) %>% setNames(useMarkers)
+}) %>% setNames(names(markers_to_use_and_their_type))
 maxY <- lapply(seq_along(markerPvalues), function(i) {markerPvalues[[i]]$y.position}) %>% unlist %>% max
 
-markerBoxplotList <- lapply(useMarkers, function(marker) {
+markerBoxplotList <- lapply(names(markers_to_use_and_their_type), function(marker) {
   ggplot(medianScaledDF, aes(x = .data[["condition"]], y = .data[[marker]])) + 
     ## geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
     scale_y_continuous(limits = c(min(markerBoxplotsMeltDF$value), maxY)) +
@@ -2764,7 +2754,7 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[
   g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
     scale_y_continuous(limits = c(0, 1), breaks = c(0.25, 0.5, 0.75, 1)) +
     geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
-    geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
+    geom_vline(xintercept = (seq_along(names(markers_to_use_and_their_type))+0.5)[-length(names(markers_to_use_and_their_type))], linetype = "dotted", alpha = 0.3) +
     geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
     geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
     scale_fill_manual(values = coloursList$condition) +
@@ -2797,7 +2787,7 @@ for (i in seq_along(selectedClustersList)) {
         geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
         geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
         geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
-        geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
+        geom_vline(xintercept = (seq_along(names(markers_to_use_and_their_type))+0.5)[-length(names(markers_to_use_and_their_type))], linetype = "dotted", alpha = 0.3) +
         scale_fill_manual(values = coloursList$condition) +
         theme_prism(axis_text_angle = 45) +
         ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", j))
