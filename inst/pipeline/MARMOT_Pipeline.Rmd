@@ -1325,7 +1325,14 @@ plotUMAPNice <- function(
       df %>%
         group_by(.data[[cluster_labels]]) %>%
         summarise(x = median(x), y = median(y)))
-    gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = F)
+    if (colour_by %in% names(markers_to_use_and_their_type)) {
+      label_coords[[colour_by]] <- lapply(levels(df[[cluster_labels]]), function(level) {
+        mean(df[[colour_by]][df[[cluster_labels]] == level])
+      }) %>% unlist()
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = F)
+    } else {
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = F)
+    }
   }
   
   # Show the grid lines?
