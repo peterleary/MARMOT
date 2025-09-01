@@ -56,7 +56,8 @@ Imports:
   Nebulosa,
   slingshot,
   UCell,
-  scGate
+  scGate,
+  ggplotify
 Suggests:
   Rphenograph,
   FastPG,
