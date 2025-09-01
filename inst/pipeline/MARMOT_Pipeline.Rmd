@@ -846,49 +846,6 @@ if (is.null(RDataFolder)) {
 }
 ```
 
-```{r make_seurat_object}
-
-if (is.null(RDataFolder)) {
-  message("🖼️Generating Seurat object...")
-  # Seurat conversion and scaling
-  scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
-  scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-}
-```
-
-```{r run_scGate}
-
-if (is.null(RDataFolder) && runScGate) {
-  message("🌉 Running scGate on marker pairs...")
-  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
-  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
-  markerPairs2 <- markerPairs
-  names(markerPairs2) <- markerPairTypes
-  models <- lapply(markerPairTypes, function(x) {
-    markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
-  }) %>% setNames(markerPairTypes)
-  for (x in names(models)) {
-    
-    if (!models[[x]][[1]] %in% rownames(scData)) {
-        models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
-    }
-    if (!models[[x]][[2]] %in% rownames(scData)) {
-        models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
-    }
-    
-    model <- gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
-    scData <- scGate(data = scData, model = model, pos.thr = 0.65)
-    y <- x %>% gsub("\\ |\\-", "", .)
-    scData[[paste0("is_", y)]] <- scData$scGate_multi
-    scData[[paste0("is_", y)]][!is.na(scData[[paste0("is_", y)]])] <- x
-  }
-  ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
-  scData$Gated_Cells <- lapply(1:nrow(scData@meta.data), function(i) {
-    (ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .))
-  }) %>% unlist
-}
-```
-
 ```{r dim_reduction}
 
 if (is.null(RDataFolder)) {
@@ -923,6 +880,60 @@ if (is.null(RDataFolder)) {
 }
 ```
 
+```{r make_seurat_object}
+
+if (is.null(RDataFolder)) {
+  message("🖼️Generating Seurat object...")
+  # Seurat conversion and scaling
+  scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
+  scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+}
+```
+
+```{r run_scGate}
+
+if (is.null(RDataFolder) && runScGate) {
+  message("🌉 Running scGate on marker pairs...")
+  markerPairs <- smd$`Marker Pairs`[!is.na(smd$`Marker Pairs`)]
+  markerPairTypes <- markerPairs %>% gsub("\\:.*", "", .) %>% unique
+  markerPairs2 <- markerPairs
+  names(markerPairs2) <- markerPairTypes
+  models <- lapply(markerPairTypes, function(x) {
+    markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
+  }) %>% setNames(markerPairTypes)
+  for (x in names(models)) {
+    cat(x, "\n")
+    if (!models[[x]][[1]] %in% rownames(scData)) {
+        models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+    }
+    if (!models[[x]][[2]] %in% rownames(scData)) {
+        models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+    }
+    
+    model <- gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
+    scData <- scGate(data = scData, model = model, pos.thr = 0.65)
+    y <- x %>% gsub("\\ |\\-", "", .)
+    scData[[paste0("is_", y)]] <- scData$scGate_multi
+    scData[[paste0("is_", y)]][!is.na(scData[[paste0("is_", y)]])] <- x
+  }
+  
+  # Get UCell results and determine gated cells
+  ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
+  scData$Gated_Cells <- lapply(1:nrow(scData@meta.data), function(i) {
+    (ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .))
+  }) %>% unlist
+  
+  # Transfer scGate results back to sce
+  sce$Gated_Cells <- scData$Gated_Cells
+  
+  # Transfer all scGate-related metadata
+  scgate_cols <- grep("^is_|UCell", colnames(scData@meta.data), value = TRUE)
+  for (col in scgate_cols) {
+    sce[[col]] <- scData@meta.data[[col]]
+  }
+}
+```
+
 ```{r prepare_dimreds_all}
 
 if (is.null(RDataFolder)) {
@@ -953,19 +964,11 @@ if (is.null(RDataFolder)) {
     qn <- t(assay(sce, "exprsQuantNorm"))
     df <- bind_cols(df, as.data.frame(qn))
     
-    # Clean NAs (likely from cells not subsampled)
-    df <- na.omit(df)
-    
     return(df)
   }
   
   # Build full DR list
   umapDFList <- lapply(valid_methods, build_dr_df) %>% setNames(valid_methods)
-  if (runScGate) {
-    for (i in seq_along(umapDFList)) {
-      umapDFList[[i]]$Gated_Cells <- scData$Gated_Cells
-    }
-  }
   
   # Optionally downsample per condition
   if (!is.null(drCellPerCondition)) {
