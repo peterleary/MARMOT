@@ -846,6 +846,16 @@ if (is.null(RDataFolder)) {
 }
 ```
 
+```{r make_seurat_object}
+
+if (is.null(RDataFolder)) {
+  message("🖼️Generating Seurat object...")
+  # Seurat conversion and scaling
+  scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
+  scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
+}
+```
+
 ```{r run_scGate}
 
 if (is.null(RDataFolder) && runScGate) {
@@ -1186,15 +1196,6 @@ clustersToMapList <- lapply(names(selectedClustersList), function(label) {
 names(clustersToMapList) <- names(selectedClustersList)
 
 message("✅ DA and DS analysis complete.")
-```
-
-```{r make_seurat_object}
-if (is.null(RDataFolder)) {
-  message("🖼️Generating Seurat object...")
-  # Seurat conversion and scaling
-  scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
-  scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-}
 ```
 
 ```{r output_directories}
