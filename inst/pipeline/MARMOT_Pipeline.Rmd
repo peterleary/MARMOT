@@ -781,50 +781,55 @@ if (is.null(RDataFolder)) {
 }
 ```
 
-```{r parc_clustering}
+```{r parc_clustering, include = F}
 
-if (is.null(RDataFolder)) {
-  if (clusteringMethodToUse == "PARC") {
-    message("🐍 Running PARC clustering via reticulate...")
+if (clusteringMethodToUse == "PARC") {
+  message("🐍 Running PARC clustering via reticulate...")
   
-    set.seed(2)
-    esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
-    
-    parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
-      tryCatch(
-        run_parc(
-          mat = esPARC,
-          k = k,
-          num_threads = max(1L, floor(nCores / length(kValuesIWant)))
-        ),
-        error = function(e) NULL
-      )
-    }, future.seed = TRUE), paste0("p", kValuesIWant))
-  
-    if (all(vapply(parcClustList, is.null, logical(1)))) {
-      message("⚠️ PARC unavailable → switching clusteringMethodToUse = 'FlowSOM'")
-      clusteringMethodToUse <- "FlowSOM"
-    } else {
-      for (k in kValuesIWant) {
-        if (!is.null(parcClustList[[paste0("p", k)]])) {
-          cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
-          # Add "p" prefix and apply mixed sort
-          cluster_labels <- paste0("p", cluster_labels)
-          cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(unique(cluster_labels)))
-          sce[[paste0("p", k)]] <- cluster_labels
-        }
-      }
-  
-      chosen_k <- paste0("p", knn)
-      sce$cluster_id <- sce[[chosen_k]]
-      metadata(sce)$cluster_codes <- setNames(
-        list(factor(levels(sce[[chosen_k]]))),
-        clusteringMethodToUse
-      )
-      kids <- unlist(parcClustList[[paste0("p", knn)]])
-      numbersOfClusters <- unique(kids)
-    }
+  # Check and setup Python environment
+  if (is.null(reticulate::conda_binary())) {
+    stop("❌ Conda not found. Please install conda or miniconda first.")
   }
+  
+  envs <- reticulate::conda_list()
+  if ("p4r" %in% envs$name) {
+    # Use bundled environment and scripts
+    message("✅ Using bundled p4r environment")
+    reticulate::use_condaenv("p4r")
+    parc_script   <- system.file("python", "f_parc.py", package = "MARMOT", mustWork = TRUE)
+    reticulate::source_python(parc_script)
+  } else {
+    # Use user-specified paths
+    message("📁 Using user-specified conda and script paths")
+    use_condaenv("p4r", conda = condaDir)
+    source_python(file.path(parcScriptDir, "f_parc.py"))
+  }
+  
+  set.seed(2)
+  esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
+  
+  parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
+    parc_clust(esPARC, knn = as.integer(k), num_threads = as.integer(nCores)) %>% unlist
+  }, future.seed = TRUE), paste0("p", kValuesIWant))
+  
+  for (k in kValuesIWant) {
+    cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
+    cluster_labels <- paste0("p", cluster_labels)
+    cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(unique(cluster_labels)))
+    sce[[paste0("p", k)]] <- cluster_labels
+  }
+  
+  chosen_k <- paste0("p", knn)
+  sce$cluster_id <- sce[[chosen_k]]
+  
+  # Select default cluster to use
+  selected_k <- paste0("p", knn)
+  sce$cluster_id <- sce[[selected_k]]
+  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
+    "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
+  )))
+  kids <- unlist(sce[[paste0("p", knn)]])
+  numbersOfClusters <- levels(kids)
 }
 ```
 
@@ -862,7 +867,7 @@ if (is.null(RDataFolder)) {
 }
 ```
 
-```{r dim_reduction}
+```{r dim_reduction, include = F}
 
 if (is.null(RDataFolder)) {
   message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
@@ -881,11 +886,29 @@ if (is.null(RDataFolder)) {
   
   # Run PaCMAP if requested 
   if (dimRedMethodToUse == "pacmap") {
-    es <- t(assay(sce, exprsToUse)[featuresToUmap, ])
-    embedding <- tryCatch(
-      run_pacmap(es, verbose = TRUE, apply_pca = FALSE),
-      error = function(e) NULL
-    )
+    
+    # Check and setup Python environment
+    if (is.null(reticulate::conda_binary())) {
+      stop("❌ Conda not found. Please install conda or miniconda first.")
+    }
+  
+    envs <- reticulate::conda_list()
+    if ("p4r" %in% envs$name) {
+      # Use bundled environment and scripts
+      message("✅ Using bundled p4r environment")
+      reticulate::use_condaenv("p4r")
+      pacmap_script <- system.file("python", "f_pacmap.py", package = "MARMOT", mustWork = TRUE)
+      reticulate::source_python(pacmap_script)
+    } else {
+      # Use user-specified paths
+      message("📁 Using user-specified conda and script paths")
+      use_condaenv("p4r", conda = condaDir)
+      source_python(file.path(parcScriptDir, "f_pacmap.py"))
+    }
+  
+    es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+    embedding <- reducedDim(sce, dimRedMethodToUse) <- pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
+    colnames(embedding) <- c("x", "y")
     
     if (is.null(embedding)) {
       message("⚠️ PaCMAP unavailable → skipping.")
@@ -896,9 +919,8 @@ if (is.null(RDataFolder)) {
   }
   
   # Native DRs
-  if (dimRedMethodToUse == "UMAP") {
-    sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
-  } else if (dimRedMethodToUse == "TSNE") {
+  sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse)
+  if (dimRedMethodToUse == "TSNE") {
     sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse)
   }
 }
