@@ -785,33 +785,45 @@ if (is.null(RDataFolder)) {
   if (clusteringMethodToUse == "PARC") {
     message("🐍 Running PARC clustering via reticulate...")
   
-    use_condaenv("p4r", conda = condaDir)
-    source_python(file.path(parcScriptDir, "f_parc.py"))
-  
     set.seed(2)
     esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
-  
+    
     parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
-      parc_clust(esPARC, knn = as.integer(k), num_threads = max(1L, floor(nCores / length(kValuesIWant))))
+      tryCatch(
+        run_parc(
+          mat = esPARC,
+          k = k,
+          num_threads = max(1L, floor(nCores / length(kValuesIWant)))
+        ),
+        error = function(e) NULL
+      )
     }, future.seed = TRUE), paste0("p", kValuesIWant))
   
-    for (k in kValuesIWant) {
-      cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
-      cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
-      sce[[paste0("p", k)]] <- cluster_labels
-    }
+    if (all(vapply(parcClustList, is.null, logical(1)))) {
+      message("⚠️ PARC unavailable → switching clusteringMethodToUse = 'FlowSOM'")
+      clusteringMethodToUse <- "FlowSOM"
+    } else {
+      for (k in kValuesIWant) {
+        if (!is.null(parcClustList[[paste0("p", k)]])) {
+          cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
+          cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
+          sce[[paste0("p", k)]] <- cluster_labels
+        }
+      }
   
-    chosen_k <- paste0("p", knn)
-    sce$cluster_id <- sce[[chosen_k]]
-    metadata(sce)$cluster_codes <- setNames(
-      list(factor(levels(sce[[chosen_k]]))),
-      clusteringMethodToUse
-    )
-    kids <- unlist(parcClustList[[paste0("p", knn)]])
-    numbersOfClusters <- unique(kids)
+      chosen_k <- paste0("p", knn)
+      sce$cluster_id <- sce[[chosen_k]]
+      metadata(sce)$cluster_codes <- setNames(
+        list(factor(levels(sce[[chosen_k]]))),
+        clusteringMethodToUse
+      )
+      kids <- unlist(parcClustList[[paste0("p", knn)]])
+      numbersOfClusters <- unique(kids)
+    }
   }
 }
 ```
+
 
 ```{r FlowSOM}
 
@@ -863,12 +875,20 @@ if (is.null(RDataFolder)) {
   # Always run PCA first (needed for pacmap, helpful for others)
   sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
   
-  # PaCMAP (via Python)
+  # Run PaCMAP if requested 
   if (dimRedMethodToUse == "pacmap") {
-    use_condaenv("p4r", conda = condaDir)
-    source_python(file.path(parcScriptDir, "f_pacmap.py"))
-    es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-    reducedDim(sce, dimRedMethodToUse) <- pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
+    es <- t(assay(sce, exprsToUse)[featuresToUmap, ])
+    embedding <- tryCatch(
+      run_pacmap(es, verbose = TRUE, apply_pca = FALSE),
+      error = function(e) NULL
+    )
+    
+    if (is.null(embedding)) {
+      message("⚠️ PaCMAP unavailable → skipping.")
+      dimRedMethodToUse <- "UMAP"
+    } else {
+      reducedDim(sce, dimRedMethodToUse) <- embedding
+    }
   }
   
   # Native DRs
@@ -902,7 +922,6 @@ if (is.null(RDataFolder) && runScGate) {
     markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
   }) %>% setNames(markerPairTypes)
   for (x in names(models)) {
-    cat(x, "\n")
     if (!models[[x]][[1]] %in% rownames(scData)) {
         models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
     }
@@ -930,6 +949,11 @@ if (is.null(RDataFolder) && runScGate) {
   for (col in scgate_cols) {
     sce[[col]] <- scData@meta.data[[col]]
   }
+  
+  # Add gate colours to the colour list 
+  catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
+  names(catalystColsGates) <- unique(scData$Gated_Cells)
+  coloursList[["Gated_Cells"]] <- catalystColsGates
 }
 ```
 
@@ -2435,10 +2459,6 @@ if (runScGate) {
     markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
   }) %>% setNames(markerPairTypes)
   
-  catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
-  names(catalystColsGates) <- unique(scData$Gated_Cells)
-  coloursList[["Gated_Cells"]] <- catalystColsGates
-  
   print(
     plotUMAPNice(
       df = umapDFList$Downsampled.UMAP, 
@@ -2456,11 +2476,11 @@ if (runScGate) {
   lapply(names(models), function(mpt) {
     cat("#####", mpt, "\n\n")
     y <- mpt %>% gsub("\\ |\\-", "", .)
-    if (!models[[x]][[1]] %in% rownames(scData)) {
-      models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+    if (!models[[mpt]][[1]] %in% rownames(scData)) {
+      models[[mpt]][[1]] <- agrep(models[[mpt]][[1]], rownames(scData), value = TRUE)
     }
-    if (!models[[x]][[2]] %in% rownames(scData)) {
-      models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+    if (!models[[mpt]][[2]] %in% rownames(scData)) {
+      models[[mpt]][[2]] <- agrep(models[[mpt]][[2]], rownames(scData), value = TRUE)
     }
     print(
       cowplot::plot_grid(
