@@ -909,7 +909,6 @@ if (is.null(RDataFolder) && runScGate) {
     if (!models[[x]][[2]] %in% rownames(scData)) {
         models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
     }
-    
     model <- gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
     scData <- scGate(data = scData, model = model, pos.thr = 0.65)
     y <- x %>% gsub("\\ |\\-", "", .)
@@ -2435,6 +2434,7 @@ if (runScGate) {
   models <- lapply(markerPairTypes, function(x) {
     markerPairs2[x][[1]] %>% strsplit(" ") %>% .[[1]] %>% .[2:3]
   }) %>% setNames(markerPairTypes)
+  
   catalystColsGates <- catalystCols[1:length(unique(scData$Gated_Cells))]
   names(catalystColsGates) <- unique(scData$Gated_Cells)
   coloursList[["Gated_Cells"]] <- catalystColsGates
@@ -2453,9 +2453,15 @@ if (runScGate) {
   )
   
   cat("\n\n")
-  lapply(markerPairTypes, function(x) {
-    cat("#####", x, "\n\n")
-    y <- x %>% gsub("\\ |\\-", "", .)
+  lapply(names(models), function(mpt) {
+    cat("#####", mpt, "\n\n")
+    y <- mpt %>% gsub("\\ |\\-", "", .)
+    if (!models[[x]][[1]] %in% rownames(scData)) {
+      models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+    }
+    if (!models[[x]][[2]] %in% rownames(scData)) {
+      models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+    }
     print(
       cowplot::plot_grid(
         SCpubr::do_DimPlot(
@@ -2464,23 +2470,23 @@ if (runScGate) {
           reduction = dimRedMethodToUse,
           legend.position = "none", 
           label = T, pt.size = 0.2) + 
-          ggtitle(paste0("Are ", x, "?")) +
+          ggtitle(paste0("Are ", mpt, "?")) +
             theme(panel.border = element_rect(color = "black", fill = NA, size = 1)),
         SCpubr::do_FeaturePlot(
           sample = scData, 
-          features = paste0(x, "_UCell"), 
+          features = paste0(mpt, "_UCell"), 
           reduction = dimRedMethodToUse, 
           legend.position = "none", 
           use_viridis = T, 
           viridis.palette = "mako", 
           viridis.direction = 1, 
           pt.size = 0.2) + 
-          ggtitle(paste0(x, " UCell Score")) +
+          ggtitle(paste0(mpt, " UCell Score")) +
           theme(panel.border = element_rect(color = "black", fill = NA, size = 1)),
         SCpubr::do_NebulosaPlot(
           sample = scData,
           reduction = dimRedMethodToUse, 
-          features = c(models[[x]][[1]],  models[[x]][[2]]),
+          features = c(models[[mpt]][[1]], models[[mpt]][[2]]),
           joint = T, 
           return_only_joint = T, 
           use_viridis = T, 
