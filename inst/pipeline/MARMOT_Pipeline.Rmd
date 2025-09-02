@@ -730,7 +730,7 @@ if (quantileNormaliseAll) {
 if (is.null(RDataFolder)) {
     
   if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
-    message("🧠 Running clustering using", clusteringMethodToUse, "...")
+    message("🧠 Running clustering using ", clusteringMethodToUse, "...")
   
     # Expression matrix for clustering
     es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
@@ -745,7 +745,9 @@ if (is.null(RDataFolder)) {
         clusters <- Rphenograph::Rphenograph(data = es, k = k)
         ids <- factor(membership(clusters[[2]]))
       }
-      ids <- factor(ids, levels = 1:nlevels(ids))
+      # Add "k" prefix and apply mixed sort
+      ids <- paste0("k", ids)
+      ids <- factor(ids, levels = gtools::mixedsort(unique(ids)))
       list(kids = ids, clusters = clusters)
     }
   
@@ -806,7 +808,9 @@ if (is.null(RDataFolder)) {
       for (k in kValuesIWant) {
         if (!is.null(parcClustList[[paste0("p", k)]])) {
           cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
-          cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
+          # Add "p" prefix and apply mixed sort
+          cluster_labels <- paste0("p", cluster_labels)
+          cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(unique(cluster_labels)))
           sce[[paste0("p", k)]] <- cluster_labels
         }
       }
@@ -823,7 +827,6 @@ if (is.null(RDataFolder)) {
   }
 }
 ```
-
 
 ```{r FlowSOM}
 
@@ -843,8 +846,9 @@ if (is.null(RDataFolder)) {
     # Store all clusterings
     for (k in kValuesIWant) {
       sce[[paste0("meta", k)]] <- as.character(cluster_ids(sceSOM, paste0("meta", k)))
+      # Add "m" prefix and apply mixed sort
       sce[[paste0("meta", k)]] <- paste0("m", sce[[paste0("meta", k)]])
-      sce[[paste0("meta", k)]] <- factor(sce[[paste0("meta", k)]], levels = unique(gtools::mixedsort(sce[[paste0("meta", k)]])))
+      sce[[paste0("meta", k)]] <- factor(sce[[paste0("meta", k)]], levels = gtools::mixedsort(unique(sce[[paste0("meta", k)]])))
     }
   
     # Assign selected clustering
@@ -1544,26 +1548,6 @@ if (gimmePDFs) {
 plotNRS(sce, color_by = "condition", features = featureType) + scale_colour_manual(values = coloursList$condition)  + theme_prism(axis_text_angle = 90)
 ```
 
-```{r, label = "plot marker expr heatmap", fig.height=8, fig.width=12, include = F}
-#### Marker Expression Heatmap
-pEH <- plotExprHeatmap(sce, bin_anno = TRUE, row_anno = TRUE)
-for (con in conditions) {
-  pEH@left_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-}
-pEH
-```
-
-```{r, label = "save expression marker", results = "hide", eval = F}
-if (gimmePDFs) {
-  pdf(file = file.path(outDir, "marker_heatmap.pdf"), width = 12, height = (nrowsCofactors*2), bg = "transparent")
-  print(pEH)
-  dev.off()
-}
-```
-
 ## `r paste(clusteringMethodToUse)` Cluster Analysis {.tabset}
 
 ### K Tree {.tabset}
@@ -1702,7 +1686,7 @@ cl <- coloursList[[paste0(mergeBy, knn)]]
 
 if("type" %in% as.character(markers_to_use_and_their_type) & "state" %in% as.character(markers_to_use_and_their_type)) {
   cat("##### Type Markers Only \n\n")
-  pET <- plotExprHeatmap(
+  pET <- MARMOT::plotExprHeatmap(
     x = sce, 
     assay = exprsToUse, 
     features = "type", 
@@ -1740,7 +1724,7 @@ if("type" %in% as.character(markers_to_use_and_their_type) & "state" %in% as.cha
   cat("\n\n")
   
   cat("##### State Markers Only \n\n")
-  pES <- plotExprHeatmap(
+  pES <- MARMOT::plotExprHeatmap(
     x = sce, 
     features = "state", 
     by = "cluster_id", 
@@ -1793,7 +1777,7 @@ if (gimmePDFs) {
 ##### All Markers
 
 ```{r, label = "plot marker expression cluster", fig.height=ceiling(length(numbersOfClusters)/4), fig.width=if((length(names(markers_to_use_and_their_type))/2) < 10){10}else{(ceiling(length(names(markers_to_use_and_their_type))/2.5))}}
-exH <- plotExprHeatmap(
+exH <- MARMOT::plotExprHeatmap(
   x = sce, 
   features = NULL, 
   by = "cluster_id", 
@@ -1841,7 +1825,7 @@ if (gimmePDFs) {
     height = ceiling(length(numbersOfClusters)/4.5), bg = "transparent"
     )
   draw(
-    plotExprHeatmap(
+    MARMOT::plotExprHeatmap(
       x = sce, 
       features = NULL, 
       by = "cluster_id", 
@@ -1863,7 +1847,7 @@ if (gimmePDFs) {
 ##### All Clusters
 
 ```{r, label = "sample per cluster heatmap", fig.height=ceiling(length(numbersOfClusters)/3.5), fig.width=(ceiling(length(md$sample_id)/1.2))}
-pFH <- plotFreqHeatmap(
+pFH <- MARMOT::plotFreqHeatmap(
   x = sce,
   k = clusteringMethodToUse, 
   normalize = TRUE, 
@@ -2533,6 +2517,7 @@ if (runScGate) {
 ns <- table(cluster_id = cluster_ids(sce, clusteringMethodToUse), sample_id = sample_ids(sce))
 df <- as.data.frame(ns)
 df$condition <- md$condition[match(df$sample_id, md$sample_id)]
+df$cluster_id <- factor(df$cluster_id, levels = levels(sce$cluster_id))
 cellsPerClusterBarplot <- ggplot(df, aes(x = cluster_id, y = Freq, fill = cluster_id)) + 
   geom_bar(stat = "identity") + 
   scale_fill_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 

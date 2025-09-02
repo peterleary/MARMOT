@@ -14,7 +14,7 @@ run_pacmap(mat, verbose = TRUE, apply_pca = FALSE)
 \item{apply_pca}{Logical; whether to apply PCA before PaCMAP.}
 }
 \value{
-A numeric matrix of reduced coordinates (cells x components).
+A numeric matrix of reduced coordinates (cells x components), or NULL if unavailable.
 }
 \description{
 Wrapper for the \code{pacmap_fit} function from the bundled Python script \code{f_pacmap.py}.

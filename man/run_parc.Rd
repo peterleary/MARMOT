@@ -14,7 +14,7 @@ run_parc(mat, k = 30L, num_threads = 1L)
 \item{num_threads}{Number of threads to use.}
 }
 \value{
-An integer vector of cluster assignments.
+An integer vector of cluster assignments, or NULL if PARC unavailable.
 }
 \description{
 Wrapper for the \code{parc_clust} function from the bundled Python script \code{f_parc.py}.

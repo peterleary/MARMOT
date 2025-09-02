@@ -1,7 +1,7 @@
 Package: MARMOT
 Type: Package
 Title: MARMOT
-Version: 0.2.0
+Version: 0.3.0
 Author: Peter Leary [aut, cre]
 Maintainer: Peter Leary <peter.leary@uzh.ch>
 Description: MARMOT provides an extensible framework for high-dimensional single-cell cytometry analysis, including quality control, clustering, dimensionality reduction, differential testing, and visualisation.
@@ -12,13 +12,13 @@ Depends:
   R (>= 4.3)
 Imports:
   BiocManager,
-  DT,
-  Matrix,
-  RColorBrewer,
-  Rcpp,
+  Cairo,
+  ComplexHeatmap,
   circlize,
   clustree,
   colourpicker,
+  DT,
+  fastmap,
   fresh,
   ggrepel,
   ggnewscale,
@@ -32,32 +32,29 @@ Imports:
   pals,
   plotly,
   qs,
+  ragg,
   rstatix,
   scales,
   scattermore,
   scico,
+  Seurat,
   shiny,
   shinyBS,
   shinyalert,
   shinycssloaders,
   shinydashboard,
+  slingshot,
   sortable,
   tidyverse,
+  UCell,
+  scGate,
   viridis,
   waiter,
   writexl,
   fireworks,
   pacman,
-  Cairo,
-  readxl,
-  ragg,
-  Seurat,
-  ComplexHeatmap,
-  Nebulosa,
-  slingshot,
-  UCell,
-  scGate,
-  ggplotify
+  ggplotify,
+  Nebulosa
 Suggests:
   Rphenograph,
   FastPG,
@@ -71,13 +68,4 @@ Remotes:
   i-cyto/Rphenograph,
   sararselitsky/FastPG,
   hypebright/fireworks,
-  enblacar/SCpubr,
-  bioc::Nebulosa,
-  bioc::ComplexHeatmap,
-  bioc::CATALYST,
-  bioc::diffcyt,
-  bioc::flowSpecs,
-  bioc::slingshot,
-  bioc::flowAI,
-  bioc::PeacoQC,
-  bioc::UCell
+  enblacar/SCpubr
