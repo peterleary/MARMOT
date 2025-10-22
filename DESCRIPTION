@@ -7,7 +7,7 @@ Maintainer: Peter Leary <peter.leary@uzh.ch>
 Description: MARMOT provides an extensible framework for high-dimensional single-cell cytometry analysis, including quality control, clustering, dimensionality reduction, differential testing, and visualisation.
 License: MIT + file LICENSE
 Encoding: UTF-8
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Depends: 
   R (>= 4.3)
 Imports:
@@ -54,11 +54,12 @@ Imports:
   fireworks,
   pacman,
   ggplotify,
-  Nebulosa
+  Nebulosa,
+  CATALYST,
+  UCell
 Suggests:
   Rphenograph,
   FastPG,
-  CATALYST,
   PeacoQC,
   diffcyt,
   flowAI,
