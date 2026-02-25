@@ -48,7 +48,7 @@ observeEvent({
         sortable::add_rank_list(
           text = "Exclude these groups",
           labels = NULL,
-          input_id = "splutByExcludeBucket"
+          input_id = "splitByExcludeBucket"
         )
       )
     })
@@ -449,7 +449,10 @@ observeEvent(
 
       # ====== NEBULOSA PLOT ======
       } else if (input$featurePlotType == "Nebulosa Plot") {
-        require("Nebulosa")
+        if (!requireNamespace("Nebulosa", quietly = TRUE)) {
+          showNotification("Nebulosa is not installed.", type = "error")
+          return(NULL)
+        }
         # Nebulosa works directly with SCE
         nebFeatures <- fpFeaturesToPlot
         joint <- isTRUE(input$fpNebulosaPlotTogether)
@@ -470,6 +473,7 @@ observeEvent(
 
         fp_raw <- Nebulosa::plot_density(
           sce, features = nebFeatures,
+          slot = assayToUse,
           reduction = dr_choice,
           joint = joint, combine = combine
         )

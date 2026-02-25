@@ -160,9 +160,18 @@ umapReactive <- eventReactive(
           )
       }
 
+      # Use stored colours; fall back to a generated palette for unlisted columns
+      col_vals <- inputDataReactive$Results$coloursList[[input$umapColumnToPlot]]
+      if (is.null(col_vals)) {
+        lvls <- unique(na.omit(umapDF[[input$umapColumnToPlot]]))
+        col_vals <- setNames(
+          colorspace::qualitative_hcl(length(lvls), palette = "Dark 3"),
+          lvls
+        )
+      }
       umapStatic <- umapStatic +
-        scale_fill_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]]) +
-        scale_colour_manual(values = inputDataReactive$Results$coloursList[[input$umapColumnToPlot]])
+        scale_fill_manual(values = col_vals, na.value = "grey80") +
+        scale_colour_manual(values = col_vals, na.value = "grey80")
 
       return(list(
         "umapInteractive" = umapInteractive,
@@ -174,12 +183,8 @@ umapReactive <- eventReactive(
   }
 )
 
-output$umapInteractive <- renderUI({
-  ggplotly(
-    umapReactive()$umapInteractive,
-    height = input$figHeightUMAP,
-    width = input$figWidthUMAP
-  ) |>
+output$umapInteractive <- renderPlotly({
+  umapReactive()$umapInteractive |>
     layout(legend = list(
       font = list(family = "Arial", size = input$textSizeUMAP),
       title = list(

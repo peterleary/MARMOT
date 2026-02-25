@@ -1056,8 +1056,9 @@ build_dr_df <- function(method) {
   qn <- t(assay(sce, "exprsQuantNorm"))
   df <- bind_cols(df, as.data.frame(qn))
   
-  # Clean NAs (likely from cells not subsampled)
-  df <- na.omit(df)
+  # Drop only rows with missing DR coordinates (not all NAs — scGate is_* columns
+  # have NA for negative cells and must be preserved)
+  df <- df[!is.na(df$x) & !is.na(df$y), , drop = FALSE]
   
   return(df)
 }
