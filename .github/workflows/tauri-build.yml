@@ -1,0 +1,119 @@
+name: Build MARMOT GUI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: marmot-gui-macos-arm64
+          - platform: macos-13
+            target: x86_64-apple-darwin
+            asset_name: marmot-gui-macos-x86_64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            asset_name: marmot-gui-linux-x86_64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: marmot-gui-windows-x86_64
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        working-directory: inst/tauri-app
+        run: npm install
+
+      - name: Build Tauri app
+        working-directory: inst/tauri-app
+        run: npx tauri build --target ${{ matrix.target }} --no-bundle
+
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/marmot-gui ${{ matrix.asset_name }}
+          chmod +x ${{ matrix.asset_name }}
+          tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.asset_name }}
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          copy inst\tauri-app\src-tauri\target\${{ matrix.target }}\release\marmot-gui.exe ${{ matrix.asset_name }}.exe
+          Compress-Archive -Path ${{ matrix.asset_name }}.exe -DestinationPath ${{ matrix.asset_name }}.zip
+        shell: pwsh
+
+      - name: Build bundled installers
+        working-directory: inst/tauri-app
+        run: npx tauri build --target ${{ matrix.target }}
+        continue-on-error: true
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
+
+      - name: Upload installers (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-installers
+          path: inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+        continue-on-error: true
+
+      - name: Upload installers (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-installers
+          path: |
+            inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+        continue-on-error: true
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

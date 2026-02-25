@@ -1,0 +1,43 @@
+# R build artifacts
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+src/*.o
+src/*.so
+src/*.dll
+
+# Package build
+*.tar.gz
+*.Rcheck/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.Rproj.user/
+.vscode/
+*.Rproj
+.idea/
+
+# Byte-compiled / optimised
+__pycache__/
+*.py[cod]
+
+# MARMOT GUI binary/app (built from inst/tauri-app)
+/MARMOT
+/MARMOT.exe
+/MARMOT.app
+
+# Tauri app build artifacts
+inst/tauri-app/node_modules/
+inst/tauri-app/src-tauri/target/
+inst/tauri-app/dist/
+
+# Demo data
+data
+
+# Lab book
+MARMOT_labbook.qmd
+/.quarto/

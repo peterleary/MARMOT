@@ -1,0 +1,13 @@
+^conda$
+^images$
+^MARMOT_labbook\.qmd$
+^README\.md$
+^\.gitignore$
+^LICENSE\.md$
+^\.github$
+^inst/tauri-app/node_modules$
+^inst/tauri-app/src-tauri/target$
+^inst/tauri-app/dist$
+^.*\.Rproj$
+^\.Rproj\.user$
+^inst/pipeline/MARMOT_Pipeline\.Rmd$

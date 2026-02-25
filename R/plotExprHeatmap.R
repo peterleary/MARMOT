@@ -1,3 +1,13 @@
+# Default cluster colour palette (matches CATALYST internal .cluster_cols)
+.marmot_cluster_cols <- c(
+  "#DC050C", "#FB8072", "#1965B0", "#7BAFDE", "#882E72",
+  "#B17BA6", "#FF7F00", "#FDB462", "#E7298A", "#E78AC3",
+  "#33A02C", "#B2DF8A", "#55A1B1", "#8DD3C7", "#A6761D",
+  "#E6AB02", "#7570B3", "#BEAED4", "#666666", "#999999",
+  "#aa8282", "#d4b7b7", "#8600bf", "#ba5ce3", "#808000",
+  "#aeae5c", "#1e90ff", "#00bfff", "#56ff0d", "#ffff00"
+)
+
 #' Expression Heatmap
 #'
 #' Create a heatmap of expression values with customizable clustering and annotations.
@@ -24,7 +34,7 @@
 #' @param perc Logical for percentage display (default: FALSE)
 #' @param bin_anno Logical for binary annotation display (default: FALSE)
 #' @param hm_pal Colour palette for heatmap (default: rev(RColorBrewer::brewer.pal(11, "RdYlBu")))
-#' @param k_pal Colour palette for cluster annotations (default: CATALYST::.cluster_cols)
+#' @param k_pal Colour palette for cluster annotations (default: .marmot_cluster_cols)
 #' @param m_pal Colour palette for metacluster annotations (default: k_pal)
 #' @param distance Character specifying distance metric for clustering
 #' @param linkage Character specifying linkage method for clustering
@@ -50,7 +60,7 @@ plotExprHeatmap <- function(x, features = NULL, by = c("sample_id", "cluster_id"
                             row_anno = TRUE, col_anno = TRUE, row_clust = TRUE, col_clust = TRUE, 
                             row_dend = TRUE, col_dend = TRUE, bars = FALSE, perc = FALSE, 
                             bin_anno = FALSE, hm_pal = rev(RColorBrewer::brewer.pal(11, "RdYlBu")), 
-                            k_pal = CATALYST::.cluster_cols, m_pal = k_pal, distance = c("euclidean", 
+                            k_pal = .marmot_cluster_cols, m_pal = k_pal, distance = c("euclidean", 
                                                                                          "maximum", "manhattan", "canberra", "binary", "minkowski"), 
                             linkage = c("average", "ward.D", "single", "complete", "mcquitty", 
                                         "median", "centroid", "ward.D2")) 
@@ -174,7 +184,7 @@ plotExprHeatmap <- function(x, features = NULL, by = c("sample_id", "cluster_id"
 #' @param bars Logical for frequency bars (default: TRUE)
 #' @param perc Logical for percentage display (default: FALSE)
 #' @param hm_pal Colour palette for heatmap (default: rev(RColorBrewer::brewer.pal(11, "RdBu")))
-#' @param k_pal Colour palette for cluster annotations (default: CATALYST::.cluster_cols)
+#' @param k_pal Colour palette for cluster annotations (default: .marmot_cluster_cols)
 #' @param m_pal Colour palette for metacluster annotations (default: k_pal)
 #'
 #' @return A ComplexHeatmap object
@@ -192,7 +202,7 @@ plotExprHeatmap <- function(x, features = NULL, by = c("sample_id", "cluster_id"
 plotFreqHeatmap <- function(x, k = "meta20", m = NULL, normalize = TRUE, row_anno = TRUE, 
                             col_anno = TRUE, row_clust = TRUE, col_clust = TRUE, row_dend = TRUE, 
                             col_dend = TRUE, bars = TRUE, perc = FALSE, hm_pal = rev(RColorBrewer::brewer.pal(11, 
-                                                                                                              "RdBu")), k_pal = CATALYST::.cluster_cols, m_pal = k_pal) 
+                                                                                                              "RdBu")), k_pal = .marmot_cluster_cols, m_pal = k_pal) 
 {
   args <- as.list(environment())
   CATALYST:::.check_args_plotFreqHeatmap(args)

@@ -1,72 +1,100 @@
 Package: MARMOT
 Type: Package
 Title: MARMOT
-Version: 0.3.0
+Version: 0.4.0
 Author: Peter Leary [aut, cre]
 Maintainer: Peter Leary <peter.leary@uzh.ch>
 Description: MARMOT provides an extensible framework for high-dimensional single-cell cytometry analysis, including quality control, clustering, dimensionality reduction, differential testing, and visualisation.
 License: MIT + file LICENSE
 Encoding: UTF-8
 RoxygenNote: 7.3.3
-Depends: 
+Depends:
   R (>= 4.3)
 Imports:
+  arrow,
+  BiocGenerics,
   BiocManager,
-  Cairo,
-  ComplexHeatmap,
+  CATALYST,
+  chameleon,
   circlize,
   clustree,
+  colorspace,
   colourpicker,
+  ComplexHeatmap,
+  cowplot,
+  data.table,
+  diffcyt,
   DT,
-  fastmap,
+  fireworks,
+  flowCore,
+  FlowSOM,
   fresh,
-  ggrepel,
+  future,
+  future.apply,
   ggnewscale,
   ggprism,
-  gplots,
-  gtools,
+  ggpubr,
+  ggbeeswarm,
+  ggrepel,
+  ggridges,
   glue,
+  gplots,
   gridExtra,
+  gtools,
+  jsonlite,
   kableExtra,
+  later,
+  matrixStats,
+  methods,
+  Nebulosa,
   openxlsx,
   pals,
   plotly,
+  quarto,
   qs,
   ragg,
+  RColorBrewer,
+  readxl,
+  reticulate,
+  reshape2,
+  rmarkdown,
+  Rphenograph,
   rstatix,
+  S4Vectors,
   scales,
   scattermore,
   scico,
-  Seurat,
   shiny,
   shinyBS,
   shinyalert,
   shinycssloaders,
   shinydashboard,
+  shinyjs,
+  shinyWidgets,
+  SingleCellExperiment,
   slingshot,
   sortable,
+  SummarizedExperiment,
   tidyverse,
-  UCell,
-  scGate,
   viridis,
   waiter,
   writexl,
-  fireworks,
-  pacman,
-  ggplotify,
-  Nebulosa,
-  CATALYST,
-  UCell
+  zip
 Suggests:
-  Rphenograph,
+  basilisk,
+  basilisk.utils,
   FastPG,
-  PeacoQC,
-  diffcyt,
   flowAI,
-  flowSpecs,
-  SCpubr
+  pacman,
+  PeacoQC,
+  scGate,
+  SCpubr,
+  Seurat,
+  testthat (>= 3.0.0),
+  UCell,
+  withr
+Config/testthat/edition: 3
 Remotes:
   i-cyto/Rphenograph,
   sararselitsky/FastPG,
-  hypebright/fireworks,
-  enblacar/SCpubr
+  hypebright/fireworks

@@ -1,3 +1,5 @@
+<!-- FROZEN: This Rmd is no longer maintained. The active pipeline is MARMOT_Pipeline.qmd. -->
+<!-- Kept for reference only (scGate/SCpubr integration). Do not ship in package builds. -->
 ---
 title: "{{PIPELINE_NAME}}"
 author: ''
@@ -96,36 +98,57 @@ runScGate <- FALSE
 ```{r check_variables}
 
 required_vars <- c(
-  "fp", "md_fp", "condaDir", "parcScriptDir", "downsampleTo",
+  "fp", "md_fp", "downsampleTo",
   "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour", "UCell"
+  "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour"
 )
 
-missingVariables <- names(unlist(setNames(lapply(required_vars, function(x) {
-  if (!exists(x)) {
-    x
-  }
-}), required_vars)))
+missing_vars <- required_vars[!sapply(required_vars, exists)]
 
-if(!is.null(missingVariables)) {
-  stop(paste0("❌ Error: ", missingVariables, " is missing. Please check in the input settings chunk and make sure the variable exists/isn't commented out."))
+if (length(missing_vars) > 0) {
+  stop("❌ Error: the following variables are missing from input_settings: ",
+       paste(missing_vars, collapse = ", "),
+       ". Please check that each variable exists and isn't commented out.")
+}
+```
+
+```{r resolve_paths}
+
+# Auto-detect PARC/PaCMAP paths when not explicitly set in the metadata
+if (is.null(parcScriptDir) || !nzchar(trimws(parcScriptDir))) {
+  parcScriptDir <- system.file("python", package = "MARMOT")
+  if (nzchar(parcScriptDir)) {
+    message("🔧 Auto-detected PARC/PaCMAP scripts: ", parcScriptDir)
+  }
+}
+
+if (is.null(condaDir) || !nzchar(trimws(condaDir))) {
+  condaDir <- tryCatch(
+    reticulate::conda_binary(),
+    error = function(e) NULL
+  )
+  if (!is.null(condaDir)) {
+    message("🔧 Auto-detected conda binary: ", condaDir)
+  }
 }
 ```
 
 ```{r load_packages}
 
 # Load packages
-pacman::p_load(
-  BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
-  flowCore, FlowSOM, tidyverse, CATALYST, readxl, cowplot, diffcyt, ggpubr, flowSpecs,
-  ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
-  RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
-  DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, Rcpp, Seurat,
-  PeacoQC, MARMOT, future, SCpubr, scGate
-)
+suppressWarnings(suppressPackageStartupMessages(
+  pacman::p_load(
+    BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
+    flowCore, FlowSOM, tidyverse, CATALYST, readxl, cowplot, diffcyt, ggpubr,
+    ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
+    RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
+    DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats, Seurat,
+    PeacoQC, MARMOT, future, SCpubr, scGate
+  )
+))
 
 # Define class union for ExpData
 if (!methods::isClass("ExpData")) {
@@ -179,15 +202,26 @@ set.seed(2)
 ```{r load_rdata}
 
 if (!is.null(RDataFolder)) {
-  message(glue::glue("🔁 Loading results from: {RDataFolder}"))
-
-  qs_files <- list.files(RDataFolder, pattern = "\\.(qs)$", full.names = TRUE, recursive = TRUE)
-  if (length(qs_files) == 0) stop("No .qs files found in the specified RDataFolder.")
-
-  for (file in qs_files) {
-    obj_name <- tools::file_path_sans_ext(basename(file))
-    message(glue::glue("→ Loading {obj_name}"))
-    assign(obj_name, qs::qread(file, nthreads = nCores), envir = .GlobalEnv)
+  pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
+  if (file.exists(pq_manifest)) {
+    message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
+    MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
+    # Also load flowFrame objects from qs (not decomposed to Parquet)
+    for (qs_obj in c("framesList", "frames")) {
+      qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
+      if (file.exists(qs_path)) {
+        assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
+      }
+    }
+  } else {
+    message(glue::glue("🔁 Loading results from .qs files: {RDataFolder}"))
+    qs_files <- list.files(RDataFolder, pattern = "\\.(qs)$", full.names = TRUE, recursive = TRUE)
+    if (length(qs_files) == 0) stop("No .qs or Parquet files found in the specified RDataFolder.")
+    for (file in qs_files) {
+      obj_name <- tools::file_path_sans_ext(basename(file))
+      message(glue::glue("→ Loading {obj_name}"))
+      assign(obj_name, qs::qread(file, nthreads = nCores), envir = .GlobalEnv)
+    }
   }
 }
 
@@ -246,7 +280,7 @@ featureType <- if ("Marker Type" %in% names(smd)) {
 removeMarkers <- na.omit(smd$`Markers to exclude completely`)
 
 # Cofactors
-cfToUse <- na.omit(smd$`Cofactors for markers to use`)
+cfToUse <- as.numeric(na.omit(smd$`Cofactors for markers to use`))
 
 # Contrasts
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
@@ -454,8 +488,8 @@ if (is.null(RDataFolder)) {
     )
   
     # Force evaluation of ranges to avoid downstream surprises
-    invisible(lapply(framesList[["QC"]], range, type = "data"))
-  
+    invisible(lapply(framesList[["FlowAI"]], range, type = "data"))
+
     # Load and annotate QC summary table
     QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
       distinct(`Name file`, .keep_all = TRUE)
@@ -472,7 +506,7 @@ if (is.null(RDataFolder)) {
     # Use QC data as default if requested
     if (useQC) {
       
-      framesList <- framesList[c("QC", setdiff(names(framesList), "QC"))]
+      framesList <- framesList[c("FlowAI", setdiff(names(framesList), "FlowAI"))]
     } else {
       message("📦 QC-filtered data loaded but not used in primary workflow.")
     }
@@ -553,7 +587,7 @@ if (is.null(RDataFolder)) {
     )
   
     # Force evaluation of ranges
-    invisible(lapply(framesList[["QC"]], range, type = "data"))
+    invisible(lapply(framesList[["PeacoQC"]], range, type = "data"))
   
     # Load QC summary table
     QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
@@ -571,8 +605,12 @@ if (is.null(RDataFolder)) {
   message("📦 Converting frame lists into flowSets...")
   
   # Convert to flowSet and set $CYT keyword to "FACS"
+  # Also enforce sampleNames from the list names: read.FCS() embeds the on-disk
+  # filename (e.g. "Sample_001_QC.fcs") as the frame identifier, which would
+  # cause CATALYST::prepData() to fail matching against md$file_name.
   fsList <- purrr::imap(framesList, function(sample_list, name) {
     fs <- as(sample_list, "flowSet")
+    sampleNames(fs) <- names(sample_list)
     for (j in seq_along(fs)) {
       keyword(fs[[j]])[["$CYT"]] <- "FACS"
     }
@@ -723,6 +761,10 @@ if (quantileNormaliseAll) {
 } else {
   exprsToUse = "exprsTransformed"
 }
+
+# Define condition levels early (needed for fig.height calculations in later chunks)
+conds <- as.factor(sce@metadata$experiment_info$condition)
+condLevels <- levels(conds)
 ```
 
 ```{r clustering_graph}
@@ -784,49 +826,34 @@ if (is.null(RDataFolder)) {
 ```{r parc_clustering, include = F}
 
 if (clusteringMethodToUse == "PARC") {
-  message("🐍 Running PARC clustering via reticulate...")
-  
-  # Check and setup Python environment
-  if (is.null(reticulate::conda_binary())) {
-    stop("❌ Conda not found. Please install conda or miniconda first.")
-  }
-  
-  envs <- reticulate::conda_list()
-  if ("p4r" %in% envs$name) {
-    # Use bundled environment and scripts
-    message("✅ Using bundled p4r environment")
-    reticulate::use_condaenv("p4r")
-    parc_script   <- system.file("python", "f_parc.py", package = "MARMOT", mustWork = TRUE)
-    reticulate::source_python(parc_script)
-  } else {
-    # Use user-specified paths
-    message("📁 Using user-specified conda and script paths")
-    use_condaenv("p4r", conda = condaDir)
-    source_python(file.path(parcScriptDir, "f_parc.py"))
-  }
-  
+  message("🐍 Running PARC clustering via basilisk...")
+
   set.seed(2)
   esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
-  
-  parcClustList <- setNames(future_lapply(kValuesIWant, function(k) {
-    parc_clust(esPARC, knn = as.integer(k), num_threads = as.integer(nCores)) %>% unlist
-  }, future.seed = TRUE), paste0("p", kValuesIWant))
-  
+
+  parcClustList <- basilisk::basiliskRun(env = MARMOT:::p4r_env,
+    fun = function(data, k_values, n_threads) {
+      reticulate::source_python(system.file("python", "f_parc.py", package = "MARMOT"))
+      setNames(lapply(k_values, function(k) {
+        as.integer(unlist(parc_clust(data, knn = as.integer(k),
+                                     num_threads = as.integer(n_threads))))
+      }), paste0("p", k_values))
+    },
+    data = esPARC, k_values = kValuesIWant, n_threads = nCores
+  )
+
   for (k in kValuesIWant) {
     cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
     cluster_labels <- paste0("p", cluster_labels)
     cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(unique(cluster_labels)))
     sce[[paste0("p", k)]] <- cluster_labels
   }
-  
-  chosen_k <- paste0("p", knn)
-  sce$cluster_id <- sce[[chosen_k]]
-  
-  # Select default cluster to use
+
+  chosen_k   <- paste0("p", knn)
   selected_k <- paste0("p", knn)
   sce$cluster_id <- sce[[selected_k]]
   metadata(sce)$cluster_codes <- eval(parse(text = paste0(
-    "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
+    "data.frame(", clusteringMethodToUse, " = factor(levels(sce[[selected_k]])))"
   )))
   kids <- unlist(sce[[paste0("p", knn)]])
   numbersOfClusters <- levels(kids)
@@ -884,36 +911,22 @@ if (is.null(RDataFolder)) {
   # Always run PCA first (needed for pacmap, helpful for others)
   sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
   
-  # Run PaCMAP if requested 
+  # Run PaCMAP if requested
   if (dimRedMethodToUse == "pacmap") {
-    
-    # Check and setup Python environment
-    if (is.null(reticulate::conda_binary())) {
-      stop("❌ Conda not found. Please install conda or miniconda first.")
-    }
-  
-    envs <- reticulate::conda_list()
-    if ("p4r" %in% envs$name) {
-      # Use bundled environment and scripts
-      message("✅ Using bundled p4r environment")
-      reticulate::use_condaenv("p4r")
-      pacmap_script <- system.file("python", "f_pacmap.py", package = "MARMOT", mustWork = TRUE)
-      reticulate::source_python(pacmap_script)
-    } else {
-      # Use user-specified paths
-      message("📁 Using user-specified conda and script paths")
-      use_condaenv("p4r", conda = condaDir)
-      source_python(file.path(parcScriptDir, "f_pacmap.py"))
-    }
-  
     es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-    embedding <- reducedDim(sce, dimRedMethodToUse) <- pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
-    colnames(embedding) <- c("x", "y")
-    
+    embedding <- tryCatch(
+      basilisk::basiliskRun(env = MARMOT:::p4r_env, fun = function(data) {
+        reticulate::source_python(system.file("python", "f_pacmap.py", package = "MARMOT"))
+        pacmap_fit(data, verbose = TRUE, apply_pca = FALSE)
+      }, data = es),
+      error = function(e) { message("PaCMAP failed: ", e$message); NULL }
+    )
+
     if (is.null(embedding)) {
       message("⚠️ PaCMAP unavailable → skipping.")
       dimRedMethodToUse <- "UMAP"
     } else {
+      colnames(embedding) <- c("x", "y")
       reducedDim(sce, dimRedMethodToUse) <- embedding
     }
   }
@@ -1248,6 +1261,18 @@ clustersToMapList <- lapply(names(selectedClustersList), function(label) {
 names(clustersToMapList) <- names(selectedClustersList)
 
 message("✅ DA and DS analysis complete.")
+
+# Save DA/DS results to Parquet (runs even during reload since DA/DS always re-runs)
+pq_dir <- if (!is.null(RDataFolder)) {
+  file.path(RDataFolder, "parquet")
+} else if (exists("qsDir")) {
+  file.path(qsDir, "parquet")
+} else NULL
+
+if (!is.null(pq_dir) && dir.exists(pq_dir)) {
+  message("💾 Saving updated DA/DS results to Parquet...")
+  MARMOT::save_da_ds_parquet(pq_dir, daList, dsList, selectedClustersList, daPValToUse)
+}
 ```
 
 ```{r output_directories}
@@ -1310,6 +1335,10 @@ if (is.null(RDataFolder)) {
     qs::qsave(get(varname, envir = knit_env), file = out_path, nthreads = nCores, preset = "archive")
     message("✔️ Saved: ", varname)
   })
+
+  # Also write Parquet format alongside qs (for Shiny app and interoperability)
+  message("💾 Saving Parquet format...")
+  MARMOT::save_parquet_data(qsDir, envir = knit_env)
 }
 ```
 
@@ -1827,13 +1856,13 @@ if("type" %in% as.character(markers_to_use_and_their_type) & "state" %in% as.cha
 } else { 
   f <- NULL
   exT <- plotExprHeatmap(x = sce, features = f, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE)
-  exTDF <- exT@matrix[row_order(exH),]
+  exTDF <- exT@matrix[row_order(exT),]
   topMarkerTable <- data.frame(
     "Cluster" = paste("Cluster", rownames(exTDF))
   )
   topMarkerTable$Top_Markers <- NA
   for (i in seq_along(1:nrow(topMarkerTable))) {
-    topMarkerTable$Top_Markers[i] <- print(paste(names(head(sort(exTDF[i,], decreasing = T), n = 3)), collapse = " "))
+    topMarkerTable$Top_Markers[i] <- paste(names(head(sort(exTDF[i,], decreasing = T), n = 3)), collapse = " ")
   }
   DT::datatable(topMarkerTable, rownames = F, filter = "top", width = 800)
 }
@@ -2414,7 +2443,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   group_by(cluster_id) %>%
   summarize(center_x = mean(x), center_y = mean(y))
   
-  gp <- ggplot(umapDF, aes(x = .data[["x"]], .data[["y"]], col = .data[["cluster_id"]]))
+  gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], col = .data[["cluster_id"]]))
   ## gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
   gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
@@ -2589,9 +2618,9 @@ ggplot(x1rfmelt, aes(x = cluster_id, y = value, fill = variable)) +
 ```
 
 ```{r, label = "cells per cluster per sample table"}
-DT::datatable(spread(df, cluster_id, Freq) %>% dplyr::select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id"), rownames = F)
+DT::datatable(spread(df, cluster_id, Freq) %>% select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id"), rownames = F)
 openxlsx::write.xlsx(
-  x = (spread(df, cluster_id, Freq) %>% dplyr::select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id")), 
+  x = (spread(df, cluster_id, Freq) %>% select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id")), 
   file = file.path(excelDir, "Cells_Per_Cluster_Per_Sample.xlsx")
 )
 ```
@@ -2645,7 +2674,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
     sx <- names(dfList)[[i]] %>% gsub(".*\\: ", "", .) %>% gsub(" ", "_", .) %>% gsub("\\/", "", .)
     return(list("g" = g, "cx" = cx, "sx" = sx))
   } else {
-    print("There's no DA clusters in this group.")
+    print("There are no DA clusters in this group.")
   }
   cat("\n\n")
 }), names(dfList))
@@ -2862,7 +2891,7 @@ Differential abundance of clusters between conditions. Each cluster was tested i
 To the right of the heatmap are two annotations. The first is red or blue, and denotes the log2 fold change of that cluster. The second is the p-value, and is either green (adjusted p-value \< 0.05) or grey. The results of this heatmap are the same as under the `Heatmap -> Sample Per Cluster` but with the rows re-ordered and with the log2fc and p-values.
 
 ```{r, label = "htmltags1", include = F}
-htmltools::tagList(DT::datatable(cars))
+htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
 ```{r, label = "da_plot", fig.height=6, fig.width=13, results='asis'}
@@ -2907,7 +2936,7 @@ if (gimmePDFs) {
 ### DS {.tabset}
 
 ```{r, label = "htmltags2", include = F}
-htmltools::tagList(DT::datatable(cars))
+htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
 ```{r, label = "ds_res", results = 'asis', fig.height=12, fig.width=10, fig.align='left'}
@@ -2991,7 +3020,7 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = TRUE)]) {
 Same as the other differential state results, but instead we have merged all clusters prior to DS, so now we see what could be considered differential abundance of each marker between conditions.
 
 ```{r, label = "htmltags3", include = F}
-htmltools::tagList(DT::datatable(cars))
+htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
 ```{r, label = "ds_res merged", results = 'asis', fig.height=12, fig.width=10, fig.align='left'}
@@ -3004,15 +3033,15 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
   dsDown <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = T) %>% .[. >= 1]
   
   cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
-  if (length(dsUp >= 1)) {
+  if (length(dsUp) >= 1) {
     print(dsUp)
     cat("\n\n")
   } else {
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
   }
-  
+
   cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
-  if (length(dsDown >= 1)) {
+  if (length(dsDown) >= 1) {
   print(dsDown)
     cat("\n\n")
   } else {

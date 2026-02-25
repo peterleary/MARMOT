@@ -64,13 +64,13 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   params_list[["fp"]] <- fp
   params_list[["md_fp"]] <- md_fp
   
-  # Import the template marmot file 
-  rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "MARMOT"))
+  # Import the template marmot file
+  rmd_content <- readLines(system.file("pipeline", "MARMOT_Pipeline.qmd", package = "MARMOT"))
   
   # Replace the markdown title 
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
   
-  # Remap the variables in the template RMD
+  # Remap the variables in the template
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
     
@@ -90,19 +90,17 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     rmd_content <- gsub(pattern, replacement, rmd_content)
   }
   
-  output_rmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".Rmd")
-  writeLines(rmd_content, output_rmd)
+  output_qmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".qmd")
+  writeLines(rmd_content, output_qmd)
   Sys.sleep(0.2)
   message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
   if (!render) {
-    message("\nYou chose not to render the HTML report. You can either Knit it yourself in RStudio, or run this function again with `render = TRUE`.\n")
+    message("\nYou chose not to render the HTML report. You can either render it yourself in RStudio, or run this function again with `render = TRUE`.\n")
   }
   if (render) {
     message("Now rendering the HTML report. This can take some time...")
     output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
-    invisible(rmarkdown::render(
-      input = output_rmd, output_format = "html_document", 
-      output_file = output_html, output_dir = fp, clean = TRUE))
+    quarto::quarto_render(input = output_qmd, output_file = basename(output_html))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(fp, "Rplots.pdf"))
   }

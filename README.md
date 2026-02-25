@@ -28,14 +28,18 @@ For additional information, guidelines, and tips, please refer to the [Wiki](../
 
 </html>
 
-## TL;DR
+## New GUI app! 
+
+The marmots have been hard at work creating a nice little application that can prepare and run the entire MARMOT pipeline, no code! 
+
+## Quick Install + Run
 
 This is all the R code you will need to run the MARMOT pipeline and load the Shiny app.
 
 ```{r eval = F}
 # Step 1. Install and load
-install.packages("devtools")
-devtools::install_github("peterleary/MARMOT")
+install.packages("pak")
+pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
 library(MARMOT)
 
 # Step 2: Save the template metadata file in a folder with the gated FCS files
@@ -46,8 +50,8 @@ addMetadataToFCSFolder(FCS_folder = "~/Desktop/Flow_Data/")
 
 # Step 4: Run the pipeline
 marmot(
-  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", 
-  name = "CD45+ Treated vs Control", 
+  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx",
+  name = "CD45+ Treated vs Control",
   render = TRUE
   )
 # The marmots will run the pipeline for a while... and generate a results folder
@@ -58,99 +62,47 @@ shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.
 
 This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
 
-If you want to install the extra options, namely FastPG, PARC, and PaCMAP, follow the instructions below.
+For PARC (clustering) and PaCMAP (dimensionality reduction), you just need to set up the Python environment — see below.
 
 <hr>
 
-## Full Installation Instructions
+## Full Installation
 
-### Quick Guide
-
--   Install Rphenograph/FastPG
--   Install conda (even better, mamba)
--   Download PARC/PaCMAP python scripts from Stephan Benke-Bruderer
--   Modify the metadata to include your mamba installation location and location of PARC/PaCMAP scripts
--   Ensure you're running x86 R and mamba if using M-series Mac to ensure compatibility with everything
-
-### Full Installation Guide
-
-**NOTE**: If you're using an M-series Mac, it is **required** that you install the **x86_64** version of R to ensure compatibility with FastPG, PARC, and PaCMAP.
-
-This means, if you already have the arm64 version installed with lots of packages, you will have to install them all again. We think PARC and PaCMAP are worth it!
-
-#### FastPG
-
-FastPG will need to be installed separately, and can be found [here](https://github.com/sararselitsky/FastPG).
-
-Again, this will not work on M-series Macs using native R (*i.e.*, the arm64 version), you **will need to install the x86 version of R**.
+### Install MARMOT and all R dependencies
 
 ```{r eval = F}
-# In R
-BiocManager::install("sararselitsky/FastPG")
+install.packages("pak")
+pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
+
+# Install any remaining CRAN, Bioconductor, and GitHub dependencies
+MARMOT::install_dependencies()
+
+# Check everything is installed
+MARMOT::check_setup()
 ```
 
-#### PARC and PaCMAP Installation
+### Set up PARC and PaCMAP (Python)
 
-##### Step 1: Install Conda/Mamba
+PARC and PaCMAP run via Python through a conda environment. MARMOT bundles the Python scripts and environment definition — you just need conda/mamba installed.
 
-First you will need to install `conda`, or better still, `mamba`. This is a package/environment manager for python.
+#### Step 1: Install conda/mamba
 
-To do this, first go to https://github.com/conda-forge/miniforge and download the appropriate installation script for your system (Figure 1).
+If you don't already have conda or mamba, install [miniforge](https://github.com/conda-forge/miniforge) for your platform.
 
-![Click to download the appropriate script for your system](images/Mamba_Install_1.png)
+**NOTE**: If you're using an M-series Mac, it is **required** that you install the **x86_64** version of both R and miniforge to ensure compatibility with FastPG, PARC, and PaCMAP.
 
-**NOTE**: If you're using an M-series Mac, you **will have to install the x86_64 version** of mamba, same as R.
+#### Step 2: Create the Python environment
 
-Then, execute the script and follow the instructions, *e.g.*:
-
-```{bash eval = F}
-# In the terminal
-# Assuming you have downloaded the script to the downloads folder 
-~/Downloads/Miniforge3-MacOSX-x86_64.sh
+```{r eval = F}
+MARMOT::setup_python()
 ```
 
-##### Step 2: Install PARC/PaCMAP
+That's it. This creates the `p4r` conda environment with all required Python packages. The pipeline will auto-detect the environment and the bundled PARC/PaCMAP scripts — no manual path configuration needed.
 
-The scripts used to run PARC and PaCMAP were written by Dr. Stephan Benke-Bruderer, and are available at https://github.com/stbenke/p4r (Figure 2).
+You can verify everything is ready with:
 
-The following instructions, adapted from https://github.com/stbenke/p4r, assume you have mamba up and running.
-
-```{bash, eval = F}
-# In the terminal
-# updated to newest mamba: 
-mamba update mamba
-
-# created env very explicitly via:
-mamba create -n p4r python=3.9 numpy=1.22.3  
-
-# activate the new environment
-mamba activate p4r
-
-# packages for pacmap:  
-mamba install -c anamamba scikit-learn  
-mamba install -c mamba-forge python-annoy  
-mamba install numba  
-pip install pacmap  
-
-# packages for parc:  
-mamba install -c mamba-forge python-igraph
-mamba install -c mamba-forge leidenalg
-mamba install -c mamba-forge hnswlib
-pip install parc
+```{r eval = F}
+MARMOT::check_setup()
 ```
-
-Then you will need to download the python scripts for PARC and PaCMAP to a folder, and get the full file path of where you've saved the two python scripts. *E.g.*, download them to a folder such as `~/Desktop/MARMOT/parc_pacmap/`. Do not change the name of the individual scripts themselves, *i.e.*, make sure they are named `f_parc.py` and `f_pacmap.py`.
-
--   Link to the PARC Script: https://github.com/stbenke/p4r/blob/master/f_parc.py
-
--   Link to the PaCMAP Script: https://github.com/stbenke/p4r/blob/master/f_pacmap.py
-
-![Click this button to download the script, and save it to a convenient location, ideally with the main MARMOT pipeline script](images/Mamba_Install_2.png)
-
-Once you have installed mamba, PARC, and PaCMAP, and have downloaded the two scripts, you will need to modify the MARMOT metadata to tell it where mamba is installed and where the two scripts are placed. This is done on lines 26 and 28 of the main FC pipeline script (*i.e.*, the variables `condaDir` and `parcScriptDir`.)
-
-An ideal directory would look like the following:
-
--   The pipeline script
--   A folder containing the f_parc.py and f_pacmap.py scripts
--   A folder containing the FCS files and the Excel metadata file
+</content>
+</invoke>

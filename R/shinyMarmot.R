@@ -18,5 +18,5 @@ shinyMarmot <- function(marmot_output = NA, demo = NA) {
     marmot_output <- system.file("examples/R_files/", package = "MARMOT")
   }
   marmot_output <<- tools::file_path_as_absolute(marmot_output)
-  shiny::runApp(appDir = folder)
+  shiny::runApp(appDir = folder, launch.browser = TRUE)
 }

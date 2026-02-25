@@ -1,29 +1,34 @@
 cat("loading packages...\n\n")
 packagesToLoad <- c(
-  "shiny", "shinydashboard", "tidyverse", "RColorBrewer", "DT", "colourpicker", 
-  "writexl", "circlize", "kableExtra", "ggrepel", "gplots", "sortable", "waiter", 
-  "ggprism", "rstatix", "gridExtra", "Matrix", "SCpubr", "fresh", "viridis", 
+  "shiny", "shinydashboard", "tidyverse", "RColorBrewer", "DT", "colourpicker",
+  "writexl", "circlize", "kableExtra", "ggrepel", "gplots", "sortable", "waiter",
+  "ggprism", "rstatix", "gridExtra", "Matrix", "fresh", "viridis",
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",
-  "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon", 
-  "pals", "scales", "MARMOT", "flowCore", "Seurat", "plotly", "readxl"
+  "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon",
+  "pals", "scales", "MARMOT", "flowCore", "readxl", "ggridges", "colorspace",
+  "SingleCellExperiment"
 )
 library(SummarizedExperiment)
-setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
 invisible(lapply(packagesToLoad, function(pkg) {
   suppressPackageStartupMessages(suppressWarnings(library(pkg, character.only = TRUE, quietly = TRUE)))
 }))
+
+# Source helper files
+source("helpers/colour_helpers.R", local = TRUE)
+source("helpers/data_helpers.R", local = TRUE)
+source("helpers/plot_helpers.R", local = TRUE)
 cat("... packages loaded!\n\n")
 reactiveConsole(TRUE)
 
-my_theme = create_theme(
+my_theme <- create_theme(
   adminlte_color(
     light_blue = "#627e9c"
   )
 )
 
 
-ui = dashboardPage(
-  title = "Shiny Marmot", 
+ui <- dashboardPage(
+  title = "Shiny Marmot",
   dashboardHeader(
     title = tags$span(
       tags$img(
@@ -37,28 +42,38 @@ ui = dashboardPage(
     ),
     tags$li(
       a(
-        href = 'mailto:peter.leary@uzh.ch?subject=flow-cytometry-shiny-app-feedback', 
-        "Request Features/Report Bugs"), 
+        href = "mailto:peter.leary@uzh.ch?subject=flow-cytometry-shiny-app-feedback",
+        "Request Features/Report Bugs"
+      ),
       class = "dropdown"
     ),
     tags$li(
-      a(href = 'http://www.fgcz.ch', 
+      a(
+        href = "http://www.fgcz.ch",
         target = "_blank",
-        img(src = 'fgcz_logo.png', title = "FGCZ", height = "30px"),
-        style = "padding-top:10px; padding-bottom:5px;"),
-      class = "dropdown"),
+        img(src = "fgcz_logo.png", title = "FGCZ", height = "30px"),
+        style = "padding-top:10px; padding-bottom:5px;"
+      ),
+      class = "dropdown"
+    ),
     tags$li(
-      a(href = 'http://www.ethz.ch/en.html',
+      a(
+        href = "http://www.ethz.ch/en.html",
         target = "_blank",
-        img(src = 'eth_logo.png', title = "FGCZ", height = "22px"),
-        style = "padding-top:13px; padding-bottom:10px;"),
-      class = "dropdown"),
+        img(src = "eth_logo.png", title = "FGCZ", height = "22px"),
+        style = "padding-top:13px; padding-bottom:10px;"
+      ),
+      class = "dropdown"
+    ),
     tags$li(
-      a(href = 'http://www.uzh.ch/en.html',
+      a(
+        href = "http://www.uzh.ch/en.html",
         target = "_blank",
-        img(src = 'University_of_Zurich_Logo.png', title = "FGCZ", height = "30px"),
-        style = "padding-top:10px; padding-bottom:5px;"),
-      class = "dropdown")
+        img(src = "University_of_Zurich_Logo.png", title = "FGCZ", height = "30px"),
+        style = "padding-top:10px; padding-bottom:5px;"
+      ),
+      class = "dropdown"
+    )
   ),
   dashboardSidebar(
     shinyjs::useShinyjs(),
@@ -67,13 +82,12 @@ ui = dashboardPage(
       menuItem(text = "Shiny marmots", tabName = "umapTab", icon = icon("map"))
     ),
     collapsed = TRUE
-  ), 
+  ),
   dashboardBody(
     use_theme(my_theme),
     tags$head(
       tags$link(rel = "shortcut icon", href = "MARMOT_Logo_2_bw.png"),
-      tags$style(HTML(
-        '
+      tags$style(HTML("
         .box.box-solid.box-primary>.box-header {
         color:#fff; background:#96B3D2}
         .box.box-solid.box-primary{
@@ -99,9 +113,8 @@ ui = dashboardPage(
         /* body */
         .content-wrapper, .right-side {
         background-color: #FFFFFF;
-        }'))
-      ),
-    
+        }"))
+    ),
     use_waiter(),
     tabItems(
       source("ui-tab-umap.R", local = TRUE)$value
@@ -109,12 +122,16 @@ ui = dashboardPage(
   )
 )
 
-server = function(input, output, session) {
-  
+server <- function(input, output, session) {
+
   source("server-import.R", local = TRUE)
-  source("server-umap.R", local = TRUE)
-  
+  source("server-colours.R", local = TRUE)
+  source("server-relabel.R", local = TRUE)
+  source("server-subset.R", local = TRUE)
+  source("server-dr.R", local = TRUE)
+  source("server-plots.R", local = TRUE)
+  source("server-download.R", local = TRUE)
+
 }
 
 shinyApp(ui = ui, server = server)
-
