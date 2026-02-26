@@ -25,10 +25,11 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 
-# MARMOT GUI binary/app (built from inst/tauri-app)
+# MARMOT GUI binary/app (built from tauri-app)
 /MARMOT
 /MARMOT.exe
 /MARMOT.app
+*.dmg
 
 # Tauri app build artifacts
 tauri-app/node_modules/
