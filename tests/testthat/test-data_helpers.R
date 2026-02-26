@@ -9,17 +9,17 @@ test_that("detect_data_format identifies parquet", {
   expect_equal(detect_data_format(tmp), "parquet")
 })
 
-test_that("detect_data_format identifies qs", {
+test_that("detect_data_format errors when only qs files present", {
   tmp <- withr::local_tempdir()
   file.create(file.path(tmp, "sce.qs"))
 
-  expect_equal(detect_data_format(tmp), "qs")
+  expect_error(detect_data_format(tmp), "No Parquet data found")
 })
 
-test_that("detect_data_format errors on unknown format", {
+test_that("detect_data_format errors on empty directory", {
   tmp <- withr::local_tempdir()
 
-  expect_error(detect_data_format(tmp), "No recognized data format")
+  expect_error(detect_data_format(tmp), "No Parquet data found")
 })
 
 test_that("extract_marker_data returns correct columns", {

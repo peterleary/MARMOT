@@ -1,4 +1,4 @@
-queryList <- parseQueryString(session$clientData$url_search)
+queryList <- parseQueryString(isolate(session$clientData$url_search))
 if (is.list(queryList)) {
   dataUrl <- queryList$data
 } else {
@@ -18,84 +18,61 @@ if (exists("marmot_output")) {
   dataDir <- marmot_output
 }
 
+if (is.na(dataDir) || length(dataDir) == 0 || !nzchar(dataDir)) {
+  showModal(modalDialog(
+    title = "No data path found",
+    "No valid data directory could be found. Please check your URL or session parameters."
+  ))
+  stopApp(returnValue = invisible())
+}
+
 if (!file.exists(dataDir)) {
   showModal(modalDialog(
     title = "Something went wrong",
     paste(
       "It looks like either the dataset you're looking for",
-      "doesn't exist, or has not finished being processed",
-      "in SUSHI yet."
+      "doesn't exist, or has not finished being processed."
     )
   ))
   stopApp(returnValue = invisible())
 }
 
 tryCatch({
-  # Detect data format: Parquet or qs
-  data_format <- detect_data_format(dataDir)
+  pq_dir <- file.path(dataDir, "parquet")
+  pq_manifest <- file.path(pq_dir, "_manifest.json")
+
+  if (!file.exists(pq_manifest)) {
+    showModal(modalDialog(
+      title = "Parquet data not found",
+      paste(
+        "This dataset does not contain Parquet output.",
+        "Please re-run the MARMOT pipeline to generate it."
+      )
+    ))
+    stopApp(returnValue = invisible())
+  }
 
   waiter <- waiter::Waiter$new(color = "#96B3D2", fadeout = TRUE)
   waiter$show()
   on.exit(waiter$hide())
 
-  if (data_format == "parquet") {
-    # ── Parquet loading path ──
-    message("Loading data from Parquet...")
-    pq_dir <- file.path(dataDir, "parquet")
-    files <- MARMOT::load_parquet_for_shiny(pq_dir)
+  message("Loading data from Parquet...")
+  files <- MARMOT::load_parquet_for_shiny(pq_dir)
 
-  } else {
-    # ── Legacy qs loading path ──
-    message("Loading data from .qs files...")
+  # Dataset size metadata — used for adaptive debounce, rasterisation, subsampling
+  files$sorted_markers_cache <- gtools::mixedsort(rownames(files$sce))
+  files$ncell               <- ncol(files$sce)
+  files$rasterise_auto      <- files$ncell > 150000L
+  files$fp_subsample_n      <- if (files$ncell > 50000L) 50000L else NULL
 
-    sce_file <- file.path(dataDir, "sce.qs")
-    if (!file.exists(sce_file)) {
-      showModal(modalDialog(
-        title = "The file does not exist",
-        paste(
-          "Either the analysis has not yet finished running,",
-          "you have made a mistake in the URL, or you have not pointed to any dataset.",
-          "Please try again! If the issue persists, email peter.leary@uzh.ch"
-        )
-      ))
-      stopApp(returnValue = invisible())
-    }
-
-    filesToLoad <- c(
-      "md.qs", "clusteringMethodToUse.qs", "sce.qs", "coloursList.qs", "smd.qs",
-      "umapDFList.qs", "selectedClustersList.qs", "frames.qs"
-    )
-
-    files <- purrr::map(filesToLoad, ~{
-      f <- file.path(dataDir, .x)
-      if (file.exists(f)) qs::qread(f, nthreads = 4) else NULL
-    }) |> setNames(gsub("\\.qs$", "", filesToLoad))
-
-    # Set useful variables
-    md <- files$md
-    sce <- files$sce
-    clusteringMethodToUse <- files$clusteringMethodToUse
-
-    conditions <- setdiff(colnames(md), c("file_name", "sample_id", "condition"))
-    files$conditions <- gsub("-", ".", c("condition", conditions))
-
-    files$mergeBy <- switch(
-      clusteringMethodToUse,
-      "Rphenograph" = "k",
-      "FastPG"      = "k",
-      "PARC"        = "p",
-      "FlowSOM"     = "meta"
-    )
-  }
-
-  # ── Common post-load: top marker table ──
+  # ── Top marker table (Excel, written by pipeline) ──
   topMarkerPath <- file.path(dataDir, "../", "Excel_Files/topMarkerTable.xlsx")
   if (file.exists(topMarkerPath)) {
     topMarkerTable <- readxl::read_xlsx(topMarkerPath) |> dplyr::arrange(gtools::mixedorder(Cluster))
     files$topMarkerTable <- topMarkerTable
   }
 
-  # ── Load framesList for FCS export (qs only, stays as qs) ──
+  # ── FCS frame objects (stored as qs — not decomposable to Parquet) ──
   framesListPath <- file.path(dataDir, "framesList.qs")
   if (file.exists(framesListPath)) {
     files$framesList <- qs::qread(framesListPath, nthreads = 4)

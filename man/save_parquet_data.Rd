@@ -7,11 +7,11 @@
 save_parquet_data(qs_dir, envir = .GlobalEnv)
 }
 \arguments{
-\item{qs_dir}{Path to the R_files directory (where .qs files are saved)}
+\item{qs_dir}{Path to the R_files output directory}
 
 \item{envir}{Environment containing the pipeline variables (default: .GlobalEnv)}
 }
 \description{
 Decomposes all pipeline R objects into tabular Parquet files within a
-`parquet/` subdirectory alongside the existing .qs files.
+`parquet/` subdirectory of the R_files output directory.
 }

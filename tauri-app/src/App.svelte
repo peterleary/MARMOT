@@ -6,6 +6,7 @@
   import StudyData from "./lib/components/StudyData.svelte";
   import FileData from "./lib/components/FileData.svelte";
   import LogPanel from "./lib/components/LogPanel.svelte";
+  import ShinyPanel from "./lib/components/ShinyPanel.svelte";
   import InstallPanel from "./lib/components/InstallPanel.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
   import SplashScreen from "./lib/components/SplashScreen.svelte";
@@ -13,6 +14,7 @@
   import { rscriptPath, rVersion, marmotInstalled, packageStatus } from "./lib/stores/pipeline.js";
 
   let activeTab = $state("setup");
+  let activeSetupTab = $state("install");
   let splashVisible = $state(true);
   let splashFading = $state(false);
   let splashStatus = $state("Starting up...");
@@ -23,11 +25,16 @@
   }
 
   const tabs = [
-    { id: "setup", label: "Setup", icon: "&#128230;" },
-    { id: "settings", label: "Settings", icon: "&#9881;" },
-    { id: "study", label: "Study Design", icon: "&#9878;" },
-    { id: "files", label: "Files", icon: "&#128194;" },
-    { id: "log", label: "Log", icon: "&#9654;" },
+    { id: "setup",  label: "Setup",   icon: "&#128230;" },
+    { id: "log",    label: "Run/log", icon: "&#9654;" },
+    { id: "shiny",  label: "Shiny",   icon: "&#128202;" },
+  ];
+
+  const setupTabs = [
+    { id: "install", label: "Install",      icon: "&#128230;" },
+    { id: "settings", label: "Settings",    icon: "&#9881;" },
+    { id: "study",   label: "Study Design", icon: "&#9878;" },
+    { id: "files",   label: "Files",        icon: "&#128194;" },
   ];
 
   function setActiveTab(tab) {
@@ -93,7 +100,7 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="version-tag">v0.3.0</span>
+      <span class="version-tag">v0.4.0</span>
     </div>
   </header>
 
@@ -113,16 +120,36 @@
   </div>
 
   <main class="tab-content">
-    {#if activeTab === "settings"}
-      <PipelineSettings />
-    {:else if activeTab === "study"}
-      <StudyData />
-    {:else if activeTab === "files"}
-      <FileData />
+    {#if activeTab === "setup"}
+      <div class="setup-layout">
+        <nav class="setup-subnav">
+          {#each setupTabs as st}
+            <button
+              class="subnav-btn"
+              class:active={activeSetupTab === st.id}
+              onclick={() => (activeSetupTab = st.id)}
+            >
+              <span class="subnav-icon">{@html st.icon}</span>
+              {st.label}
+            </button>
+          {/each}
+        </nav>
+        <div class="setup-content">
+          {#if activeSetupTab === "install"}
+            <InstallPanel />
+          {:else if activeSetupTab === "settings"}
+            <PipelineSettings />
+          {:else if activeSetupTab === "study"}
+            <StudyData />
+          {:else if activeSetupTab === "files"}
+            <FileData />
+          {/if}
+        </div>
+      </div>
     {:else if activeTab === "log"}
       <LogPanel />
-    {:else if activeTab === "setup"}
-      <InstallPanel />
+    {:else if activeTab === "shiny"}
+      <ShinyPanel />
     {/if}
   </main>
 
@@ -247,7 +274,63 @@
   }
   .tab-content {
     flex: 1;
-    overflow-y: auto;
+    overflow: hidden;
     background: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Setup: sidebar sub-nav + content */
+  .setup-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  .setup-subnav {
+    display: flex;
+    flex-direction: column;
+    width: 148px;
+    min-width: 148px;
+    background: #f8fafc;
+    border-right: 1px solid #e2e8f0;
+    padding: 0.5rem 0.4rem;
+    gap: 0.1rem;
+  }
+  .subnav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.65rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-family: inherit;
+    color: #64748b;
+    font-weight: 500;
+    text-align: left;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+  }
+  .subnav-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+  }
+  .subnav-btn.active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+  .subnav-icon {
+    font-size: 0.8rem;
+    opacity: 0.75;
+  }
+  .subnav-btn.active .subnav-icon {
+    opacity: 1;
+  }
+  .setup-content {
+    flex: 1;
+    overflow-y: auto;
   }
 </style>

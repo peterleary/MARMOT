@@ -5,9 +5,8 @@
 ^\.gitignore$
 ^LICENSE\.md$
 ^\.github$
-^inst/tauri-app/node_modules$
-^inst/tauri-app/src-tauri/target$
-^inst/tauri-app/dist$
+^MARMOT\.app
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^inst/pipeline/MARMOT_Pipeline\.Rmd$
+^data$

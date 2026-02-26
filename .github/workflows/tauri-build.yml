@@ -49,17 +49,17 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
-        working-directory: inst/tauri-app
+        working-directory: tauri-app
         run: npm install
 
       - name: Build Tauri app
-        working-directory: inst/tauri-app
+        working-directory: tauri-app
         run: npx tauri build --target ${{ matrix.target }} --no-bundle
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
         run: |
-          cp inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/marmot-gui ${{ matrix.asset_name }}
+          cp tauri-app/src-tauri/target/${{ matrix.target }}/release/marmot-gui ${{ matrix.asset_name }}
           chmod +x ${{ matrix.asset_name }}
           tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.asset_name }}
 
@@ -71,7 +71,7 @@ jobs:
         shell: pwsh
 
       - name: Build bundled installers
-        working-directory: inst/tauri-app
+        working-directory: tauri-app
         run: npx tauri build --target ${{ matrix.target }}
         continue-on-error: true
 
@@ -88,7 +88,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}-installers
-          path: inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          path: tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
         continue-on-error: true
 
       - name: Upload installers (Windows)
@@ -97,8 +97,8 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}-installers
           path: |
-            inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
-            inst/tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
         continue-on-error: true
 
   release:

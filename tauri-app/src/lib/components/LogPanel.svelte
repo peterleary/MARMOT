@@ -1,10 +1,9 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { open } from "@tauri-apps/plugin-dialog";
   import { pipelineState, logLines, startTime, pipelineOutputDir, pipelineHtmlPath, rscriptPath }
       from "../stores/pipeline.js";
 
-  let previousResultsDir = $state("");
+  let shinyLaunching = $state(false);
 
   let logContainer = $state(null);
   let elapsed = $state("0:00");
@@ -42,12 +41,15 @@
   }
 
   async function handleOpenShiny() {
+    shinyLaunching = true;
     try {
       await invoke("launch_shiny_app", {
         rscriptPath: $rscriptPath,
         rFilesPath: $pipelineOutputDir + "/R_files",
       });
+      setTimeout(() => { shinyLaunching = false; }, 8000);
     } catch (e) {
+      shinyLaunching = false;
       console.error("Failed to launch Shiny app:", e);
       alert("Could not launch Shiny app: " + e);
     }
@@ -69,22 +71,7 @@
     }
   }
 
-  async function handleBrowsePrevious() {
-    const selected = await open({ directory: true, title: "Select Results_Files_* folder" });
-    if (selected) previousResultsDir = selected;
-  }
 
-  async function handleOpenPreviousShiny() {
-    if (!previousResultsDir) return;
-    try {
-      await invoke("launch_shiny_app", {
-        rscriptPath: $rscriptPath,
-        rFilesPath: previousResultsDir + "/R_files",
-      });
-    } catch (e) {
-      alert("Could not launch Shiny app: " + e);
-    }
-  }
 </script>
 
 <div class="log-panel">
@@ -116,8 +103,8 @@
   {#if $pipelineState === "done" && $pipelineOutputDir}
     <div class="post-run-actions">
       <span class="actions-label">Next steps:</span>
-      <button class="btn-action btn-shiny" onclick={handleOpenShiny}>
-        Open Shiny App
+      <button class="btn-action btn-shiny" onclick={handleOpenShiny} disabled={shinyLaunching}>
+        {shinyLaunching ? "Starting…" : "Open Shiny App"}
       </button>
       <button class="btn-action btn-secondary" onclick={handleViewReport}>
         View Report
@@ -127,27 +114,7 @@
       </button>
     </div>
   {/if}
-  <!-- Load previous results -->
-  <div class="prev-results">
-    <span class="prev-results-label">Load previous results</span>
-    <input
-      type="text"
-      class="prev-results-input"
-      bind:value={previousResultsDir}
-      placeholder="Select a Results_Files_* folder..."
-      readonly
-    />
-    <button class="btn-action btn-secondary" onclick={handleBrowsePrevious}>Browse</button>
-    <button
-      class="btn-action btn-shiny"
-      onclick={handleOpenPreviousShiny}
-      disabled={!previousResultsDir}
-    >
-      Open in Shiny
-    </button>
-  </div>
-
-  <pre class="log-output" bind:this={logContainer}>{#each $logLines as line}{line}
+<pre class="log-output" bind:this={logContainer}>{#each $logLines as line}{line}
 {/each}</pre>
 </div>
 
@@ -240,33 +207,7 @@
     border-color: #d1d5db;
   }
   .btn-secondary:hover { background: #f3f4f6; }
-  .prev-results {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0;
-    border-top: 1px solid #e5e7eb;
-    margin-bottom: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .prev-results-label {
-    font-size: 0.78rem;
-    color: #6b7280;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .prev-results-input {
-    flex: 1;
-    min-width: 160px;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-family: inherit;
-    background: #fafafa;
-    color: #374151;
-  }
-  .log-output {
+.log-output {
     flex: 1;
     background: #1e1e1e;
     color: #d4d4d4;

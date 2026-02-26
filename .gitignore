@@ -31,9 +31,9 @@ __pycache__/
 /MARMOT.app
 
 # Tauri app build artifacts
-inst/tauri-app/node_modules/
-inst/tauri-app/src-tauri/target/
-inst/tauri-app/dist/
+tauri-app/node_modules/
+tauri-app/src-tauri/target/
+tauri-app/dist/
 
 # Demo data
 data

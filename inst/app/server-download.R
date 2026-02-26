@@ -7,6 +7,7 @@ output$dlUMAP <- downloadHandler(
     paste(input$umapColumnToPlot, tolower(input$dlFormat), sep = ".")
   },
   content = function(file) {
+    req(!is.null(umapReactive()$umapStatic))
     w <- as.numeric(input$figWidthUMAP / 60)
     h <- as.numeric(input$figHeightUMAP / 60)
     if (input$dlFormat == "PDF") {
@@ -30,6 +31,7 @@ output$dlFP <- downloadHandler(
           tolower(input$dlFormat), sep = ".")
   },
   content = function(file) {
+    req(!is.null(featurePlotReactive$fp))
     w <- as.numeric(input$figWidthFP / 60)
     h <- as.numeric(input$figHeightFP / 60)
     if (input$dlFormat == "PDF") {
@@ -66,30 +68,6 @@ output$downloadInputsE <- downloadHandler(
   }
 )
 
-# Download inputs as qs
-output$downloadInputsR <- downloadHandler(
-  filename = function() "Input_Options.qs",
-  content = function(file) {
-    qs::qsave(x = reactiveValuesToList(input), file = file, nthreads = 8)
-  }
-)
-
-# Download current reactive data
-output$downloadData <- downloadHandler(
-  filename = function() {
-    paste0("MARMOT_Data_", format(Sys.time(), "%Y-%m-%d_%H.%M.%S"), ".qs")
-  },
-  content = function(file) {
-    showNotification(
-      ui = paste("Preparing data for download.",
-                 "Will download automatically when ready.",
-                 "Please do not click download multiple times!"),
-      duration = 30
-    )
-    qs::qsave(x = inputDataReactive$Results, file = file, nthreads = 8)
-  }
-)
-
 # Download cluster codes
 output$downloadClusterCodes <- downloadHandler(
   filename = function() "clusterCodes.xlsx",
@@ -106,6 +84,10 @@ output$downloadFCS <- downloadHandler(
     paste("modified_fcs_files_", Sys.Date(), ".zip", sep = "")
   },
   content = function(file) {
+    req(
+      !is.null(inputDataReactive$Results$framesList),
+      !is.null(inputDataReactive$Results$md$sample_id)
+    )
     temp_directory <- file.path(tempdir(), as.integer(Sys.time()))
     dir.create(temp_directory)
 
@@ -127,7 +109,7 @@ output$downloadFCS <- downloadHandler(
       }
       fn1 <- inputDataReactive$Results$md$file_name[
         inputDataReactive$Results$md$sample_id == s
-      ]
+      ][[1]]
       fn2 <- file.path(temp_directory, paste0(s, "_modified.fcs"))
 
       flowCore::write.FCS(

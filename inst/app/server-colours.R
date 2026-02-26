@@ -3,11 +3,11 @@
 
 # Fireworks ----
 fw <- Fireworks$new()
-observe({
+observeEvent(input$acceptCite, {
   fw$start()
   Sys.sleep(3)
   fw$stop(fadeOut = TRUE)
-}) |> bindEvent(input$acceptCite)
+})
 observeEvent(input$acceptCite, {
   output$showPDFs <- renderUI({
     column(
@@ -27,13 +27,9 @@ observeEvent(input$acceptCite, {
       ),
       downloadButton(outputId = "dlUMAP", label = "Download DR Plot"),
       downloadButton(outputId = "dlFP", label = "Download Feature Plot"),
-      hr(style = "border-top: 1px solid #000000;"), h4("Download App Data"),
-      helpText("App data will download as a qs file, which can be imported into R with `qs::qread()`"),
-      downloadButton("downloadData", "Download app data"),
       hr(style = "border-top: 1px solid #000000;"), h4("Download App Settings"),
-      helpText("Download all the app settings as either an Excel sheet, or as a qs file of the settings as a list."),
+      helpText("Download all the app settings as an Excel sheet."),
       downloadButton("downloadInputsE", "Download settings (Excel)"),
-      downloadButton("downloadInputsR", "Download settings (qs)"),
       hr(style = "border-top: 1px solid #000000;"), h4("Download FCS Files"),
       helpText(
         "Use this button to download modified FCS files.
@@ -54,11 +50,14 @@ observeEvent(input$acceptCite, {
   )
 })
 
+# Cache loaded data at startup (isolate: one-time read, no reactive dependency)
+res <- isolate(inputDataReactive$Results)
+
 # Colour palette list ----
-colourPaletteList <- init_colour_palette_list(inputDataReactive$Results$sce)
+colourPaletteList <- init_colour_palette_list(res$sce)
 
 # Colour pickers for condition groups ----
-colsList1 <- inputDataReactive[["Results"]][["coloursList"]][inputDataReactive[["Results"]][["conditions"]]]
+colsList1 <- res[["coloursList"]][res[["conditions"]]]
 colsList1 <- colsList1[!sapply(colsList1, is.null)]
 output$uiColourPicker <- renderUI({
   lapply(names(colsList1), function(col) {
@@ -92,13 +91,19 @@ observeEvent({
 })
 
 # Update inputs ----
-allCols <- colnames(SummarizedExperiment::colData(inputDataReactive$Results$sce))
-colsThatCanBePlot <- get_plottable_columns(inputDataReactive$Results$sce)
+allCols <- colnames(SummarizedExperiment::colData(res$sce))
+colsThatCanBePlot <- get_plottable_columns(res$sce)
 
 # Update the DR types that can be plotted
+# Default DR priority: PaCMAP > UMAP > TSNE > first available
+dr_names <- SingleCellExperiment::reducedDimNames(res$sce)
+dr_default <- dr_names[1]
+for (pref in c("TSNE", "UMAP", "PaCMAP")) {
+  hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
+  if (length(hit) > 0) dr_default <- hit[1]
+}
 updateSelectInput(session = session, inputId = "umapDRToPlot",
-  choices = SingleCellExperiment::reducedDimNames(inputDataReactive$Results$sce),
-  selected = SingleCellExperiment::reducedDimNames(inputDataReactive$Results$sce)[[2]])
+  choices = dr_names, selected = dr_default)
 # Update the colData columns available to plot by (categorical)
 updateSelectInput(session = session, inputId = "umapColumnToPlot", choices = colsThatCanBePlot, selected = "cluster_id")
 # Update the available categorical metadata columns to split by
@@ -107,7 +112,7 @@ updateSelectInput(
   choices = c("None", colsThatCanBePlot), selected = "None"
 )
 # Update the available contrasts
-contrasts_available <- inputDataReactive$Results$smd$`Conditions To Test`
+contrasts_available <- res$smd$`Conditions To Test`
 contrasts_available <- contrasts_available[!is.na(contrasts_available)]
 updateSelectInput(session, "umapContrastToUse", choices = contrasts_available)
 updateSelectInput(session, "fpContrastToUse", choices = contrasts_available)
@@ -116,16 +121,18 @@ updateSelectInput(session, "fpColumnToPlot",
   choices = c("None", colsThatCanBePlot), selected = "cluster_id")
 updateSelectInput(session, "fpColumnToSplit",
   choices = c("None", colsThatCanBePlot), selected = "None")
-updateSelectInput(session, "fpFeatureToPlot",
-  choices = names(inputDataReactive$Results$sce), selected = NULL)
+# Server-side selectize for markers: backed by sorted_markers_cache for fast lookup
+marker_choices <- res$sorted_markers_cache %||% names(res$sce)
+updateSelectizeInput(session, "fpFeatureToPlot",
+  choices = marker_choices, selected = NULL, server = TRUE)
 
 # Metadata table ----
 output$metadataTable <- DT::renderDataTable(
-  inputDataReactive$Results$md |> dplyr::select(-file_name)
+  res$md |> dplyr::select(-file_name)
 )
-labelList <- setNames(lapply(inputDataReactive$Results$conditions, function(x) {
-  levels(as.factor(inputDataReactive$Results$md[[x]]))
-}), inputDataReactive$Results$conditions)
+labelList <- setNames(lapply(res$conditions, function(x) {
+  levels(as.factor(res$md[[x]]))
+}), res$conditions)
 labelDf <- data.frame(
   "Factor" = unlist(lapply(seq_along(labelList), function(i) {
     rep(names(labelList)[[i]], lengths(labelList)[[i]])
@@ -143,22 +150,72 @@ output$changeLabelTable <- DT::renderDataTable(
 # posMarkers table ----
 output$posMarkerUI <- renderUI({
   if ("topMarkerTable" %in% names(inputDataReactive$Results)) {
-    DT::dataTableOutput(outputId = "posMarkerTable")
+    tagList(
+      actionButton(
+        inputId = "addMarkersFromTable",
+        label   = "Add selected markers to plot list",
+        icon    = icon("plus"),
+        class   = "btn-primary btn-sm",
+        style   = "margin-bottom:6px;"
+      ),
+      actionButton(
+        inputId = "resetPosMarkerTableSelectRows",
+        label   = "Deselect all",
+        class   = "btn-sm",
+        style   = "margin-bottom:6px; margin-left:4px;"
+      ),
+      DT::dataTableOutput(outputId = "posMarkerTable")
+    )
   } else {
-    renderText("No Marker Gene table was loaded.")
+    p("No marker table was found in this dataset.")
   }
 })
-if ("topMarkerTable" %in% names(inputDataReactive$Results)) {
+if ("topMarkerTable" %in% names(res)) {
   dt1 <- DT::datatable(
-    data = inputDataReactive$Results[["topMarkerTable"]],
+    data = res[["topMarkerTable"]],
     filter = "top",
-    rownames = FALSE
+    rownames = FALSE,
+    selection = list(mode = "multiple", target = "row")
   )
   output$posMarkerTable <- DT::renderDataTable(
-    dt1, server = TRUE, selection = list(target = "row")
+    dt1, server = TRUE
   )
   proxy <- dataTableProxy("posMarkerTable")
+
+  # Deselect all button
   observeEvent(input$resetPosMarkerTableSelectRows, {
     proxy |> selectRows(NULL)
+  })
+
+  # Click-to-add: append selected marker names to fpFeatureToPlot selectize
+  observeEvent(input$addMarkersFromTable, {
+    sel_rows <- input$posMarkerTable_rows_selected
+    if (is.null(sel_rows) || length(sel_rows) == 0) return(invisible(NULL))
+
+    tmt <- res[["topMarkerTable"]]
+    marker_col <- intersect(colnames(tmt), c("Marker", "marker", "Feature", "feature", "gene", "Gene"))
+    if (length(marker_col) == 0) {
+      # Fallback: use first column that has values matching rownames(sce)
+      for (cn in colnames(tmt)) {
+        candidates <- as.character(tmt[[cn]][sel_rows])
+        if (any(candidates %in% rownames(res$sce))) {
+          marker_col <- cn
+          break
+        }
+      }
+    } else {
+      marker_col <- marker_col[1]
+    }
+    if (length(marker_col) == 0) return(invisible(NULL))
+
+    new_markers <- as.character(tmt[[marker_col]][sel_rows])
+    # Intersect with known rownames to avoid adding garbage
+    new_markers <- intersect(new_markers, rownames(res$sce))
+    if (length(new_markers) == 0) return(invisible(NULL))
+
+    current <- isolate(input$fpFeatureToPlot) %||% character(0)
+    combined <- unique(c(current, new_markers))
+    updateSelectizeInput(session, "fpFeatureToPlot",
+      choices = marker_choices, selected = combined, server = TRUE)
   })
 }

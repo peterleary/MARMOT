@@ -7,9 +7,9 @@ NULL
 #' Save All Pipeline Data to Parquet
 #'
 #' Decomposes all pipeline R objects into tabular Parquet files within a
-#' `parquet/` subdirectory alongside the existing .qs files.
+#' `parquet/` subdirectory of the R_files output directory.
 #'
-#' @param qs_dir Path to the R_files directory (where .qs files are saved)
+#' @param qs_dir Path to the R_files output directory
 #' @param envir Environment containing the pipeline variables (default: .GlobalEnv)
 #' @export
 save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {

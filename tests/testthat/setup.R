@@ -199,3 +199,45 @@ make_mock_colours <- function(sce) {
     condition = setNames(c("#E41A1C", "#377EB8"), conds)
   )
 }
+
+#' Create a mock SCE for cell identity matching tests
+#'
+#' Extends make_mock_sce with a second reducedDim (TSNE), cluster_codes
+#' in metadata, and optional NA UMAP coordinates.
+#'
+#' @param n_cells Number of cells (default 100)
+#' @param n_markers Number of markers (default 5)
+#' @param n_samples Number of samples (default 2)
+#' @param n_na_coords Number of cells to set NA UMAP coordinates (default 0)
+#' @return A SingleCellExperiment object
+make_cell_matching_sce <- function(n_cells = 100, n_markers = 5, n_samples = 2,
+                                   n_na_coords = 0) {
+  sce <- make_mock_sce(n_cells = n_cells, n_markers = n_markers, n_samples = n_samples)
+
+  # Add TSNE reducedDim
+  set.seed(99)
+  cells <- colnames(sce)
+  tsne_coords <- matrix(rnorm(n_cells * 2, sd = 10), ncol = 2,
+                         dimnames = list(cells, c("TSNE1", "TSNE2")))
+  SingleCellExperiment::reducedDim(sce, "TSNE") <- tsne_coords
+
+  # Add cluster_codes to metadata (mimics CATALYST FlowSOM output)
+  cluster_levels <- levels(sce$cluster_id)
+  cluster_codes_df <- data.frame(
+    meta10 = cluster_levels,
+    stringsAsFactors = FALSE
+  )
+  rownames(cluster_codes_df) <- cluster_levels
+  S4Vectors::metadata(sce)$cluster_codes <- cluster_codes_df
+
+  # Optionally introduce NA coordinates
+
+  if (n_na_coords > 0 && n_na_coords < n_cells) {
+    umap <- SingleCellExperiment::reducedDim(sce, "UMAP")
+    na_idx <- seq_len(n_na_coords)
+    umap[na_idx, ] <- NA
+    SingleCellExperiment::reducedDim(sce, "UMAP") <- umap
+  }
+
+  sce
+}

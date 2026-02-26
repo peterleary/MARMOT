@@ -267,24 +267,17 @@ setup_scgate_colours <- function(gated_cells, model_names, palette) {
 
 if (!is.null(RDataFolder)) {
   pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
-  if (file.exists(pq_manifest)) {
-    message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
-    MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
-    # Also load flowFrame objects from qs (not decomposed to Parquet)
-    for (qs_obj in c("framesList", "frames")) {
-      qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
-      if (file.exists(qs_path)) {
-        assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
-      }
-    }
-  } else {
-    message(glue::glue("🔁 Loading results from .qs files: {RDataFolder}"))
-    qs_files <- list.files(RDataFolder, pattern = "\\.(qs)$", full.names = TRUE, recursive = TRUE)
-    if (length(qs_files) == 0) stop("No .qs or Parquet files found in the specified RDataFolder.")
-    for (file in qs_files) {
-      obj_name <- tools::file_path_sans_ext(basename(file))
-      message(glue::glue("→ Loading {obj_name}"))
-      assign(obj_name, qs::qread(file, nthreads = nCores), envir = .GlobalEnv)
+  if (!file.exists(pq_manifest)) {
+    stop("No Parquet data found in ", RDataFolder,
+         "/parquet/. Please re-run the pipeline to generate Parquet output.")
+  }
+  message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
+  MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
+  # Also load FCS frame objects (stored as qs — not decomposable to Parquet)
+  for (qs_obj in c("framesList", "frames")) {
+    qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
+    if (file.exists(qs_path)) {
+      assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
     }
   }
 }
@@ -836,12 +829,12 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
     set.seed(2)
     if (clusteringMethodToUse == "FastPG") {
       clusters <- FastPG::fastCluster(data = es, k = k, num_threads = max(1, floor(nCores / length(kValuesIWant))))
-      ids <- factor(clusters$communities + 1)
+      ids <- factor(paste0("p", clusters$communities + 1))
     } else if (clusteringMethodToUse == "Rphenograph") {
       clusters <- Rphenograph::Rphenograph(data = es, k = k)
-      ids <- factor(membership(clusters[[2]]))
+      ids <- factor(paste0("p", membership(clusters[[2]])))
     }
-    ids <- factor(ids, levels = 1:nlevels(ids))
+    ids <- factor(ids, levels = gtools::mixedsort(levels(ids)))
     list(kids = ids, clusters = clusters)
   }
 
@@ -861,8 +854,8 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
   metadata(sce)$cluster_codes <- eval(parse(text = paste0(
     "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
   )))
-  kids <- unlist(sce[[paste0("k", knn)]])
-  numbersOfClusters <- unique(kids)
+  kids <- sce[[paste0("k", knn)]]
+  numbersOfClusters <- gtools::mixedsort(levels(kids))
 }
 ```
 
@@ -886,7 +879,7 @@ if (clusteringMethodToUse == "PARC") {
   )
 
   for (k in kValuesIWant) {
-    cluster_labels <- factor(parcClustList[[paste0("p", k)]] + 1)
+    cluster_labels <- factor(paste0("c", parcClustList[[paste0("p", k)]] + 1))
     cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
     sce[[paste0("p", k)]] <- cluster_labels
   }
@@ -896,8 +889,8 @@ if (clusteringMethodToUse == "PARC") {
   metadata(sce)$cluster_codes <- eval(parse(text = paste0(
     "data.frame(", clusteringMethodToUse, " = factor(levels(sce[[chosen_k]])))"
   )))
-  kids <- unlist(parcClustList[[paste0("p", knn)]])
-  numbersOfClusters <- unique(kids)
+  kids <- sce[[paste0("p", knn)]]
+  numbersOfClusters <- gtools::mixedsort(levels(kids))
 }
 ```
 
@@ -915,19 +908,30 @@ if (clusteringMethodToUse == "FlowSOM") {
     seed = 42
   )
 
-  # Store all clusterings
+  # Store all clusterings with "k" prefix
   for (k in kValuesIWant) {
-    sce[[paste0("meta", k)]] <- cluster_ids(sceSOM, paste0("meta", k))
+    raw_ids <- cluster_ids(sceSOM, paste0("meta", k))
+    prefixed <- factor(paste0("k", raw_ids))
+    prefixed <- factor(prefixed, levels = gtools::mixedsort(levels(prefixed)))
+    sce[[paste0("meta", k)]] <- prefixed
   }
 
   # Assign selected clustering
   selected_k <- paste0("meta", knn)
-  sce$cluster_id <- cluster_ids(sceSOM, selected_k)
+  sce$cluster_id <- sce[[selected_k]]
 
   metadata(sce)$cluster_codes <- data.frame(FlowSOM = factor(levels(sce[[selected_k]])))
-  kids <- unlist(sce[[paste0("meta", knn)]])
-  numbersOfClusters <- unique(kids)
+  kids <- sce[[paste0("meta", knn)]]
+  numbersOfClusters <- gtools::mixedsort(levels(kids))
 }
+```
+
+```{r derive_cluster_info, include = FALSE}
+# Derive kids / numbersOfClusters from SCE — works for both fresh run and reload.
+# Do NOT use the kids variable set inside each clustering chunk: the PARC path
+# stores raw integers (not a factor), and on reload all clustering chunks are skipped.
+kids <- sce$cluster_id
+numbersOfClusters <- gtools::mixedsort(levels(kids))
 ```
 
 ```{r dim_reduction, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
@@ -988,27 +992,61 @@ if (is.null(RDataFolder) && runScGate) {
   if (requireNamespace("scGate", quietly = TRUE) && requireNamespace("UCell", quietly = TRUE)) {
     message("🌉 Running scGate on marker pairs...")
     mp <- parse_marker_pairs(smd)
-    models <- mp$models
+
+    if (is.null(mp) || length(mp$models) == 0) {
+      warning("No marker pairs defined in metadata — skipping scGate.")
+      runScGate <- FALSE
+    } else {
+      models <- mp$models
 
     for (x in names(models)) {
       if (!models[[x]][[1]] %in% rownames(scData)) {
-        models[[x]][[1]] <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+        hit <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+        if (length(hit) == 0) {
+          warning("No marker match for '", models[[x]][[1]], "' in model '", x, "' — skipping model.")
+          next
+        }
+        models[[x]][[1]] <- hit[[1]]
       }
       if (!models[[x]][[2]] %in% rownames(scData)) {
-        models[[x]][[2]] <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+        hit <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+        if (length(hit) == 0) {
+          warning("No marker match for '", models[[x]][[2]], "' in model '", x, "' — skipping model.")
+          next
+        }
+        models[[x]][[2]] <- hit[[1]]
       }
       model <- scGate::gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
       scData <- scGate::scGate(data = scData, model = model, pos.thr = 0.65)
-      y <- x %>% gsub("\\ |\\-", "", .)
-      scData[[paste0("is_", y)]] <- scData$scGate_multi
-      scData[[paste0("is_", y)]][!is.na(scData[[paste0("is_", y)]])] <- x
+      y <- gsub("[ -]", "", x)
+      # Only mark cells that actually passed the gate (Positive), not all evaluated cells
+      scData[[paste0("is_", y)]] <- NA_character_
+      scData[[paste0("is_", y)]][which(scData$scGate_multi == "Positive")] <- x
     }
 
-    # Get UCell results and determine gated cells
+    # Determine Gated_Cells: highest UCell score, but only for cells that passed at least one gate
     ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
-    scData$Gated_Cells <- lapply(1:nrow(scData@meta.data), function(i) {
-      ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .)
-    }) %>% unlist()
+    is_cols <- paste0("is_", gsub("[ -]", "", names(models)))
+    is_cols <- is_cols[is_cols %in% colnames(scData@meta.data)]
+    any_positive <- apply(scData@meta.data[, is_cols, drop = FALSE], 1,
+                          function(row) any(!is.na(row)))
+    if (length(ucell_cols) == 0) {
+      warning("No UCell score columns found — assigning Gated_Cells from is_* columns only.")
+      scData$Gated_Cells <- ifelse(
+        any_positive,
+        apply(scData@meta.data[, is_cols, drop = FALSE], 1,
+              function(row) { v <- row[!is.na(row)]; if (length(v)) v[[1]] else "Negative" }),
+        "Negative"
+      )
+    } else {
+      scData$Gated_Cells <- ifelse(
+        any_positive,
+        sapply(seq_len(nrow(scData@meta.data)), function(i) {
+          gsub("_UCell", "", ucell_cols[which.max(scData@meta.data[i, ucell_cols])])
+        }),
+        "Negative"
+      )
+    }
 
     # Transfer scGate results back to SCE
     sce$Gated_Cells <- scData$Gated_Cells
@@ -1020,6 +1058,7 @@ if (is.null(RDataFolder) && runScGate) {
     # Add gate colours
     gate_colours <- setup_scgate_colours(unique(scData$Gated_Cells), names(models), catalystCols)
     for (nm in names(gate_colours)) coloursList[[nm]] <- gate_colours[[nm]]
+    } # end: mp non-NULL branch
   } else {
     warning("scGate and/or UCell are not installed — skipping scGate analysis.")
     runScGate <- FALSE
@@ -1041,6 +1080,7 @@ build_dr_df <- function(method) {
   colnames(coords) <- c("x", "y")
   df <- data.frame(
     colData(sce),
+    sce_idx = seq_len(ncol(sce)),
     coords,
     DRMethod = method,
     check.names = FALSE
@@ -1297,8 +1337,8 @@ message("✅ DA and DS analysis complete.")
 # Save DA/DS results to Parquet (runs even during reload since DA/DS always re-runs)
 pq_dir <- if (!is.null(RDataFolder)) {
   file.path(RDataFolder, "parquet")
-} else if (exists("qsDir")) {
-  file.path(qsDir, "parquet")
+} else if (exists("rFilesDir")) {
+  file.path(rFilesDir, "parquet")
 } else NULL
 
 if (!is.null(pq_dir) && dir.exists(pq_dir)) {
@@ -1314,8 +1354,8 @@ if (is.null(RDataFolder)) {
   resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
   dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
 
-  qsDir <- file.path(resultsDir, "R_files")
-  dir.create(qsDir, showWarnings = FALSE)
+  rFilesDir <- file.path(resultsDir, "R_files")
+  dir.create(rFilesDir, showWarnings = FALSE)
 }
 
 # PDFs
@@ -1339,28 +1379,21 @@ dir.create(excelDir, showWarnings = FALSE)
 
 ```{r write_results_to_file, eval = is.null(RDataFolder), include = FALSE}
 
-message("💾 Saving R objects to disk...")
+message("💾 Saving outputs...")
 
-vars_to_save <- c(
-  "QCmini", "cf2", "dimRedMethodToUse", "useMarkers", "framesList", "frames", "nrowsCofactors",
-  "sce", "sce2", "sceDS", "coloursList", "md", "downsampleTo", "sceList", "lvlsColours",
-  "featuresToCluster", "featuresToUmap", "markerType", "smd", "knn", "clusteringMethodToUse",
-  "selectedClustersList", "kids", "numbersOfClusters", "kList", "umapDFList", "kValuesIWant",
-  "clustersToMapList", "daList", "dsList", "daPValToUse", "panel", "labs",
-  "runScGate"
-)
+# Save FCS frame objects as qs — flowFrame/flowSet cannot be stored in Parquet
+for (qs_obj in c("framesList", "frames")) {
+  if (exists(qs_obj, envir = .GlobalEnv)) {
+    out_path <- file.path(rFilesDir, paste0(qs_obj, ".qs"))
+    qs::qsave(get(qs_obj, envir = .GlobalEnv), file = out_path,
+              nthreads = nCores, preset = "archive")
+    message("✔️ Saved (qs): ", qs_obj)
+  }
+}
 
-existing_vars <- Filter(exists, vars_to_save)
-
-purrr::walk(existing_vars, function(varname) {
-  out_path <- file.path(qsDir, paste0(varname, ".qs"))
-  qs::qsave(get(varname, envir = .GlobalEnv), file = out_path, nthreads = nCores, preset = "archive")
-  message("✔️ Saved: ", varname)
-})
-
-# Also write Parquet format alongside qs (for Shiny app and interoperability)
+# Save Parquet — main data store for Shiny app and reproducibility
 message("💾 Saving Parquet format...")
-MARMOT::save_parquet_data(qsDir, envir = .GlobalEnv)
+MARMOT::save_parquet_data(rFilesDir, envir = .GlobalEnv)
 ```
 
 ```{r nice_umap_function}
@@ -2566,7 +2599,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
       size = 0.3, 
       show_cluster_labels = var
       )
-    m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank())
+    m1 <- m1 + ggtitle(marker) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
     med_expr <- median(m1$data$colour, na.rm = TRUE)
     pal <- hcl.colors(64, viridisColour)
     fill_col <- pal[max(1, round(med_expr * 63) + 1)]
@@ -2632,8 +2665,9 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
       size = 0.3, 
       show_cluster_labels = var
       ) + 
-      facet_wrap(~condition, ncol = 2)
-    m1 <- m1 + theme(plot.title = element_blank(), axis.title = element_blank(), legend.position = "hide")
+      facet_wrap(~condition, ncol = 2) +
+      ggtitle(marker)
+    m1 <- m1 + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank(), legend.position = "hide")
     m1
   }), useMarkers)
   return(l1)
@@ -2678,11 +2712,11 @@ if (gimmePDFs) {
 ```{r, label = "gated_dr_plots", results = 'asis', fig.height=6, fig.width=18}
 if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
   cat("### [🌉 scGate Gating]{style=\"color: #198754;\"} \n\n")
-  cat("::: {.panel-tabset}\n\n")
+  cat(":::: {.panel-tabset}\n\n")
   cat("\n\n#### All \n\n")
 
   mp <- parse_marker_pairs(smd)
-  models <- mp$models
+  models <- if (!is.null(mp)) mp$models else list()
 
   print(
     plotUMAPNice(
@@ -2700,11 +2734,19 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
   cat("\n\n")
   lapply(names(models), function(mpt) {
     cat("####", mpt, "\n\n")
-    y <- mpt %>% gsub("\\ |\\-", "", .)
+    y <- gsub("[ -]", "", mpt)
     m1 <- models[[mpt]][[1]]
     m2 <- models[[mpt]][[2]]
-    if (!m1 %in% rownames(sce)) m1 <- agrep(m1, rownames(sce), value = TRUE)
-    if (!m2 %in% rownames(sce)) m2 <- agrep(m2, rownames(sce), value = TRUE)
+    if (!m1 %in% rownames(sce)) {
+      hit <- agrep(m1, rownames(sce), value = TRUE)
+      if (length(hit) == 0) return(invisible(NULL))
+      m1 <- hit[[1]]
+    }
+    if (!m2 %in% rownames(sce)) {
+      hit <- agrep(m2, rownames(sce), value = TRUE)
+      if (length(hit) == 0) return(invisible(NULL))
+      m2 <- hit[[1]]
+    }
 
     # Panel 1: DimPlot — is this cell type?
     p1 <- plotUMAPNice(
@@ -2756,7 +2798,7 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
     print(cowplot::plot_grid(p1, p2, p3, align = "hv", ncol = 3))
     cat("\n\n")
   })
-  cat(":::\n\n")
+  cat("::::\n\n")
 }
 ```
 
@@ -2836,53 +2878,51 @@ htmltools::tagList(DT::datatable(data.frame(x = 1)))
 
 :::: panel-tabset
 
-```{r, label = "ds_res", results = 'asis', fig.height=12, fig.width=10, fig.align='left'}
-for (cont in names(dsList)[grep("Merged", names(dsList), invert = TRUE)]) {
+```{r, label = "ds_res", results = 'asis', fig.height=12, fig.width=10}
+dsPThreshToUse <- 0.05
+dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), invert = TRUE)], function(cont) {
   cat("\n\n")
   cat("####", cont, "\n\n")
-  cat("::: {.panel-tabset}\n\n")
-
-  dsPThreshToUse <- 0.05
 
   openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Full_Results.xlsx")))
-  
+
   dsUp <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = T) %>% .[. >= 1] %>% data.frame
   dsDown <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = T) %>% .[. >= 1] %>% data.frame
-  
+
   if (nrow(dsUp) == 1) {
     dsUp <- data.frame("Marker" = rownames(dsUp), "Number of clusters" = dsUp[1,])
   }
   if (nrow(dsDown) == 1) {
     dsDown <- data.frame("Marker" = rownames(dsDown), "Number of clusters" = dsDown[1,])
   }
-  
-  cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
+
+  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][1], "**\n\n")
   if (nrow(dsUp) >= 1) {
     print(
       kable(
-        x = dsUp, 
-        col.names = c("Marker", "Number of clusters")) %>% 
+        x = dsUp,
+        col.names = c("Marker", "Number of clusters")) %>%
         kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
     )
     cat("\n\n")
   } else {
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
   }
-  
-  cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
+
+  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][2], "**\n\n")
   if (nrow(dsDown) >= 1) {
-  print(
-    kable(
-      x = dsDown, 
-      col.names = c("Marker", "Number of clusters")) %>% 
-      kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
-  )
+    print(
+      kable(
+        x = dsDown,
+        col.names = c("Marker", "Number of clusters")) %>%
+        kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
+    )
     cat("\n\n")
   } else {
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
   }
-  
-  cat("##### Heatmap \n\n")
+
+  cat("**Heatmap**\n\n")
   pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse)
   for (con in conditions) {
     pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -2892,7 +2932,7 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = TRUE)]) {
   }
   print(pDH)
   cat("\n\n")
-  cat("##### Full Results \n\n")
+  cat("**Full Results**\n\n")
   cat("This table shows the log2FC and p-values of each marker per cluster in", cont, "\n\n")
   cat("Positive log2fc means the marker was higher in", strsplit(cont, split = "-| ")[[1]][1], "in a given cluster. \n\n")
   cat("Negative log2fc means the marker was higher in", strsplit(cont, split = "-| ")[[1]][3], "in a given cluster. \n\n")
@@ -2910,8 +2950,9 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = TRUE)]) {
         DT::formatStyle(c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")),fontWeight = "bold")
     )
   )
-  cat("\n:::\n\n")
-}
+  cat("\n\n")
+  return(list("pDH" = pDH, "dsTab1" = dsTab1))
+}), names(dsList)[grep("Merged", names(dsList), invert = TRUE)])
 ```
 
 ::::
@@ -2926,17 +2967,16 @@ htmltools::tagList(DT::datatable(data.frame(x = 1)))
 
 :::: panel-tabset
 
-```{r, label = "ds_res merged", results = 'asis', fig.height=12, fig.width=10, fig.align='left'}
-for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
+```{r, label = "ds_res merged", results = 'asis', fig.height=12, fig.width=10}
+dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), invert = FALSE)], function(cont) {
   cat("\n\n")
   cat("####", cont, "\n\n")
-  cat("::: {.panel-tabset}\n\n")
 
   openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Merged_Results.xlsx")))
   dsUp <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = T) %>% .[. >= 1]
   dsDown <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = T) %>% .[. >= 1]
-  
-  cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
+
+  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][1], "**\n\n")
   if (length(dsUp) >= 1) {
     print(dsUp)
     cat("\n\n")
@@ -2944,14 +2984,14 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
   }
 
-  cat("##### Markers up in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
+  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][2], "**\n\n")
   if (length(dsDown) >= 1) {
-  print(dsDown)
+    print(dsDown)
     cat("\n\n")
   } else {
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
   }
-  cat("##### Heatmap \n\n")
+  cat("**Heatmap**\n\n")
   pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE)
   for (con in conditions) {
     pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -2961,10 +3001,10 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
   }
   print(pDH)
   cat("\n\n")
-  cat("##### Full Results \n\n")
+  cat("**Full Results**\n\n")
   cat("Positive log2fc means the marker was higher in", strsplit(cont, split = "-| ")[[1]][1], "in a given cluster. \n\n")
   cat("Negative log2fc means the marker was higher in", strsplit(cont, split = "-| ")[[1]][3], "in a given cluster. \n\n")
-  
+
   dsTab1 <- as.data.frame(dsList[[cont]]$tbl_DS[, c("cluster_id", "marker_id", "logFC", "p_val", "p_adj")])
   dsTab1 <- dsTab1[order(dsTab1$p_val), ]
   print(
@@ -2978,8 +3018,9 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
         DT::formatStyle(c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")),fontWeight = "bold")
     )
   )
-  cat("\n:::\n\n")
-}
+  cat("\n\n")
+  return(list("pDH" = pDH, "dsTab1" = dsTab1))
+}), names(dsList)[grep("Merged", names(dsList), invert = FALSE)])
 ```
 
 ::::
@@ -3171,7 +3212,7 @@ if (gimmePDFs) {
 
 ```{r, label = "file info"}
 if (is.null(RDataFolder)) {
-  cat("The files generated in this report have been saved in:", qsDir)
+  cat("The files generated in this report have been saved in:", rFilesDir)
 } else {
   cat("The results in this report were generated using the files in", RDataFolder)
 }

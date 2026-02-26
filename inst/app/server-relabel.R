@@ -3,16 +3,16 @@
 
 # Clusters table ----
 clusterTableReactive <- reactiveValues(table = NULL)
-clusterTableReactive$table <- data.frame(
-  "cluster_id" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "relabelled_clusters" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "colours" = inputDataReactive$Results$coloursList$cluster_id[match(
-    levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-    names(inputDataReactive$Results$coloursList$cluster_id)
+.cluster_table <- data.frame(
+  "cluster_id" = levels(as.factor(res[["sce"]]$cluster_id)),
+  "relabelled_clusters" = levels(as.factor(res[["sce"]]$cluster_id)),
+  "colours" = res$coloursList$cluster_id[match(
+    levels(as.factor(res[["sce"]]$cluster_id)),
+    names(res$coloursList$cluster_id)
   )]
 )
-rownames(clusterTableReactive$table) <- NULL
-clusterTableReactive$table <- tibble::column_to_rownames(clusterTableReactive$table, "cluster_id")
+rownames(.cluster_table) <- NULL
+clusterTableReactive$table <- tibble::column_to_rownames(.cluster_table, "cluster_id")
 
 # Download button for cluster labels
 output$saveClusterLabels <- downloadHandler(
@@ -44,7 +44,8 @@ output$clusterLabelTable <- DT::renderDataTable({
     )
 })
 
-inputDataReactive$Results$coloursList[["relabelled_clusters"]] <- inputDataReactive$Results$coloursList$cluster_id
+res$coloursList[["relabelled_clusters"]] <- res$coloursList$cluster_id
+inputDataReactive$Results <- res
 
 # Helper: apply relabelling to all relevant data objects
 apply_relabelling <- function() {
@@ -85,7 +86,7 @@ apply_relabelling <- function() {
 observeEvent({
   input$clusterLabelTable_cell_edit
 }, ignoreNULL = FALSE, ignoreInit = TRUE, {
-  clusterTableReactive$table <<- editData(
+  clusterTableReactive$table <- editData(
     clusterTableReactive$table, input$clusterLabelTable_cell_edit
   )
   apply_relabelling()
@@ -93,13 +94,15 @@ observeEvent({
 
 # Import cluster labels from file
 observeEvent(input$importFile, {
+  req(input$importFile)
+  tryCatch({
   importedDf <- openxlsx::read.xlsx(
     input$importFile[1, "datapath"], colNames = TRUE
   )
   importedDf <- importedDf |>
     data.frame(check.names = FALSE) |>
     tibble::column_to_rownames("original")
-  sce_clusters <- inputDataReactive$Results[["sce"]]@colData$cluster_id
+  sce_clusters <- inputDataReactive$Results[["sce"]]$cluster_id
   if (any(!sce_clusters %in% rownames(importedDf))) {
     shinyalert::shinyalert(
       title = "The marmots say no",
@@ -110,7 +113,7 @@ observeEvent(input$importFile, {
       ),
       closeOnEsc = TRUE, closeOnClickOutside = TRUE,
       showCancelButton = TRUE,
-      imageUrl = "./Resetti_CF.webp.png"
+      imageUrl = ""
     )
   } else {
     importedDf$relabelled_clusters <- factor(
@@ -123,4 +126,7 @@ observeEvent(input$importFile, {
     colourPaletteList$relabelled_clusters <- clusterTableReactive$table$colours
     apply_relabelling()
   }
+  }, error = function(e) {
+    showNotification(paste("Failed to read file:", e$message), type = "error")
+  })
 })

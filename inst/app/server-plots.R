@@ -69,10 +69,19 @@ observeEvent(
     if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot")) {
       output$umapFeaturePlotSettingsUI0 <- renderUI({
         dr_names <- names(inputDataReactive$Results$umapDFList)
+        # Default DR priority: PaCMAP > UMAP > TSNE > first available
+        fp_dr_default <- dr_names[1]
+        for (pref in c("TSNE", "UMAP", "PaCMAP")) {
+          hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
+          # Prefer Downsampled variants
+          ds_hit <- grep("Downsampled", hit, value = TRUE)
+          if (length(ds_hit) > 0) hit <- ds_hit
+          if (length(hit) > 0) fp_dr_default <- hit[1]
+        }
         selectInput(
           inputId = "fpDRToPlot", label = "DR to plot",
           choices = dr_names,
-          selected = grep("Downsampled", dr_names, value = TRUE)[1],
+          selected = fp_dr_default,
           multiple = FALSE, width = "85%"
         )
       })
@@ -89,14 +98,14 @@ observeEvent(
         output$umapFeaturePlotSettingsUI4 <- renderUI({
           sliderInput(
             inputId = "pointSizeFP", label = "Dot Size",
-            min = 0.1, max = 4, value = 0.8, step = 0.1,
+            min = 0.1, max = 4, value = 0.2, step = 0.1,
             width = "85%", ticks = FALSE
           )
         }),
         output$umapFeaturePlotSettingsUI5 <- renderUI({
           sliderInput(
-            inputId = "borderSizeFP", label = "Dot border size",
-            min = 0, max = 10, value = 0, step = 1,
+            inputId = "borderSizeFP", label = "Border size",
+            min = 1, max = 5, value = 3, step = 0.1,
             width = "85%", ticks = FALSE
           )
         })
@@ -108,8 +117,10 @@ observeEvent(
           choiceValues = c("label", "median", "mean")
         )
       })
+      # Auto-enable rasterisation for large datasets
+      default_rasterise <- isTRUE(inputDataReactive$Results$rasterise_auto)
       output$umapFeaturePlotSettingsUI10 <- renderUI({
-        checkboxInput(inputId = "rasteriseFP", label = "Rasterise?", value = FALSE)
+        checkboxInput(inputId = "rasteriseFP", label = "Rasterise?", value = default_rasterise)
       })
       output$umapFeaturePlotSettingsUI11 <- renderUI({
         numericInput(
@@ -117,8 +128,15 @@ observeEvent(
           value = 1024, min = 0, max = 2000, step = 5, width = "85%"
         )
       })
+      output$umapFeaturePlotSettingsUI12 <- renderUI({
+        sliderInput(
+          inputId = "borderDensityFP", label = "Border density",
+          min = 0.05, max = 2, value = 1, step = 0.05,
+          width = "85%", ticks = FALSE
+        )
+      })
     } else {
-      lapply(c(0, 1:6, 10, 11), function(i) {
+      lapply(c(0, 1:6, 10, 11, 12), function(i) {
         output[[paste0("umapFeaturePlotSettingsUI", i)]] <- renderUI(NULL)
       })
     }
@@ -255,64 +273,85 @@ observeEvent({
   }
 })
 
-# Feature plots ---- (SCE-native, no Seurat)
-featurePlotReactive <- reactiveValues(fp = NULL)
-observeEvent(input$featurePlotType, {
-  featurePlotReactive <- reactiveValues(fp = NULL)
+# Adaptive debounce timing for feature plots ----
+feature_debounce_ms <- reactive({
+  ncell <- inputDataReactive$Results$ncell %||% 0L
+  if (ncell > 200000L) 400L else if (ncell > 50000L) 200L else 100L
 })
 
-observeEvent(
-  {
-    input$fpDRToPlot
-    input$fpFeatureToPlot
-    input$featurePlotType
-    input$fpAssayToPlot
-    input$fpColumnToPlot
-    input$fpColumnToSplit
-    input$pointSizeFP
-    input$textSizeFP
-    input$ncolFPGene
-    input$ncolFPSplit
-    input$fpShowLabels
-    input$viridisColourFP
-    input$flipViridisFP
-    input$umapFeaturePlotHeatmapCluster
-    input$umapFeaturePlotHeatmapFlip
-    input$fpLegendPosition
-    input$cellBordersFP
-    input$borderSizeFP
-    input$fpShowAxes
-    input$umapFeaturePlotDotplotFlip
-    input$fpBarplotPercentage
-    input$fpBarplotShowNumbers
-    input$plotByKeepBucket
-    input$splitByKeepBucket
-    input$fpLabelColour
-    input$fpNebulosaPlotTogether
-    input$fpNebulosaPlotTogetherOnly
-    input$rasteriseFP
-    input$rasterFP_DPI
-    input$fpContrastToUse
-    input$fpShowDAClusters
-    input$fpHeatmapPlotAll
-    input$fpSubsetCells
-    input$fpSubsetToGlobal
+# Capture all feature plot inputs into a single reactive for debouncing
+fp_inputs_raw <- reactive({
+  list(
+    input$fpDRToPlot,
+    input$fpFeatureToPlot,
+    input$featurePlotType,
+    input$fpAssayToPlot,
+    input$fpColumnToPlot,
+    input$fpColumnToSplit,
+    input$pointSizeFP,
+    input$textSizeFP,
+    input$ncolFPGene,
+    input$ncolFPSplit,
+    input$fpShowLabels,
+    input$viridisColourFP,
+    input$flipViridisFP,
+    input$umapFeaturePlotHeatmapCluster,
+    input$umapFeaturePlotHeatmapFlip,
+    input$fpLegendPosition,
+    input$cellBordersFP,
+    input$borderSizeFP,
+    input$borderDensityFP,
+    input$fpShowAxes,
+    input$umapFeaturePlotDotplotFlip,
+    input$fpBarplotPercentage,
+    input$fpBarplotShowNumbers,
+    input$plotByKeepBucket,
+    input$splitByKeepBucket,
+    input$fpLabelColour,
+    input$fpNebulosaPlotTogether,
+    input$fpNebulosaPlotTogetherOnly,
+    input$rasteriseFP,
+    input$rasterFP_DPI,
+    input$fpContrastToUse,
+    input$fpShowDAClusters,
+    input$fpHeatmapPlotAll,
+    input$fpSubsetMode,
+    input$fpSubsetToGlobal,
+    clusterTableReactive$table,
     lapply(names(colsList1), function(col) {
       lapply(names(colsList1[[col]]), function(lor) {
         input[[paste0("GroupColour", col, lor)]]
       })
     })
-  },
+  )
+})
+
+fp_inputs <- fp_inputs_raw |> debounce(feature_debounce_ms)
+
+# Feature plots ---- (SCE-native, no Seurat)
+featurePlotReactive <- reactiveValues(fp = NULL)
+observeEvent(input$featurePlotType, {
+  featurePlotReactive$fp <- NULL
+})
+
+observeEvent(
+  fp_inputs(),
   ignoreNULL = FALSE,
   {
     tryCatch({
+      req(
+        !is.null(inputDataReactive$Results$sce),
+        !is.null(inputDataReactive$Results$umapDFList),
+        length(input$fpFeatureToPlot) > 0 ||
+          input$featurePlotType %in% c("Barplot", "Heatmap")
+      )
       sce <- inputDataReactive$Results$sce
 
       # Determine assay to use for expression data
       assayMap <- c(
         "data" = "exprsQuantNorm",
         "counts" = "exprsTransformed",
-        "scale.data" = "exprsScaled"
+        "scale.data" = "norm"
       )
       assayToUse <- assayMap[[input$fpAssayToPlot]]
       if (is.null(assayToUse)) assayToUse <- "exprsQuantNorm"
@@ -328,12 +367,12 @@ observeEvent(
       drName <- if (!is.null(input$fpDRToPlot)) input$fpDRToPlot else "Downsampled"
       umapDF <- inputDataReactive$Results$umapDFList[[drName]]
       if (is.null(umapDF)) umapDF <- inputDataReactive$Results$umapDFList$Downsampled
+      req(!is.null(umapDF))
 
       # Apply subset if active
-      if (isTRUE(input$fpSubsetCells) &&
+      if (!is.null(input$fpSubsetMode) && input$fpSubsetMode != "None" &&
             !is.null(inputDataReactive$Results[["subsetCellIds"]])) {
         subsetIds <- inputDataReactive$Results[["subsetCellIds"]]
-        # Subset the SCE
         if (!is.null(sce) && length(subsetIds) > 0) {
           sce <- sce[, colnames(sce) %in% subsetIds]
         }
@@ -363,11 +402,12 @@ observeEvent(
       }
 
       # DA cluster filtering
-      contrastToUse <- grep(
-        input$fpContrastToUse,
-        inputDataReactive$Results$smd$`Conditions To Test`
-      )
-      contrastIndexes <- seq(1, 11, by = 2)[contrastToUse]
+      contrasts_vec <- inputDataReactive$Results$smd$`Conditions To Test`
+      contrasts_vec <- contrasts_vec[!is.na(contrasts_vec)]
+      n_contrasts <- length(contrasts_vec)
+      contrastToUse <- grep(input$fpContrastToUse, contrasts_vec)
+      if (length(contrastToUse) == 0) contrastToUse <- 1L
+      contrastIndexes <- seq(1, max(1, 2 * n_contrasts - 1), by = 2)[contrastToUse]
       clustersToPlot <- inputDataReactive$Results$selectedClustersList[
         c(contrastIndexes, contrastIndexes + 1)
       ]
@@ -377,11 +417,11 @@ observeEvent(
           "Up only" = clustersToPlot[[1]],
           "Down only" = clustersToPlot[[2]]
         )
-        if (length(da_clusters) > 1) {
+        if (length(da_clusters) > 0) {
           keep_cells <- colnames(sce)[
             as.character(sce$cluster_id) %in% da_clusters
           ]
-          if (length(keep_cells) > 1) sce <- sce[, keep_cells]
+          if (length(keep_cells) > 0) sce <- sce[, keep_cells]
         } else {
           showNotification("There are no DA clusters in this contrast!", type = "error")
         }
@@ -389,19 +429,65 @@ observeEvent(
 
       fpFeaturesToPlot <- gsub("_", "-", input$fpFeatureToPlot)
 
-      # ====== FEATURE PLOT ======
+      # ── Shared batch extraction: pull all expression at once (used by Feature Plot + Nebulosa) ──
+      orig_sce <- inputDataReactive$Results$sce
+      expr_batch <- NULL
+
+      if (input$featurePlotType %in% c("Feature Plot", "Nebulosa Plot") &&
+            length(fpFeaturesToPlot) > 0) {
+        if (assayToUse %in% SummarizedExperiment::assayNames(orig_sce)) {
+          marker_idx <- match(fpFeaturesToPlot, rownames(orig_sce))
+          na_pos <- is.na(marker_idx)
+          if (any(na_pos)) {
+            marker_idx[na_pos] <- match(gsub("-", "_", fpFeaturesToPlot[na_pos]), rownames(orig_sce))
+          }
+          valid_idx <- which(!is.na(marker_idx))
+          valid_markers <- fpFeaturesToPlot[valid_idx]
+          valid_row_idx <- marker_idx[valid_idx]
+        } else {
+          valid_markers <- character(0)
+          valid_row_idx <- integer(0)
+        }
+
+        # Pre-extract all expression rows at once (one matrix read, not N reads)
+        if (length(valid_row_idx) > 0 && "sce_idx" %in% colnames(umapDF)) {
+          expr_batch <- SummarizedExperiment::assay(
+            orig_sce, assayToUse)[valid_row_idx, umapDF$sce_idx, drop = FALSE]
+          rownames(expr_batch) <- valid_markers
+        } else if (length(valid_row_idx) > 0) {
+          n_common <- min(ncol(sce), nrow(umapDF))
+          if (n_common == nrow(umapDF)) {
+            expr_batch <- SummarizedExperiment::assay(
+              sce, assayToUse)[valid_row_idx, seq_len(n_common), drop = FALSE]
+            rownames(expr_batch) <- valid_markers
+          }
+        }
+      }
+
+      # ====== FEATURE PLOT — factory pattern (batch extraction) ======
       if (input$featurePlotType == "Feature Plot") {
+        # ── Loop only over ggplot construction (fast path) ──
         fp <- lapply(fpFeaturesToPlot, function(marker) {
-          df <- umapDF[order(umapDF[[marker]], decreasing = FALSE), ]
+          df <- umapDF
+
+          # Attach expression from pre-extracted batch matrix
+          if (!is.null(expr_batch) && marker %in% rownames(expr_batch)) {
+            df[[marker]] <- as.numeric(expr_batch[marker, ])
+          }
+          if (!marker %in% colnames(df)) return(NULL)
+          df <- df[order(df[[marker]], decreasing = FALSE), ]
 
           median_pos <- compute_label_positions(df, input$fpColumnToPlot, marker)
 
           fp2 <- make_feature_scatter(
             df = df, marker = marker,
             palette = input$viridisColourFP, direction = viridisFlip,
-            point_size = input$pointSizeFP,
+            point_size = input$pointSizeFP, alpha = 0.6,
             rasterise = isTRUE(input$rasteriseFP), raster_dpi = input$rasterFP_DPI %||% 1024,
-            border = isTRUE(input$cellBordersFP), border_size = input$borderSizeFP %||% 0,
+            border = isTRUE(input$cellBordersFP),
+            border_size    = input$borderSizeFP    %||% 2.0,
+            border_density = input$borderDensityFP %||% 1,
+            border_colour  = "black",
             base_size = input$textSizeFP, show_axes = isTRUE(input$fpShowAxes),
             legend_position = tolower(input$fpLegendPosition)
           )
@@ -447,60 +533,152 @@ observeEvent(
           fp2
         })
 
-      # ====== NEBULOSA PLOT ======
+      # ====== NEBULOSA PLOT (ks::kde weighted scatter) ======
       } else if (input$featurePlotType == "Nebulosa Plot") {
-        if (!requireNamespace("Nebulosa", quietly = TRUE)) {
-          showNotification("Nebulosa is not installed.", type = "error")
+        if (!requireNamespace("ks", quietly = TRUE)) {
+          showNotification("ks package is not installed. Install with install.packages('ks').",
+                           type = "error")
           return(NULL)
         }
-        # Nebulosa works directly with SCE
-        nebFeatures <- fpFeaturesToPlot
-        joint <- isTRUE(input$fpNebulosaPlotTogether)
+
+        # DR coordinates from umapDF (already have x, y columns)
+        emb_mat <- as.matrix(umapDF[, c("x", "y")])
+
+        joint <- isTRUE(input$fpNebulosaPlotTogether) && length(fpFeaturesToPlot) > 1
         return_only_joint <- isTRUE(input$fpNebulosaPlotTogetherOnly)
-        combine <- length(nebFeatures) > 1
-        if (length(nebFeatures) == 1) {
-          joint <- FALSE
-          return_only_joint <- FALSE
-          combine <- FALSE
-        }
 
-        dr_choice <- if (!is.null(input$fpDRToPlot) &&
-          grepl("UMAP|TSNE|PCA|pacmap", input$fpDRToPlot, ignore.case = TRUE)) {
-          input$fpDRToPlot
-        } else {
-          "UMAP"
-        }
+        # Per-gene weighted density scatter
+        fp <- lapply(fpFeaturesToPlot, function(marker) {
+          df <- umapDF
 
-        fp_raw <- Nebulosa::plot_density(
-          sce, features = nebFeatures,
-          slot = assayToUse,
-          reduction = dr_choice,
-          joint = joint, combine = combine
-        )
+          # Attach expression from shared batch extraction
+          if (!is.null(expr_batch) && marker %in% rownames(expr_batch)) {
+            df[[marker]] <- as.numeric(expr_batch[marker, ])
+          }
+          if (!marker %in% colnames(df)) return(NULL)
 
-        # Wrap into list of ggplot objects
-        if (!is.list(fp_raw)) fp_raw <- list(fp_raw)
+          w <- df[[marker]]
+          w[is.na(w)] <- 0
+          if (sum(w) == 0) {
+            df$density <- 0
+          } else {
+            w_norm <- w / sum(w) * length(w)
+            dens <- ks::kde(emb_mat, w = w_norm, eval.points = emb_mat)
+            df$density <- dens$estimate
+          }
+          df <- df[order(df$density), ]  # high density on top
 
-        # Apply MARMOT theme to each panel
-        fp <- lapply(fp_raw, function(p) {
-          p + marmot_dr_theme(
-            base_size = input$textSizeFP,
-            show_axes = isTRUE(input$fpShowAxes),
+          fp2 <- make_feature_scatter(
+            df = df, marker = "density",
+            palette = input$viridisColourFP, direction = viridisFlip,
+            point_size = input$pointSizeFP, alpha = 0.7,
+            rasterise = isTRUE(input$rasteriseFP), raster_dpi = input$rasterFP_DPI %||% 1024,
+            border = isTRUE(input$cellBordersFP),
+            border_size    = input$borderSizeFP    %||% 2.0,
+            border_density = input$borderDensityFP %||% 1,
+            border_colour  = "black",
+            base_size = input$textSizeFP, show_axes = isTRUE(input$fpShowAxes),
             legend_position = tolower(input$fpLegendPosition)
-          )
+          ) + ggtitle(paste0(marker, " density")) + labs(colour = "Density")
+
+          # Cluster labels
+          if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot)) {
+            median_pos <- compute_label_positions(df, fpColumnToPlot)
+            fp2 <- fp2 + ggnewscale::new_scale_color() + ggnewscale::new_scale_fill()
+            if (input$fpLabelColour == "label") {
+              fp2 <- fp2 +
+                ggrepel::geom_label_repel(
+                  data = median_pos,
+                  aes(label = .data[[fpColumnToPlot]],
+                      x = .data[["x"]], y = .data[["y"]],
+                      fill = .data[[fpColumnToPlot]]),
+                  show.legend = FALSE, size = input$textSizeFP / 4,
+                  max.overlaps = 100
+                ) +
+                scale_fill_manual(
+                  values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
+                )
+            } else {
+              median_pos <- compute_label_positions(df, fpColumnToPlot, marker)
+              fp2 <- fp2 +
+                ggrepel::geom_label_repel(
+                  data = median_pos,
+                  aes(label = .data[[fpColumnToPlot]],
+                      x = .data[["x"]], y = .data[["y"]],
+                      fill = .data[[input$fpLabelColour]]),
+                  show.legend = FALSE, size = input$textSizeFP / 4,
+                  max.overlaps = 100
+                )
+              fp2 <- apply_continuous_scale(fp2, input$viridisColourFP, viridisFlip, "fill")
+            }
+          }
+          fp2
         })
+        fp <- Filter(Negate(is.null), fp)
+
+        # Joint density (sum expression weights across genes, single KDE)
+        if (joint && length(fpFeaturesToPlot) > 1) {
+          df_joint <- umapDF
+          w_joint <- rep(0, nrow(df_joint))
+          for (marker in fpFeaturesToPlot) {
+            if (!is.null(expr_batch) && marker %in% rownames(expr_batch)) {
+              v <- as.numeric(expr_batch[marker, ])
+              v[is.na(v)] <- 0
+              w_joint <- w_joint + v
+            }
+          }
+          if (sum(w_joint) > 0) {
+            w_norm <- w_joint / sum(w_joint) * length(w_joint)
+            dens <- ks::kde(emb_mat, w = w_norm, eval.points = emb_mat)
+            df_joint$density <- dens$estimate
+          } else {
+            df_joint$density <- 0
+          }
+          df_joint <- df_joint[order(df_joint$density), ]
+
+          joint_plot <- make_feature_scatter(
+            df = df_joint, marker = "density",
+            palette = input$viridisColourFP, direction = viridisFlip,
+            point_size = input$pointSizeFP, alpha = 0.7,
+            rasterise = isTRUE(input$rasteriseFP), raster_dpi = input$rasterFP_DPI %||% 1024,
+            border = isTRUE(input$cellBordersFP),
+            border_size    = input$borderSizeFP    %||% 2.0,
+            border_density = input$borderDensityFP %||% 1,
+            border_colour  = "black",
+            base_size = input$textSizeFP, show_axes = isTRUE(input$fpShowAxes),
+            legend_position = tolower(input$fpLegendPosition)
+          ) + ggtitle(paste0("Joint: ", paste(fpFeaturesToPlot, collapse = " + "))) +
+            labs(colour = "Density")
+
+          # Cluster labels on joint plot
+          if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot)) {
+            median_pos <- compute_label_positions(df_joint, fpColumnToPlot)
+            joint_plot <- joint_plot + ggnewscale::new_scale_color() + ggnewscale::new_scale_fill() +
+              ggrepel::geom_label_repel(
+                data = median_pos,
+                aes(label = .data[[fpColumnToPlot]],
+                    x = .data[["x"]], y = .data[["y"]],
+                    fill = .data[[fpColumnToPlot]]),
+                show.legend = FALSE, size = input$textSizeFP / 4,
+                max.overlaps = 100
+              ) +
+              scale_fill_manual(
+                values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
+              )
+          }
+
+          fp <- c(fp, list(joint_plot))
+        }
 
         if (return_only_joint && length(fp) > 1) {
-          fp <- list(fp[[length(fp)]])  # Last panel is the joint plot
+          fp <- list(fp[[length(fp)]])
         }
 
       # ====== VIOLIN PLOT ======
       } else if (input$featurePlotType == "Violin Plot") {
-        # Extract expression from SCE
         colsToViolin <- if (!is.null(fpColumnToSplit)) fpColumnToSplit else fpColumnToPlot
 
         fp <- lapply(fpFeaturesToPlot, function(marker) {
-          # Get expression for this marker
           marker_idx <- match(marker, rownames(sce))
           if (is.na(marker_idx)) return(NULL)
 
@@ -519,41 +697,31 @@ observeEvent(
 
       # ====== INDIVIDUAL HEATMAP (per-cell) ======
       } else if (input$featurePlotType == "Individual Heatmap") {
-        # Build expression matrix from SCE
-        marker_idx <- match(fpFeaturesToPlot, rownames(sce))
-        marker_idx <- marker_idx[!is.na(marker_idx)]
-        if (length(marker_idx) > 0) {
-          expr_mat <- as.matrix(SummarizedExperiment::assay(sce, assayToUse)[marker_idx, , drop = FALSE])
-          group_ids <- factor(sce[[fpColumnToPlot]])
-
-          fp <- make_percell_heatmap(
-            expr_mat = expr_mat, group_ids = group_ids,
-            group_colours = inputDataReactive$Results$coloursList[[fpColumnToPlot]],
-            palette = input$viridisColourFP, direction = viridisFlip
-          )
-        } else {
+        # Batch-extract expression matrix for all selected markers at once
+        expr_mat <- extract_expr_matrix(sce, assayToUse, fpFeaturesToPlot)
+        if (is.null(fpColumnToPlot) || ncol(expr_mat) == 0 || nrow(expr_mat) == 0) {
           fp <- NULL
+        } else {
+          group_ids <- factor(sce[[fpColumnToPlot]])
+          fp <- make_percell_heatmap(
+            expr_mat      = expr_mat,
+            group_ids     = group_ids,
+            group_colours = inputDataReactive$Results$coloursList[[fpColumnToPlot]],
+            palette       = input$viridisColourFP,
+            direction     = viridisFlip
+          )
         }
 
       # ====== DOT PLOT ======
       } else if (input$featurePlotType == "Dot Plot") {
-        # Aggregate expression per group
-        marker_idx <- match(fpFeaturesToPlot, rownames(sce))
-        marker_idx <- marker_idx[!is.na(marker_idx)]
-        if (length(marker_idx) > 0) {
-          expr_mat <- as.matrix(SummarizedExperiment::assay(sce, assayToUse)[marker_idx, , drop = FALSE])
+        # Batch-extract expression matrix for all selected markers at once
+        expr_mat <- extract_expr_matrix(sce, assayToUse, fpFeaturesToPlot)
+        if (nrow(expr_mat) > 0 && !is.null(fpColumnToPlot)) {
           cd <- as.data.frame(SummarizedExperiment::colData(sce))
-
-          # Build per-cell df
           expr_df <- as.data.frame(t(expr_mat))
           expr_df[[fpColumnToPlot]] <- cd[[fpColumnToPlot]]
-
-          markers_in_df <- fpFeaturesToPlot[
-            fpFeaturesToPlot %in% colnames(expr_df)
-          ]
-          agg <- aggregate_expression(
-            expr_df, markers_in_df, fpColumnToPlot
-          )
+          markers_in_df <- rownames(expr_mat)[rownames(expr_mat) %in% colnames(expr_df)]
+          agg <- aggregate_expression(expr_df, markers_in_df, fpColumnToPlot)
 
           fp <- make_dot_plot(
             avg_expr = agg$avg_expr, pct_expr = agg$pct_expr,
@@ -568,8 +736,15 @@ observeEvent(
 
       # ====== EXPRESSION HEATMAP (aggregated) ======
       } else if (input$featurePlotType == "Heatmap") {
-        # Use MARMOT's SCE-native plotExprHeatmap
         fp <- tryCatch({
+          # Ensure cluster_codes exists (missing after Parquet round-trip)
+          if (is.null(S4Vectors::metadata(sce)$cluster_codes)) {
+            lvls <- levels(factor(sce$cluster_id))
+            S4Vectors::metadata(sce)$cluster_codes <- data.frame(
+              cluster_id = factor(lvls, levels = lvls),
+              row.names = lvls
+            )
+          }
           MARMOT::plotExprHeatmap(
             x = sce,
             features = fpFeaturesToPlot,
@@ -584,7 +759,7 @@ observeEvent(
             col_clust = isTRUE(input$umapFeaturePlotHeatmapCluster)
           )
         }, error = function(e) {
-          cat("Heatmap error:", e$message, "\n")
+          showNotification(paste("Heatmap error:", e$message), type = "error")
           NULL
         })
 
@@ -644,7 +819,7 @@ observeEvent(
 
       featurePlotReactive$fp <- fp
     }, error = function(e) {
-      cat("ERROR :", conditionMessage(e), "\n")
+      showNotification(conditionMessage(e), type = "error")
     })
   }
 )
@@ -661,7 +836,9 @@ output$featurePlotOutput <- renderPlot(
     } else if (input$featurePlotType %in%
                c("Feature Plot", "Nebulosa Plot", "Ridge Plot", "Violin Plot") &&
                is.list(fp) && length(fp) >= 2) {
-      gridExtra::grid.arrange(grobs = fp, ncol = input$ncolFPGene)
+      # patchwork assembly: honours per-marker ncol setting
+      fp_clean <- Filter(Negate(is.null), fp)
+      patchwork::wrap_plots(fp_clean, ncol = input$ncolFPGene)
     } else if (is.list(fp) && length(fp) == 1) {
       fp[[1]]
     } else {

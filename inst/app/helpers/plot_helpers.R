@@ -34,17 +34,25 @@ marmot_dr_theme <- function(base_size = 12, show_axes = FALSE, legend_position =
 #' @param point_size Point size
 #' @param rasterise Logical: use scattermore for rasterisation
 #' @param raster_dpi DPI for rasterised points
-#' @param border Logical: show cell borders
-#' @param border_size Stroke width for borders
+#' @param border Logical: show density borders (MASS::kde2d 3-layer sandwich)
+#' @param border_size Multiplier for border point size (default 2.0)
+#' @param border_density Quantile threshold for border cell selection (default 0.35)
+#' @param border_colour Colour for border points (default "black")
 #' @param base_size Font base size
 #' @param show_axes Logical: show axes
 #' @param legend_position Legend position string
 #' @return A ggplot object
 make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
-                                 point_size = 0.8, rasterise = FALSE, raster_dpi = 1024,
-                                 border = FALSE, border_size = 0,
+                                 point_size = 0.8, alpha = 1,
+                                 rasterise = FALSE, raster_dpi = 1024,
+                                 border = FALSE, border_size = 2.0, border_density = 0.35,
+                                 border_colour = "black",
                                  base_size = 14, show_axes = FALSE,
                                  legend_position = "right") {
+  if (!marker %in% colnames(df)) {
+    warning("Marker '", marker, "' not found in data frame")
+    return(ggplot())
+  }
   # Sort so high values plot on top
   df <- df[order(df[[marker]], decreasing = FALSE), ]
 
@@ -54,24 +62,34 @@ make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
     p <- p + scattermore::geom_scattermore(
       pointsize = (point_size * 2) + 0.6,
       pixels = c(raster_dpi, raster_dpi),
+      alpha = alpha,
       aes(colour = .data[[marker]])
     )
     p <- apply_continuous_scale(p, palette, direction, "colour")
-  } else if (border && border_size > 0) {
-    p <- p + geom_point(
-      aes(fill = .data[[marker]]),
-      size = point_size, pch = 21, stroke = border_size / 10
-    )
-    p <- apply_continuous_scale(p, palette, direction, "fill")
+  } else if (border) {
+    # 3-layer sandwich: MASS::kde2d density → peripheral cell selection → dark halo + grey base + expression
+    kde <- MASS::kde2d(df[["x"]], df[["y"]], n = 100L)
+    ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
+    iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
+    cell_density <- kde$z[cbind(ix, iy)]
+    border_df <- df[cell_density < quantile(cell_density, border_density), ]
+    p <- p +
+      geom_point(data = border_df,
+                 size = point_size * border_size, colour = border_colour,
+                 show.legend = FALSE) +
+      geom_point(colour = "grey75", size = point_size, show.legend = FALSE) +
+      geom_point(aes(colour = .data[[marker]]), size = point_size)
+    p <- apply_continuous_scale(p, palette, direction, "colour")
   } else {
     p <- p + geom_point(
       aes(colour = .data[[marker]]),
-      size = point_size
+      size = point_size, alpha = alpha
     )
     p <- apply_continuous_scale(p, palette, direction, "colour")
   }
 
   p <- p + marmot_dr_theme(base_size, show_axes, legend_position) +
+    coord_fixed() +
     ggtitle(marker)
 
   p
@@ -134,7 +152,7 @@ make_violin_plot <- function(df, marker, group_col, split_col = NULL,
 #' @param base_size Font size
 #' @return A ggplot object
 make_dot_plot <- function(avg_expr, pct_expr, palette = "viridis", direction = 1,
-                          dot_scale = 5, flip = TRUE, base_size = 14) {
+                          dot_scale = 10, flip = TRUE, base_size = 14) {
   # Reshape to long format
   df <- expand.grid(
     group = rownames(avg_expr),
@@ -155,7 +173,7 @@ make_dot_plot <- function(avg_expr, pct_expr, palette = "viridis", direction = 1
     theme_classic(base_size = base_size) +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
-      panel.grid.major = element_line(colour = "grey90", linewidth = 0.3)
+      panel.grid = element_blank()
     ) +
     labs(x = NULL, y = NULL)
 
@@ -206,10 +224,20 @@ make_percell_heatmap <- function(expr_mat, group_ids, group_colours = NULL,
   expr_mat <- expr_mat[, ord, drop = FALSE]
   group_ids <- group_ids[ord]
 
-  # Top annotation for groups
+  # Top annotation for groups — guard against missing or extra colour levels
+  present_levels <- unique(as.character(group_ids))
+
   if (!is.null(group_colours)) {
-    col_list <- list(Group = group_colours)
-    names(col_list) <- "Group"
+    matched <- group_colours[names(group_colours) %in% present_levels]
+    missing_lvls <- setdiff(present_levels, names(matched))
+    if (length(missing_lvls) > 0) {
+      extra <- setNames(
+        grDevices::grey.colors(length(missing_lvls), start = 0.4, end = 0.8),
+        missing_lvls
+      )
+      matched <- c(matched, extra)
+    }
+    col_list <- list(Group = matched)
   } else {
     col_list <- NULL
   }
@@ -262,7 +290,7 @@ add_facet_with_counts <- function(p, df, split_col, ncol = 1) {
   p + facet_wrap(
     reformulate(split_col),
     ncol = ncol,
-    labeller = labeller(.cols = labs)
+    labeller = as_labeller(labs)
   )
 }
 

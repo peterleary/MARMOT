@@ -42,23 +42,37 @@ tabItem(
             splitLayout(
               sliderInput(
                 inputId = "pointSizeUMAP", label = "Dot size",
-                min = 0.1, max = 4, value = 1, step = 0.1,
+                min = 0.1, max = 4, value = 0.2, step = 0.1,
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
                 inputId = "pointAlphaUMAP", label = "Dot alpha",
                 min = 0.1, max = 1, value = 1, step = 0.1,
                 width = "85%", ticks = FALSE
-              ),
-              sliderInput(
-                inputId = "borderSizeUMAP", label = "Dot border size",
-                min = 0, max = 1, value = 0, step = 0.1,
-                width = "85%", ticks = FALSE
               )
             ),
-            selectInput(
-              inputId = "umapBorderColour", label = "Dot border colour",
-              choices = c("black", "white", "grey"), selected = "black"
+            hr(style = "border-top: 1px solid #000000;"), h4("Border Style"),
+            selectInput("umapBorderType", NULL,
+              choices  = c("Density borders", "Per-cell", "None"),
+              selected = "Density borders", width = "100%"),
+            conditionalPanel("input.umapBorderType == 'Per-cell'",
+              splitLayout(
+                sliderInput("borderSizeUMAP", "Border thickness",
+                  min = 0.1, max = 3, value = 0.5, step = 0.1,
+                  width = "85%", ticks = FALSE),
+                colourpicker::colourInput("umapBorderColour", "Border colour", value = "black")
+              )
+            ),
+            conditionalPanel("input.umapBorderType == 'Density borders'",
+              splitLayout(
+                sliderInput("densityLineWidth", "Border size",
+                  min = 1, max = 5, value = 3, step = 0.1,
+                  width = "85%", ticks = FALSE),
+                sliderInput("densityThreshold", "Border density",
+                  min = 0.05, max = 2, value = 1, step = 0.05,
+                  width = "85%", ticks = FALSE)
+              ),
+              colourpicker::colourInput("densityLineColour", "Border colour", value = "black")
             ),
             hr(style = "border-top: 1px solid #000000;"), h4("Font Settings"),
             splitLayout(
@@ -95,7 +109,10 @@ tabItem(
                 value = 1, min = 1, max = 10, step = 1,
                 width = "85%", ticks = FALSE
               )
-            )
+            ),
+            selectInput("umapLegendPosition", "Legend position",
+              choices = c("Right" = "right", "Bottom" = "bottom", "None" = "none"),
+              selected = "right")
           ),
           tabPanel(
             title = "Colours",
@@ -192,6 +209,7 @@ tabItem(
                   "restore_on_backspace", "clear_button"
                 )
               )
+              # server = TRUE populated in server-colours.R via updateSelectizeInput
             ),
             radioButtons(
               inputId = "fpAssayToPlot",
@@ -230,7 +248,7 @@ tabItem(
                 "scico" = c("bam", "berlin", "brocO", "corkO", "lapaz", "lisbon", "romaO", "vikO"),
                 "diverging" = c("BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral")
               ),
-              selected = "viridis"),
+              selected = "lisbon"),
             checkboxInput(inputId = "flipViridisFP", label = "Flip colour scale?", value = FALSE),
             splitLayout(
               sliderInput(
@@ -276,10 +294,14 @@ tabItem(
           ),
           tabPanel(
             title = "Subset cells",
-            checkboxInput(inputId = "fpSubsetCells", label = "Subset cells", value = FALSE),
+            radioButtons(
+              inputId = "fpSubsetMode",
+              label   = "Subset mode",
+              choices = c("None", "Absolute", "Proportional"),
+              selected = "None", inline = TRUE
+            ),
             uiOutput(outputId = "fpSubsetCellsByColumnUI1"),
             uiOutput(outputId = "fpSubsetCellsByColumnUI2"),
-            uiOutput(outputId = "fpSubsetCellsByColumnUI3"),
             hr(style = "border-top: 1px solid #000000;"),
             uiOutput(outputId = "fpSubsetCellsTableUI")
           )
@@ -299,7 +321,7 @@ tabItem(
           h4("Specific Settings"), hr(style = "border-top: 1px solid #000000;"),
           uiOutput(outputId = "fpNebulosaOutputUI1", inline = TRUE),
           uiOutput(outputId = "fpNebulosaOutputUI2", inline = TRUE),
-          lapply(0:11, function(i) {
+          lapply(0:12, function(i) {
             uiOutput(outputId = paste0("umapFeaturePlotSettingsUI", i), inline = TRUE)
           }),
           uiOutput(outputId = "umapFeaturePlotDotPlotUI1", inline = TRUE),

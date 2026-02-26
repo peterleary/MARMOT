@@ -56,7 +56,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
   }
-  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel")) {
+  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel", "runScGate")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.logical(params_list[[f]])
     }

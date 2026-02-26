@@ -203,24 +203,17 @@ set.seed(2)
 
 if (!is.null(RDataFolder)) {
   pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
-  if (file.exists(pq_manifest)) {
-    message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
-    MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
-    # Also load flowFrame objects from qs (not decomposed to Parquet)
-    for (qs_obj in c("framesList", "frames")) {
-      qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
-      if (file.exists(qs_path)) {
-        assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
-      }
-    }
-  } else {
-    message(glue::glue("🔁 Loading results from .qs files: {RDataFolder}"))
-    qs_files <- list.files(RDataFolder, pattern = "\\.(qs)$", full.names = TRUE, recursive = TRUE)
-    if (length(qs_files) == 0) stop("No .qs or Parquet files found in the specified RDataFolder.")
-    for (file in qs_files) {
-      obj_name <- tools::file_path_sans_ext(basename(file))
-      message(glue::glue("→ Loading {obj_name}"))
-      assign(obj_name, qs::qread(file, nthreads = nCores), envir = .GlobalEnv)
+  if (!file.exists(pq_manifest)) {
+    stop("No Parquet data found in ", RDataFolder,
+         "/parquet/. Please re-run the pipeline to generate Parquet output.")
+  }
+  message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
+  MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
+  # Also load FCS frame objects (stored as qs — not decomposable to Parquet)
+  for (qs_obj in c("framesList", "frames")) {
+    qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
+    if (file.exists(qs_path)) {
+      assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
     }
   }
 }
@@ -970,15 +963,23 @@ if (is.null(RDataFolder) && runScGate) {
     model <- gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
     scData <- scGate(data = scData, model = model, pos.thr = 0.65)
     y <- x %>% gsub("\\ |\\-", "", .)
-    scData[[paste0("is_", y)]] <- scData$scGate_multi
-    scData[[paste0("is_", y)]][!is.na(scData[[paste0("is_", y)]])] <- x
+    scData[[paste0("is_", y)]] <- NA_character_
+    scData[[paste0("is_", y)]][which(scData$scGate_multi == "Positive")] <- x
   }
-  
-  # Get UCell results and determine gated cells
+
+  # Determine Gated_Cells: highest UCell score, but only for cells that passed at least one gate
   ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
-  scData$Gated_Cells <- lapply(1:nrow(scData@meta.data), function(i) {
-    (ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .))
-  }) %>% unlist
+  is_cols <- paste0("is_", gsub("\\ |\\-", "", names(models)))
+  is_cols <- is_cols[is_cols %in% colnames(scData@meta.data)]
+  any_positive <- apply(scData@meta.data[, is_cols, drop = FALSE], 1,
+                        function(row) any(!is.na(row)))
+  scData$Gated_Cells <- ifelse(
+    any_positive,
+    sapply(seq_len(nrow(scData@meta.data)), function(i) {
+      ucell_cols[which.max(scData@meta.data[i, ucell_cols])] %>% gsub("_UCell", "", .)
+    }),
+    "Negative"
+  )
   
   # Transfer scGate results back to sce
   sce$Gated_Cells <- scData$Gated_Cells
@@ -1265,8 +1266,8 @@ message("✅ DA and DS analysis complete.")
 # Save DA/DS results to Parquet (runs even during reload since DA/DS always re-runs)
 pq_dir <- if (!is.null(RDataFolder)) {
   file.path(RDataFolder, "parquet")
-} else if (exists("qsDir")) {
-  file.path(qsDir, "parquet")
+} else if (exists("rFilesDir")) {
+  file.path(rFilesDir, "parquet")
 } else NULL
 
 if (!is.null(pq_dir) && dir.exists(pq_dir)) {
@@ -1282,8 +1283,8 @@ if (is.null(RDataFolder)) {
   resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
   dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
 
-  qsDir <- file.path(resultsDir, "R_files")
-  dir.create(qsDir, showWarnings = FALSE)
+  rFilesDir <- file.path(resultsDir, "R_files")
+  dir.create(rFilesDir, showWarnings = FALSE)
 }
 
 # PDFs
@@ -1308,37 +1309,22 @@ dir.create(excelDir, showWarnings = FALSE)
 ```{r write_results_to_file}
 
 if (is.null(RDataFolder)) {
-  message("💾 Saving R objects to disk...")
-  vars_to_save <- c(
-    "QCmini", "cf2", "dimRedMethodToUse", "markers_to_use_and_their_type", "framesList", "frames", "nrowsCofactors",
-    "sce", "sce2", "sceDS", "coloursList", "md", "downsampleTo", "sceList", "lvlsColours",
-    "featuresToCluster", "featuresToUmap", "smd", "knn", "clusteringMethodToUse",
-    "selectedClustersList", "kids", "numbersOfClusters", "kList", "umapDFList", "kValuesIWant",
-    "clustersToMapList", "daList", "dsList", "daPValToUse", "panel", "labs", "scData"
-  )
-  
-  # Use knitr::knit_global() instead of .GlobalEnv
+  message("💾 Saving outputs...")
   knit_env <- knitr::knit_global()
-  existing_vars <- vars_to_save[sapply(vars_to_save, exists, envir = knit_env)]
-  missing_vars <- setdiff(vars_to_save, existing_vars)
-  
-  message("📊 Found ", length(existing_vars), " out of ", length(vars_to_save), " variables")
-  if(length(missing_vars) > 0) {
-    message("❌ Missing variables: ", paste(missing_vars, collapse = ", "))
-  }
-  
-  write_tsv(data.frame(variable = existing_vars), file = file.path(qsDir, "existing_vars.txt"))
-  
-  # Save each variable from the correct environment
-  purrr::walk(existing_vars, function(varname) {
-    out_path <- file.path(qsDir, paste0(varname, ".qs"))
-    qs::qsave(get(varname, envir = knit_env), file = out_path, nthreads = nCores, preset = "archive")
-    message("✔️ Saved: ", varname)
-  })
 
-  # Also write Parquet format alongside qs (for Shiny app and interoperability)
+  # Save FCS frame objects as qs — flowFrame/flowSet cannot be stored in Parquet
+  for (qs_obj in c("framesList", "frames")) {
+    if (exists(qs_obj, envir = knit_env)) {
+      out_path <- file.path(rFilesDir, paste0(qs_obj, ".qs"))
+      qs::qsave(get(qs_obj, envir = knit_env), file = out_path,
+                nthreads = nCores, preset = "archive")
+      message("✔️ Saved (qs): ", qs_obj)
+    }
+  }
+
+  # Save Parquet — main data store for Shiny app and reproducibility
   message("💾 Saving Parquet format...")
-  MARMOT::save_parquet_data(qsDir, envir = knit_env)
+  MARMOT::save_parquet_data(rFilesDir, envir = knit_env)
 }
 ```
 
@@ -3081,7 +3067,7 @@ for (cont in names(dsList)[grep("Merged", names(dsList), invert = FALSE)]) {
 
 ```{r, label = "file info"}
 if (is.null(RDataFolder)) {
-  cat("The files generated in this report have been saved in:", qsDir)
+  cat("The files generated in this report have been saved in:", rFilesDir)
 } else {
   cat("The results in this report were generated using the files in", RDataFolder)
 }

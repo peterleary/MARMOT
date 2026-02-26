@@ -49,9 +49,9 @@ Imports:
   Nebulosa,
   openxlsx,
   pals,
+  patchwork,
   plotly,
   quarto,
-  qs,
   ragg,
   RColorBrewer,
   readxl,
@@ -82,9 +82,11 @@ Imports:
   zip
 Suggests:
   basilisk,
+  qs,
   basilisk.utils,
   FastPG,
   flowAI,
+  ks,
   pacman,
   PeacoQC,
   scGate,

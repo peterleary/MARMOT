@@ -1,15 +1,14 @@
 # Data Helpers
 # Data extraction, aggregation, and format detection for MARMOT Shiny app
 
-#' Detect whether data directory contains Parquet or qs data
+#' Check whether a data directory contains Parquet output
 #' @param data_dir Path to the R_files directory
-#' @return Character: "parquet" or "qs"
+#' @return Invisibly TRUE; stops with an informative error if Parquet is absent
 detect_data_format <- function(data_dir) {
   pq <- file.path(data_dir, "parquet", "_manifest.json")
-  qs_file <- file.path(data_dir, "sce.qs")
-  if (file.exists(pq)) return("parquet")
-  if (file.exists(qs_file)) return("qs")
-  stop("No recognized data format in: ", data_dir)
+  if (file.exists(pq)) return(invisible("parquet"))
+  stop("No Parquet data found in: ", data_dir,
+       "/parquet/. Please re-run the MARMOT pipeline to generate Parquet output.")
 }
 
 #' Extract expression data from umapDFList for a set of markers
@@ -55,6 +54,54 @@ compute_label_positions <- function(df, group_col, value_col = NULL) {
   as.data.frame(result)
 }
 
+#' Extract DR coordinates + all colData as a data.frame (SCE-native)
+#'
+#' Returns a data.frame with columns x, y, and every colData column.
+#' Accepts both bare DR names (e.g. "UMAP") and "Downsampled.UMAP" keys.
+#'
+#' @param sce A SingleCellExperiment object
+#' @param dr_method Name of the reduction (matches reducedDimNames(sce), or
+#'   "Downsampled.<name>" prefix is stripped automatically)
+#' @return data.frame: x, y + all colData columns (one row per cell)
+extract_dr_df <- function(sce, dr_method) {
+  rd_names <- SingleCellExperiment::reducedDimNames(sce)
+  clean_name <- sub("^Downsampled\\.", "", dr_method)
+  chosen <- if (dr_method %in% rd_names) dr_method else if (clean_name %in% rd_names) clean_name else rd_names[1]
+
+  coords <- as.data.frame(SingleCellExperiment::reducedDim(sce, chosen))
+  # Standardise first two coordinate columns to x, y
+  n_coord_cols <- min(2L, ncol(coords))
+  colnames(coords)[seq_len(n_coord_cols)] <- c("x", "y")[seq_len(n_coord_cols)]
+
+  cd <- as.data.frame(SummarizedExperiment::colData(sce))
+  cbind(coords, cd)
+}
+
+#' Extract a dense expression matrix from an SCE assay (markers × cells)
+#'
+#' @param sce A SingleCellExperiment object
+#' @param assay_name Name of the assay to extract (falls back to first assay if absent)
+#' @param markers Optional character vector of marker names to subset; NULL = all.
+#'   Names may use "-" or "_"; both are tried.
+#' @return Dense numeric matrix, markers × cells
+extract_expr_matrix <- function(sce, assay_name, markers = NULL) {
+  avail <- SummarizedExperiment::assayNames(sce)
+  if (!assay_name %in% avail) assay_name <- avail[1]
+  mat <- as.matrix(SummarizedExperiment::assay(sce, assay_name))
+  if (!is.null(markers) && length(markers) > 0) {
+    idx <- match(markers, rownames(mat))
+    # Try with "_" ↔ "-" substitution for unmatched entries
+    na_pos <- is.na(idx)
+    if (any(na_pos)) {
+      idx[na_pos] <- match(gsub("-", "_", markers[na_pos]), rownames(mat))
+    }
+    idx <- idx[!is.na(idx)]
+    # Return empty matrix if nothing matched (not the full matrix)
+    mat <- mat[idx, , drop = FALSE]
+  }
+  mat
+}
+
 #' Get plottable metadata columns (discrete, <100 levels)
 #' @param sce A SingleCellExperiment object, or a data.frame of colData
 #' @return Character vector of column names suitable for plotting
@@ -96,6 +143,7 @@ aggregate_expression <- function(expr_df, markers, group_col) {
 #' Apply cluster relabelling to SCE, umapDFList, and coloursList (pure)
 #'
 #' Pure transformation extracted from server-relabel.R. Does not mutate inputs.
+#' Uses data.table::chmatch for O(n) string lookup instead of base match().
 #'
 #' @param sce A SingleCellExperiment object
 #' @param umapDFList Named list of data.frames (each with cluster_id column)
@@ -105,8 +153,9 @@ aggregate_expression <- function(expr_df, markers, group_col) {
 #' @return list(sce, umapDFList, coloursList) with relabelled_clusters added
 apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table) {
   # Map cluster_id → relabelled_clusters for every cell in the SCE
+  # data.table::chmatch is O(n) hash-based string matching (faster than base match)
   relabelled <- cluster_table$relabelled_clusters[
-    match(sce$cluster_id, rownames(cluster_table))
+    data.table::chmatch(as.character(sce$cluster_id), rownames(cluster_table))
   ]
   relabelled <- factor(relabelled, levels = unique(gtools::mixedsort(relabelled)))
   sce$relabelled_clusters <- relabelled
@@ -117,10 +166,10 @@ apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table) 
   relabel_colours <- relabel_colours[unique(names(relabel_colours))]
   coloursList[["relabelled_clusters"]] <- relabel_colours
 
-  # Update each DR data frame
+  # Update each DR data frame (chmatch for O(n) lookup per frame)
   for (tab in names(umapDFList)) {
     umapDFList[[tab]]$relabelled_clusters <- cluster_table$relabelled_clusters[
-      match(umapDFList[[tab]]$cluster_id, rownames(cluster_table))
+      data.table::chmatch(as.character(umapDFList[[tab]]$cluster_id), rownames(cluster_table))
     ]
     umapDFList[[tab]]$relabelled_clusters <- factor(
       x = umapDFList[[tab]]$relabelled_clusters,
