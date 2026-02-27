@@ -61,6 +61,19 @@ check_setup <- function() {
     cat(sprintf("  %s %s%s\n", icon, opt$package[i], ver))
   }
 
+  # Rendering (Quarto)
+  cat("\n-- Rendering --\n")
+  quarto_bin <- Sys.which("quarto")
+  if (nzchar(quarto_bin)) {
+    quarto_ver <- tryCatch(
+      system2("quarto", "--version", stdout = TRUE, stderr = TRUE),
+      error = function(e) "unknown"
+    )
+    cat(sprintf("  \u2705 Quarto: %s (%s)\n", quarto_ver, quarto_bin))
+  } else {
+    cat("  \u274c Quarto not found \u2014 install from https://quarto.org/docs/get-started/\n")
+  }
+
   # Python environment
   cat("\n-- Python (PARC/PaCMAP) --\n")
   if (requireNamespace("reticulate", quietly = TRUE)) {
