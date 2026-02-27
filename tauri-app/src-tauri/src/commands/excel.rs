@@ -46,6 +46,9 @@ pub fn create_new_metadata() -> MetadataFile {
         ("ramPerCore", "6", "RAM (GB) allocated per core"),
         ("themeToUse", "prism", "ggplot2 theme: prism, classic, bw, minimal, void, light, dark"),
         ("viridisColour", "lisbon", "Colour palette: lisbon, berlin, vik, cork, batlow, lapaz, magma, inferno, plasma, viridis, mako, rocket, turbo"),
+        ("RDataFolder", "", "Path to previous R_files folder to reload (leave blank for fresh run)"),
+        ("condaDir", "", "Path to conda/mamba binary"),
+        ("parcScriptDir", "", "Path to folder containing f_parc.py and f_pacmap.py"),
     ];
 
     let pipeline_settings: Vec<PipelineSetting> = default_settings

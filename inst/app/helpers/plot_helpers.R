@@ -58,27 +58,43 @@ make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
 
   p <- ggplot(df, aes(x = .data[["x"]], y = .data[["y"]]))
 
-  if (rasterise) {
-    p <- p + scattermore::geom_scattermore(
-      pointsize = (point_size * 2) + 0.6,
-      pixels = c(raster_dpi, raster_dpi),
-      alpha = alpha,
-      aes(colour = .data[[marker]])
-    )
-    p <- apply_continuous_scale(p, palette, direction, "colour")
-  } else if (border) {
+  if (border && nrow(df) > 10) {
     # 3-layer sandwich: MASS::kde2d density → peripheral cell selection → dark halo + grey base + expression
     kde <- MASS::kde2d(df[["x"]], df[["y"]], n = 100L)
     ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
     iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
     cell_density <- kde$z[cbind(ix, iy)]
     border_df <- df[cell_density < quantile(cell_density, border_density), ]
-    p <- p +
-      geom_point(data = border_df,
-                 size = point_size * border_size, colour = border_colour,
-                 show.legend = FALSE) +
-      geom_point(colour = "grey75", size = point_size, show.legend = FALSE) +
-      geom_point(aes(colour = .data[[marker]]), size = point_size)
+    if (rasterise) {
+      p <- p +
+        scattermore::geom_scattermore(data = border_df,
+          pointsize = (point_size * border_size * 2) + 0.6,
+          pixels = c(raster_dpi, raster_dpi),
+          color = border_colour) +
+        scattermore::geom_scattermore(
+          pointsize = (point_size * 2) + 0.6,
+          pixels = c(raster_dpi, raster_dpi),
+          color = "grey75") +
+        scattermore::geom_scattermore(
+          pointsize = (point_size * 2) + 0.6,
+          pixels = c(raster_dpi, raster_dpi),
+          aes(colour = .data[[marker]]))
+    } else {
+      p <- p +
+        geom_point(data = border_df,
+                   size = point_size * border_size, colour = border_colour,
+                   show.legend = FALSE) +
+        geom_point(colour = "grey75", size = point_size, show.legend = FALSE) +
+        geom_point(aes(colour = .data[[marker]]), size = point_size)
+    }
+    p <- apply_continuous_scale(p, palette, direction, "colour")
+  } else if (rasterise) {
+    p <- p + scattermore::geom_scattermore(
+      pointsize = (point_size * 2) + 0.6,
+      pixels = c(raster_dpi, raster_dpi),
+      alpha = alpha,
+      aes(colour = .data[[marker]])
+    )
     p <- apply_continuous_scale(p, palette, direction, "colour")
   } else {
     p <- p + geom_point(

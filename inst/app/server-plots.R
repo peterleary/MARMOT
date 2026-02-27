@@ -98,14 +98,14 @@ observeEvent(
         output$umapFeaturePlotSettingsUI4 <- renderUI({
           sliderInput(
             inputId = "pointSizeFP", label = "Dot Size",
-            min = 0.1, max = 4, value = 0.2, step = 0.1,
+            min = 0.1, max = 4, value = 1, step = 0.1,
             width = "85%", ticks = FALSE
           )
         }),
         output$umapFeaturePlotSettingsUI5 <- renderUI({
           sliderInput(
             inputId = "borderSizeFP", label = "Border size",
-            min = 1, max = 5, value = 3, step = 0.1,
+            min = 1, max = 5, value = 2, step = 0.1,
             width = "85%", ticks = FALSE
           )
         })

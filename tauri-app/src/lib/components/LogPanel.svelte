@@ -101,17 +101,28 @@
     </div>
   </div>
   {#if $pipelineState === "done" && $pipelineOutputDir}
-    <div class="post-run-actions">
-      <span class="actions-label">Next steps:</span>
-      <button class="btn-action btn-shiny" onclick={handleOpenShiny} disabled={shinyLaunching}>
-        {shinyLaunching ? "Starting…" : "Open Shiny App"}
-      </button>
-      <button class="btn-action btn-secondary" onclick={handleViewReport}>
-        View Report
-      </button>
-      <button class="btn-action btn-secondary" onclick={handleOpenFolder}>
-        Open Folder
-      </button>
+    <div class="post-run-banner">
+      <div class="banner-header">
+        <span class="banner-check">&#10003;</span>
+        <span class="banner-title">Pipeline complete</span>
+      </div>
+      <div class="banner-actions">
+        <button class="action-card card-shiny" onclick={handleOpenShiny} disabled={shinyLaunching}>
+          <span class="card-icon">&#9881;</span>
+          <span class="card-label">{shinyLaunching ? "Starting…" : "Open Shiny App"}</span>
+          <span class="card-desc">Explore results interactively</span>
+        </button>
+        <button class="action-card card-report" onclick={handleViewReport}>
+          <span class="card-icon">&#128196;</span>
+          <span class="card-label">View Report</span>
+          <span class="card-desc">Open the rendered HTML report</span>
+        </button>
+        <button class="action-card card-folder" onclick={handleOpenFolder}>
+          <span class="card-icon">&#128193;</span>
+          <span class="card-label">Open Folder</span>
+          <span class="card-desc">Browse output files in Finder</span>
+        </button>
+      </div>
     </div>
   {/if}
 <pre class="log-output" bind:this={logContainer}>{#each $logLines as line}{line}
@@ -169,44 +180,89 @@
   .btn-stop:hover {
     background: #fbe9e7;
   }
-  .post-run-actions {
+  .post-run-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .banner-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.4rem 0;
-    border-top: 1px solid #e5e7eb;
-    margin-bottom: 0.5rem;
-    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
   }
-  .actions-label {
-    font-size: 0.78rem;
-    color: #6b7280;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .btn-action {
-    padding: 0.3rem 0.75rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 500;
-    font-family: inherit;
-    border: 1px solid;
-    transition: background 0.15s;
-  }
-  .btn-shiny {
+  .banner-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
     background: #16a34a;
     color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .banner-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #14532d;
+  }
+  .banner-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+  .action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.7rem 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1.5px solid;
+    font-family: inherit;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .action-card:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  }
+  .card-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+  .card-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .card-desc {
+    font-size: 0.68rem;
+    opacity: 0.7;
+    text-align: center;
+  }
+  .card-shiny {
+    background: #16a34a;
     border-color: #15803d;
+    color: #fff;
   }
-  .btn-shiny:hover:not(:disabled) { background: #15803d; }
-  .btn-shiny:disabled { background: #86efac; border-color: #86efac; cursor: not-allowed; }
-  .btn-secondary {
-    background: #fff;
-    color: #374151;
-    border-color: #d1d5db;
+  .card-shiny:hover:not(:disabled) { background: #15803d; }
+  .card-shiny:disabled { background: #86efac; border-color: #86efac; cursor: not-allowed; opacity: 0.7; }
+  .card-report {
+    background: #2563eb;
+    border-color: #1d4ed8;
+    color: #fff;
   }
-  .btn-secondary:hover { background: #f3f4f6; }
+  .card-report:hover { background: #1d4ed8; }
+  .card-folder {
+    background: #f59e0b;
+    border-color: #d97706;
+    color: #fff;
+  }
+  .card-folder:hover { background: #d97706; }
 .log-output {
     flex: 1;
     background: #1e1e1e;

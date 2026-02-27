@@ -202,6 +202,12 @@ set.seed(2)
 ```{r load_rdata}
 
 if (!is.null(RDataFolder)) {
+  # Auto-resolve: if user pointed to the top-level Results_Files dir, descend into R_files/
+  if (!file.exists(file.path(RDataFolder, "parquet", "_manifest.json")) &&
+       file.exists(file.path(RDataFolder, "R_files", "parquet", "_manifest.json"))) {
+    RDataFolder <- file.path(RDataFolder, "R_files")
+    message("ℹ️ Auto-resolved RDataFolder to: ", RDataFolder)
+  }
   pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
   if (!file.exists(pq_manifest)) {
     stop("No Parquet data found in ", RDataFolder,
@@ -1287,12 +1293,15 @@ if (is.null(RDataFolder)) {
   dir.create(rFilesDir, showWarnings = FALSE)
 }
 
+# When reloading, RDataFolder points to R_files/ — go up one level for sibling dirs
+reloadResultsDir <- if (!is.null(RDataFolder)) dirname(RDataFolder) else NULL
+
 # PDFs
 if (gimmePDFs) {
   pdfDir <- if (is.null(RDataFolder)) {
     file.path(resultsDir, "PDF_figures")
   } else {
-    file.path(RDataFolder, "PDF_figures")
+    file.path(reloadResultsDir, "PDF_figures")
   }
   dir.create(pdfDir, showWarnings = FALSE)
 }
@@ -1301,7 +1310,7 @@ if (gimmePDFs) {
 excelDir <- if (is.null(RDataFolder)) {
   file.path(resultsDir, "Excel_Files")
 } else {
-  file.path(RDataFolder, "Excel_Files")
+  file.path(reloadResultsDir, "Excel_Files")
 }
 dir.create(excelDir, showWarnings = FALSE)
 ```

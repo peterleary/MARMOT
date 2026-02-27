@@ -266,6 +266,12 @@ setup_scgate_colours <- function(gated_cells, model_names, palette) {
 ```{r load_rdata, include = FALSE, results = 'asis'}
 
 if (!is.null(RDataFolder)) {
+  # Auto-resolve: if user pointed to the top-level Results_Files dir, descend into R_files/
+  if (!file.exists(file.path(RDataFolder, "parquet", "_manifest.json")) &&
+       file.exists(file.path(RDataFolder, "R_files", "parquet", "_manifest.json"))) {
+    RDataFolder <- file.path(RDataFolder, "R_files")
+    message("ℹ️ Auto-resolved RDataFolder to: ", RDataFolder)
+  }
   pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
   if (!file.exists(pq_manifest)) {
     stop("No Parquet data found in ", RDataFolder,
@@ -543,7 +549,7 @@ if (runQC == "FlowAI") {
   message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
   framesList[["FlowAI"]] <- setNames(
     lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    fcsNames
+    paste0(fcsNames, ".fcs")
   )
 
   # Force evaluation of ranges to avoid downstream surprises
@@ -639,7 +645,7 @@ if (runQC == "PeacoQC") {
   message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
   framesList[["PeacoQC"]] <- setNames(
     lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    fcsNames
+    paste0(fcsNames, ".fcs")
   )
 
   # Force evaluation of ranges
@@ -829,10 +835,10 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
     set.seed(2)
     if (clusteringMethodToUse == "FastPG") {
       clusters <- FastPG::fastCluster(data = es, k = k, num_threads = max(1, floor(nCores / length(kValuesIWant))))
-      ids <- factor(paste0("p", clusters$communities + 1))
+      ids <- factor(as.character(clusters$communities + 1))
     } else if (clusteringMethodToUse == "Rphenograph") {
       clusters <- Rphenograph::Rphenograph(data = es, k = k)
-      ids <- factor(paste0("p", membership(clusters[[2]])))
+      ids <- factor(as.character(membership(clusters[[2]])))
     }
     ids <- factor(ids, levels = gtools::mixedsort(levels(ids)))
     list(kids = ids, clusters = clusters)
@@ -879,7 +885,7 @@ if (clusteringMethodToUse == "PARC") {
   )
 
   for (k in kValuesIWant) {
-    cluster_labels <- factor(paste0("c", parcClustList[[paste0("p", k)]] + 1))
+    cluster_labels <- factor(as.character(parcClustList[[paste0("p", k)]] + 1))
     cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
     sce[[paste0("p", k)]] <- cluster_labels
   }
@@ -911,7 +917,7 @@ if (clusteringMethodToUse == "FlowSOM") {
   # Store all clusterings with "k" prefix
   for (k in kValuesIWant) {
     raw_ids <- cluster_ids(sceSOM, paste0("meta", k))
-    prefixed <- factor(paste0("k", raw_ids))
+    prefixed <- factor(as.character(raw_ids))
     prefixed <- factor(prefixed, levels = gtools::mixedsort(levels(prefixed)))
     sce[[paste0("meta", k)]] <- prefixed
   }
@@ -1358,12 +1364,15 @@ if (is.null(RDataFolder)) {
   dir.create(rFilesDir, showWarnings = FALSE)
 }
 
+# When reloading, RDataFolder points to R_files/ — go up one level for sibling dirs
+reloadResultsDir <- if (!is.null(RDataFolder)) dirname(RDataFolder) else NULL
+
 # PDFs
 if (gimmePDFs) {
   pdfDir <- if (is.null(RDataFolder)) {
     file.path(resultsDir, "PDF_figures")
   } else {
-    file.path(RDataFolder, "PDF_figures")
+    file.path(reloadResultsDir, "PDF_figures")
   }
   dir.create(pdfDir, showWarnings = FALSE)
 }
@@ -1372,7 +1381,7 @@ if (gimmePDFs) {
 excelDir <- if (is.null(RDataFolder)) {
   file.path(resultsDir, "Excel_Files")
 } else {
-  file.path(RDataFolder, "Excel_Files")
+  file.path(reloadResultsDir, "Excel_Files")
 }
 dir.create(excelDir, showWarnings = FALSE)
 ```
@@ -1409,7 +1418,11 @@ plotUMAPNice <- function(
   show_grids = FALSE,
   name = "Normalised\nExpression\n",
   show_cluster_labels = FALSE,
-  cluster_labels = "cluster_id"
+  cluster_labels = "cluster_id",
+  border = TRUE,
+  border_size = 3,
+  border_density = 1,
+  border_colour = "black"
 ) {
   gp <- ggplot(df, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[colour_by]]))
 
@@ -1430,11 +1443,26 @@ plotUMAPNice <- function(
       )
   }
 
+  if (border && nrow(df) > 10) {
+    kde <- MASS::kde2d(df[["x"]], df[["y"]], n = 100L)
+    ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
+    iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
+    cell_density <- kde$z[cbind(ix, iy)]
+    border_df <- df[cell_density < quantile(cell_density, border_density), ]
+    gp <- gp +
+      geom_point(data = border_df, size = size * border_size,
+                 colour = border_colour, show.legend = FALSE) +
+      geom_point(colour = "grey75", size = size, show.legend = FALSE) +
+      geom_point(size = size, alpha = alpha)
+  } else {
+    gp <- gp + geom_point(size = size, alpha = alpha, shape = 16)
+  }
+
   gp <- gp +
-    geom_point(size = size, alpha = alpha, shape = 16) +
     labs(x = paste(dimRedMethodToUse, "dim 1"),
          y = paste(dimRedMethodToUse, "dim 2"),
          title = colour_by) +
+    coord_fixed() +
     theme_prism() +
     theme(
       axis.text = element_blank(),
@@ -1503,7 +1531,7 @@ Started on `r paste(timeRun)`
 ::::::::::::: panel-tabset
 ## [QC]{style="color: #dc3545;"}
 
-::: panel-tabset
+:::: panel-tabset
 
 ```{r, label = "print QC", results = 'asis'}
 if (runQC %in% c("FlowAI", "PeacoQC")) {
@@ -1525,7 +1553,7 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
 
 ### [Cofactor Histograms]{style="color: #dc3545;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "print cofactor plots", results = 'asis', fig.height=12, fig.width=12}
 for (marker in useMarkers) {
@@ -1538,7 +1566,7 @@ for (marker in useMarkers) {
 nrowsCofactors <- ceiling(length(useMarkers)/4)
 ```
 
-::::
+:::::
 
 ### [Marker Histograms]{style="color: #dc3545;"}
 
@@ -1635,7 +1663,7 @@ if (!is.null(downsampleTo)) {
 ```
 ### [Pseudo-bulk MDS Plots]{style="color: #dc3545;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
 mdsList <- setNames(lapply(conditions, function(x) {
@@ -1650,7 +1678,7 @@ lapply(names(mdsList), function(x) {
 })
 ```
 
-::::
+:::::
 
 ```{r, label = "save mds plots", include = FALSE}
 if (gimmePDFs) {
@@ -1689,11 +1717,11 @@ if (gimmePDFs) {
   dev.off()
 }
 ```
-:::
+::::
 
 ## [`r paste(clusteringMethodToUse)` Cluster Analysis]{style="color: #0d6efd;"}
 
-::: panel-tabset
+:::: panel-tabset
 ### [K Tree]{style="color: #0d6efd;"}
 
 ```{r, label = "clustering_summary", results = 'asis'}
@@ -1780,10 +1808,10 @@ if (runMarkerPairPlots) {
     }), toPlot)
   }), markerPairTypes)
   
-  cat(":::: {.panel-tabset}\n\n")
+  cat("::::: {.panel-tabset}\n\n")
   lapply(names(markerPairsList), function(x) {
     cat("####", x, " \n\n")
-    cat("::::: {.panel-tabset}\n\n")
+    cat(":::::: {.panel-tabset}\n\n")
     lapply(names(markerPairsList[[x]]), function(y) {
       cat("#####", y, " \n\n")
       print(markerPairsList[[x]][[y]][[1]])
@@ -1791,10 +1819,10 @@ if (runMarkerPairPlots) {
         print(markerPairsList[[x]][[y]][[2]])
       cat("\n\n")
     })
-    cat(":::::\n\n")
+    cat("::::::\n\n")
     cat("\n\n")
   })
-  cat("::::\n\n")
+  cat(":::::\n\n")
   cat("\n\n")
 }
 ```
@@ -1815,10 +1843,10 @@ if (gimmePDFs) {
 
 ### [Heatmap]{style="color: #0d6efd;"}
 
-:::: panel-tabset
+::::: panel-tabset
 #### Marker Per Cluster
 
-::::: panel-tabset
+:::::: panel-tabset
 
 ```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(useMarkers)/3.5)}
 heatmapsList <- list()
@@ -1955,11 +1983,11 @@ if (gimmePDFs) {
   dev.off()
 }
 ```
-:::::
+::::::
 
 #### Sample Per Cluster
 
-::::: panel-tabset
+:::::: panel-tabset
 
 ##### All Clusters
 
@@ -2071,7 +2099,7 @@ lgd_aes$title_gp <- gpar(
 
 ##### Selected Clusters
 
-:::::: panel-tabset
+::::::: panel-tabset
 
 ```{r, label = "heatmap by clusters", fig.height = 4, fig.width = 8, results = 'asis', message = FALSE}
 heatmapClustersList <- list()
@@ -2143,9 +2171,9 @@ Seurat::DoHeatmap(
   group.bar = TRUE
 )
 ```
+:::::::
 ::::::
 :::::
-::::
 
 ### [Ridge Plot]{style="color: #0d6efd;"}
 
@@ -2166,15 +2194,16 @@ if (gimmePDFs) {
 
 ### [Barplots]{style="color: #0d6efd;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 #### Cells per Cluster
 
 ```{r, label = "cells per cluster", fig.height=4, fig.width=8}
 ns <- table(cluster_id = cluster_ids(sce, clusteringMethodToUse), sample_id = sample_ids(sce))
 df <- as.data.frame(ns)
+df$cluster_id <- factor(df$cluster_id, levels = gtools::mixedsort(unique(as.character(df$cluster_id))))
 df$condition <- md$condition[match(df$sample_id, md$sample_id)]
-cellsPerClusterBarplot <- ggplot(df, aes(x = cluster_id, y = Freq, fill = cluster_id)) + 
+cellsPerClusterBarplot <- ggplot(df, aes(x = cluster_id, y = Freq, fill = cluster_id)) +
   geom_bar(stat = "identity") + 
   scale_fill_manual(values = coloursList[[paste0(mergeBy, knn)]]) + 
   theme_bw() +
@@ -2197,7 +2226,7 @@ cellsPerClusterBarplot + facet_wrap(~sample_id, ncol = 3, scales = "free")
 x1 <- as.data.frame(t(assay(sce, "exprsQuantNorm")))
 x1$cluster_id <- cluster_ids(sce, clusteringMethodToUse)
 
-x1mean <- data.frame("cluster_id" = levels(as.factor(x1$cluster_id)))
+x1mean <- data.frame("cluster_id" = gtools::mixedsort(levels(as.factor(x1$cluster_id))))
 for (m in useMarkers) {
   x1mean[[m]] <- NA
   for (cl in levels(as.factor(x1$cluster_id))) {
@@ -2250,6 +2279,7 @@ FDR_cutoff <- 0.05
 ns <- table(cluster_id = cluster_ids(sce, clusteringMethodToUse), sample_id = sample_ids(sce))
 fq <- prop.table(ns, 2) * 100
 df <- as.data.frame(fq)
+df$cluster_id <- factor(df$cluster_id, levels = gtools::mixedsort(unique(as.character(df$cluster_id))))
 
 m <- match(df$sample_id, sce$sample_id)
 for (i in c(NULL, "condition")) df[[i]] <- sce[[i]][m]
@@ -2295,7 +2325,7 @@ if (gimmePDFs) {
 }
 ```
 
-::::
+:::::
 
 ### [Cluster Boxplots]{style="color: #0d6efd;"}
 
@@ -2423,23 +2453,23 @@ if (gimmePDFs) {
   dev.off()
 }
 ```
-:::
+::::
 
 ## [`r paste(dimRedMethodToUse)`]{style="color: #198754;"}
 
-::: {.callout-tip collapse="true"}
+:::: {.callout-tip collapse="true"}
 ## Markers used for `r paste(dimRedMethodToUse)` generation
 
 ```{r, label = "show features to DR"}
 paste(featuresToUmap)
 ```
-:::
+::::
 
-::: panel-tabset
+:::: panel-tabset
 
 ### [Full `r paste(dimRedMethodToUse)`]{style="color: #198754;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "DR all cells", fig.height=6, fig.width=7, results = 'asis'}
 if (!is.null(drCellPerCondition)) {
@@ -2531,7 +2561,7 @@ pDRList <- setNames(lapply(kValuesIWant, function(i) {
 plot_grid(plotlist = pDRList, ncol = 1, align = "hv")
 ```
 
-::::
+:::::
 
 ### [Condition `r paste(dimRedMethodToUse)`]{style="color: #198754;"}
 
@@ -2615,7 +2645,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
 }), c("With Labels", "Without Labels"))
 ```
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "DR per per marker 2", fig.width=16, fig.height=ceiling(length(useMarkers)/3)*3, dependson="umaps_per_marker1", results = 'asis'}
 lapply(names(UMAPList), function(yn){
@@ -2625,7 +2655,7 @@ lapply(names(UMAPList), function(yn){
 })
 ```
 
-::::
+:::::
 
 ```{r, label = "save DR per marker", results="hide"}
 if (gimmePDFs) {
@@ -2674,22 +2704,22 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
 }), c("With Labels", "Without Labels"))
 ```
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "DR per marker per cond 2", fig.width=10, fig.height=5*(ceiling(length(condLevels)/2)), results = 'asis'}
 lapply(names(DRperCondList), function(yn){
   cat("####", yn, "\n\n")
-  cat("::::: {.panel-tabset}\n\n")
+  cat(":::::: {.panel-tabset}\n\n")
   lapply(names(DRperCondList[[yn]]), function(marker) {
     cat("#####", marker, "\n\n")
     print(DRperCondList[[yn]][[marker]])
     cat("\n\n")
   })
-  cat(":::::\n\n")
+  cat("::::::\n\n")
 })
 ```
 
-::::
+:::::
 
 ```{r, label = "save DR per marker per cond", results="hide"}
 if (gimmePDFs) {
@@ -2712,7 +2742,7 @@ if (gimmePDFs) {
 ```{r, label = "gated_dr_plots", results = 'asis', fig.height=6, fig.width=18}
 if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
   cat("### [🌉 scGate Gating]{style=\"color: #198754;\"} \n\n")
-  cat(":::: {.panel-tabset}\n\n")
+  cat("::::: {.panel-tabset}\n\n")
   cat("\n\n#### All \n\n")
 
   mp <- parse_marker_pairs(smd)
@@ -2778,12 +2808,20 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
       )
 
     # Panel 3: Density — joint co-expression via Nebulosa
+    dr_theme <- theme_prism() + theme(
+      axis.text = element_blank(), axis.ticks = element_blank(),
+      axis.line = element_blank(), legend.position = "none",
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+    )
     p3 <- tryCatch({
       density_out <- Nebulosa::plot_density(
         sce, features = c(m1, m2), joint = TRUE,
         slot = exprsToUse, reduction = dimRedMethodToUse
       )
-      density_out[[length(density_out)]]
+      density_out[[length(density_out)]] +
+        coord_fixed() + dr_theme +
+        labs(x = paste(dimRedMethodToUse, "dim 1"),
+             y = paste(dimRedMethodToUse, "dim 2"))
     }, error = function(e) {
       message("Nebulosa density plot failed: ", e$message)
       ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]])) +
@@ -2791,22 +2829,23 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
         stat_density_2d(aes(fill = after_stat(density)), geom = "raster", contour = FALSE) +
         scale_fill_viridis_c(option = "mako") +
         ggtitle(paste0(m1, " + ", m2, " Density")) +
-        theme_void() +
-        theme(panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5))
+        coord_fixed() + dr_theme +
+        labs(x = paste(dimRedMethodToUse, "dim 1"),
+             y = paste(dimRedMethodToUse, "dim 2"))
     })
 
     print(cowplot::plot_grid(p1, p2, p3, align = "hv", ncol = 3))
     cat("\n\n")
   })
-  cat("::::\n\n")
+  cat(":::::\n\n")
 }
 ```
 
-:::
+::::
 
 ## [DA / DS]{style="color: #6f42c1;"}
 
-::: panel-tabset
+:::: panel-tabset
 ### [DA]{style="color: #6f42c1;"}
 
 ::: {.callout-note collapse="true"}
@@ -2821,7 +2860,7 @@ To the right of the heatmap are two annotations. The first is red or blue, and d
 htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "da_plot", fig.height=6, fig.width=13, results='asis'}
 daResultsList <- setNames(lapply(names(daList), function(cont) {
@@ -2862,7 +2901,7 @@ if (gimmePDFs) {
 }
 ```
 
-::::
+:::::
 
 ### [DS]{style="color: #e67e22;"}
 
@@ -2876,7 +2915,7 @@ Differential state (DS) analysis tests whether the expression of individual mark
 htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "ds_res", results = 'asis', fig.height=12, fig.width=10}
 dsPThreshToUse <- 0.05
@@ -2955,7 +2994,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
 }), names(dsList)[grep("Merged", names(dsList), invert = TRUE)])
 ```
 
-::::
+:::::
 
 ### [DS - Merged]{style="color: #e67e22;"}
 
@@ -2965,7 +3004,7 @@ Same as the other differential state results, but instead we have merged all clu
 htmltools::tagList(DT::datatable(data.frame(x = 1)))
 ```
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "ds_res merged", results = 'asis', fig.height=12, fig.width=10}
 dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), invert = FALSE)], function(cont) {
@@ -3023,11 +3062,11 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
 }), names(dsList)[grep("Merged", names(dsList), invert = FALSE)])
 ```
 
-::::
+:::::
 
 ### [Markers within Clusters]{style="color: #6f42c1;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 ```{r, label = "markers per cluster boxplot", fig.width=18, fig.height=5, results = 'asis'}
 by <- c("cluster_id", "sample_id")
@@ -3092,11 +3131,11 @@ for (i in seq_along(selectedClustersList)) {
 }
 ```
 
-::::
+:::::
 
 ### [DR of Selected Clusters]{style="color: #6f42c1;"}
 
-:::: panel-tabset
+::::: panel-tabset
 
 #### All Cells
 
@@ -3115,22 +3154,34 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   summarize(center_x = mean(x), center_y = mean(y))
 
   gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
-  ## gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 20, alpha = 0.8)
-  gp <- gp + ylim(min(umapDF$y[!is.na(umapDF$y)])-1, max(umapDF$y[!is.na(umapDF$y)])+1)
-  gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
-  gp <- gp + geom_point(data = umapDF3, size = 0.2, alpha = 0.2, shape = 16)
-  gp <- gp + geom_point(data = umapDF2, size = 0.3, alpha = 0.95, shape = 16) 
+
+  # Density-based borders on background (greyed-out) cells
+  if (nrow(umapDF3) > 10) {
+    kde_bg <- MASS::kde2d(umapDF3[["x"]], umapDF3[["y"]], n = 100L)
+    ix_bg  <- pmax(1L, pmin(findInterval(umapDF3[["x"]], kde_bg$x), length(kde_bg$x)))
+    iy_bg  <- pmax(1L, pmin(findInterval(umapDF3[["y"]], kde_bg$y), length(kde_bg$y)))
+    cd_bg  <- kde_bg$z[cbind(ix_bg, iy_bg)]
+    border_bg <- umapDF3[cd_bg < quantile(cd_bg, 1), ]
+    gp <- gp +
+      geom_point(data = border_bg, size = 0.6, colour = "black", show.legend = FALSE) +
+      geom_point(data = umapDF3, size = 0.2, colour = "grey75", show.legend = FALSE)
+  } else {
+    gp <- gp + geom_point(data = umapDF3, size = 0.2, alpha = 0.2, shape = 16)
+  }
+
+  gp <- gp + geom_point(data = umapDF2, size = 0.3, alpha = 0.95)
   gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black")
   gp <- gp + scale_color_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + scale_fill_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
   gp <- gp + ggtitle(names(clustersToMapList)[i])
-  gp <- gp + theme_prism() +
+  gp <- gp + coord_fixed() +
+    theme_prism() +
     theme(
-      axis.text = element_blank(), 
-      axis.ticks = element_blank(), 
-      axis.line = element_blank(), 
-      legend.text = element_text(size = 10), 
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      legend.text = element_text(size = 10),
       panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5))
   gp <- gp + guides(colour = guide_legend(override.aes = list(size = 3)))
   gp <- gp + theme(legend.position = "hide")
@@ -3166,10 +3217,23 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   group_by(cluster_id) %>%
   summarize(center_x = mean(x), center_y = mean(y))
   
-  gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], col = .data[["cluster_id"]]))
-  ## gp <- gp + geom_density_2d(data = umapDF[,c("x","y")], aes(x = x, y = y), colour = "lightgrey", size = 0.5, bins = 30, alpha = 0.8)
-  gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
-  gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95, shape = 16)
+  gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
+
+  # Density-based borders on background cells
+  if (nrow(umapDF3) > 10) {
+    kde_bg2 <- MASS::kde2d(umapDF3[["x"]], umapDF3[["y"]], n = 100L)
+    ix_bg2  <- pmax(1L, pmin(findInterval(umapDF3[["x"]], kde_bg2$x), length(kde_bg2$x)))
+    iy_bg2  <- pmax(1L, pmin(findInterval(umapDF3[["y"]], kde_bg2$y), length(kde_bg2$y)))
+    cd_bg2  <- kde_bg2$z[cbind(ix_bg2, iy_bg2)]
+    border_bg2 <- umapDF3[cd_bg2 < quantile(cd_bg2, 1), ]
+    gp <- gp +
+      geom_point(data = border_bg2, size = 1.5, colour = "black", show.legend = FALSE) +
+      geom_point(data = umapDF3, size = 0.5, colour = "grey75", show.legend = FALSE)
+  } else {
+    gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
+  }
+
+  gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95)
   gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = F)
   gp <- gp + scale_color_manual(
     values = c(cTM, na.value = "black"),
@@ -3180,12 +3244,13 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
   gp <- gp + facet_wrap(~ condition, ncol = 2)
   gp <- gp + ggtitle(names(clustersToMapList)[i])
-  gp <- gp + theme_prism() +
+  gp <- gp + coord_fixed() +
+    theme_prism() +
     theme(
-      axis.text = element_blank(), 
-      axis.ticks = element_blank(), 
-      axis.line = element_blank(), 
-      legend.text = element_text(size = 10), 
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      legend.text = element_text(size = 10),
       panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5),
       legend.position = "hide")
   gp <- gp + guides(colour = guide_legend(override.aes = list(size = 3)))
@@ -3205,8 +3270,8 @@ if (gimmePDFs) {
 }
 ```
 
+:::::
 ::::
-:::
 
 ## [Session Info]{style="color: #6c757d;"}
 
