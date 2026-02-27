@@ -10,3 +10,8 @@
 ^\.Rproj\.user$
 ^inst/pipeline/MARMOT_Pipeline\.Rmd$
 ^data$
+^tauri-app$
+^MARMOT_.*\.dmg$
+^\.claude$
+^docker-test$
+^docker$

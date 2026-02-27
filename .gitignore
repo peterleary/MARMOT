@@ -42,3 +42,6 @@ data
 # Lab book
 MARMOT_labbook.qmd
 /.quarto/
+
+# Docker test environment (dev playground, not shipped)
+docker-test/

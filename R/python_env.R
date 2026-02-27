@@ -14,10 +14,10 @@ p4r_env <- BasiliskEnvironment(
     "python=3.9",
     "numpy==1.22.3",
     "scikit-learn==1.0.2",
-    "annoy==1.17.3",
+    "python-annoy==1.17.3",
     "numba==0.60.0",
     "llvmlite==0.43.0",
-    "igraph==0.11.6",
+    "python-igraph==0.11.6",
     "leidenalg==0.10.2",
     "hnswlib==0.8.0"
   ),

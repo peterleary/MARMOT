@@ -1,0 +1,9 @@
+data/
+tauri-app/
+docker-test/
+.git/
+*.dmg
+MARMOT.app
+images/
+conda/
+.claude/
