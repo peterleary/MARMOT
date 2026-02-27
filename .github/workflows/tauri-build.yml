@@ -58,10 +58,12 @@ jobs:
         working-directory: tauri-app
         run: npx tauri build --target ${{ matrix.target }} --bundles app
 
-      - name: Package .app bundle (macOS)
+      - name: Re-sign and package .app bundle (macOS)
         if: runner.os == 'macOS'
         run: |
           cd tauri-app/src-tauri/target/${{ matrix.target }}/release/bundle/macos
+          xattr -cr MARMOT.app
+          codesign --force --deep -s - MARMOT.app
           zip -ry ${{ github.workspace }}/${{ matrix.asset_name }}.zip MARMOT.app
 
       - name: Upload artifact (macOS)
@@ -120,3 +122,11 @@ jobs:
         with:
           files: artifacts/**/*
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            **macOS**: Download the `.zip` for your architecture, unzip, then **right-click** the app and choose **Open** (required on first launch for unsigned apps). If you see "damaged" instead, run in Terminal: `xattr -cr MARMOT.app`
+
+            **Windows**: Download and run the `.msi` installer.
+
+            **Linux**: Extract the `.tar.gz` and run `./marmot-gui`.

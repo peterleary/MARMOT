@@ -11,13 +11,14 @@
   import StatusBar from "./lib/components/StatusBar.svelte";
   import SplashScreen from "./lib/components/SplashScreen.svelte";
   import { metadata } from "./lib/stores/metadata.js";
-  import { rscriptPath, rVersion, marmotInstalled, packageStatus } from "./lib/stores/pipeline.js";
+  import { rscriptPath, rVersion, marmotInstalled, packageStatus, quartoPath, quartoVersion } from "./lib/stores/pipeline.js";
 
   let activeTab = $state("setup");
   let activeSetupTab = $state("install");
   let splashVisible = $state(true);
   let splashFading = $state(false);
   let splashStatus = $state("Starting up...");
+  let splashMissing = $state([]);
 
   function hideSplash() {
     splashFading = true;
@@ -42,10 +43,10 @@
   }
 
   onMount(async () => {
-    splashStatus = "Loading metadata and detecting R...";
+    splashStatus = "Loading metadata and detecting R & Quarto...";
 
-    // Metadata load + Rscript detection in parallel (independent operations)
-    const [path] = await Promise.all([
+    // Metadata load + Rscript + Quarto detection in parallel (independent operations)
+    const [rPath, , qPath] = await Promise.all([
       invoke("find_rscript_cached").catch(() => null),
       invoke("load_default_metadata")
         .then((d) => metadata.set(d))
@@ -54,21 +55,37 @@
             .then((d) => metadata.set(d))
             .catch(() => {})
         ),
+      invoke("find_quarto_cached").catch(() => null),
     ]);
 
-    if (!path) {
-      console.warn("R not found");
-      splashStatus = "R not found — some features unavailable";
-      setTimeout(hideSplash, 1200);
-      return;
+    // Quarto detection
+    if (qPath) {
+      quartoPath.set(qPath);
+      invoke("get_quarto_info", { quartoPath: qPath })
+        .then((ver) => quartoVersion.set(ver))
+        .catch(() => {});
     }
-    rscriptPath.set(path);
+
+    // Block startup if R or Quarto is missing
+    const deps = [];
+    if (!rPath) {
+      deps.push({ name: "R", url: "https://cloud.r-project.org/", description: "Statistical computing environment" });
+    }
+    if (!qPath) {
+      deps.push({ name: "Quarto", url: "https://quarto.org/docs/get-started/", description: "Document rendering engine" });
+    }
+    if (deps.length > 0) {
+      splashMissing = deps;
+      return; // stay on splash screen
+    }
+
+    rscriptPath.set(rPath);
 
     splashStatus = "Checking R environment...";
 
     // One R subprocess for version + MARMOT check (saves ~500ms vs two sequential calls)
     try {
-      const [version, installed] = await invoke("get_r_info", { rscriptPath: path });
+      const [version, installed] = await invoke("get_r_info", { rscriptPath: rPath });
       rVersion.set(version);
       marmotInstalled.set(installed);
     } catch (e) {
@@ -78,7 +95,7 @@
     hideSplash();
 
     // Optional packages: background, non-blocking
-    invoke("query_installed_packages", { rscriptPath: path })
+    invoke("query_installed_packages", { rscriptPath: rPath })
       .then((status) => packageStatus.set(status))
       .catch(() => {});
   });
@@ -86,7 +103,7 @@
 
 {#if splashVisible}
   <div class="splash-wrapper" class:fading={splashFading}>
-    <SplashScreen status={splashStatus} />
+    <SplashScreen status={splashStatus} missing={splashMissing} />
   </div>
 {/if}
 
