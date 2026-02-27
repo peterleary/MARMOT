@@ -3,8 +3,6 @@
 #' @return A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
 #' @author Peter Leary
 #' @export
-#' @import Rcpp
-#' @importFrom Rcpp evalCpp
 #' @examples
 #' \dontrun{
 #' marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
@@ -44,10 +42,18 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     }
   })
   
+  # Variables where NA in the Excel means "set to NULL" (not "use QMD default")
+  nullable_vars <- c("downsampleTo", "RDataFolder", "excludeTheseSamples")
+  nullable_nas <- params_df$Variable[params_df$Variable %in% nullable_vars &
+                                       is.na(params_df$Setting)]
+
   params_df <- na.omit(params_df)
-  
+
   # Get the list of options chosen
-  params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable) 
+  params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable)
+
+  # Explicitly set nullable variables to NULL when blank in Excel
+  for (v in nullable_nas) params_list[[v]] <- NULL
   
   # Tidy up the params
   params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, "\\ |\\,|\\,\\ ") %>% unlist %>% as.numeric

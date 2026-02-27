@@ -92,6 +92,12 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
       rd <- rd[, c("cell_id", setdiff(colnames(rd), "cell_id"))]
       arrow::write_parquet(rd, file.path(pq_dir, "reductions", paste0(rname, ".parquet")))
     }
+
+    # cluster_codes (needed by diffcyt on reload)
+    cc <- S4Vectors::metadata(sce)$cluster_codes
+    if (!is.null(cc) && is.data.frame(cc)) {
+      arrow::write_parquet(cc, file.path(pq_dir, "cluster_codes.parquet"))
+    }
   }
 
   # ── DR data frames (umapDFList) ──
@@ -480,7 +486,7 @@ reconstruct_sce_from_parquet <- function(pq_dir) {
   # Read cell metadata
   cd_path <- file.path(pq_dir, "cell_metadata.parquet")
   if (!file.exists(cd_path)) return(NULL)
-  cd <- arrow::read_parquet(cd_path)
+  cd <- as.data.frame(arrow::read_parquet(cd_path))
   cell_ids <- cd$cell_id
   cd$cell_id <- NULL
   rownames(cd) <- cell_ids
@@ -524,6 +530,17 @@ reconstruct_sce_from_parquet <- function(pq_dir) {
   if (file.exists(md_path)) {
     md <- arrow::read_parquet(md_path)
     S4Vectors::metadata(sce)$experiment_info <- md
+  }
+
+  # Restore cluster_codes (needed by diffcyt on reload)
+  cc_path <- file.path(pq_dir, "cluster_codes.parquet")
+  if (file.exists(cc_path)) {
+    cc <- as.data.frame(arrow::read_parquet(cc_path))
+    # Restore factor columns
+    for (col in colnames(cc)) {
+      if (is.character(cc[[col]])) cc[[col]] <- factor(cc[[col]])
+    }
+    S4Vectors::metadata(sce)$cluster_codes <- cc
   }
 
   sce

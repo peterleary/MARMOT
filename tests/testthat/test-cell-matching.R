@@ -451,6 +451,31 @@ test_that("Parquet round-trip: DR df sce_idx valid against reloaded SCE", {
   unlink(tmp, recursive = TRUE)
 })
 
+test_that("Parquet round-trip: cluster_codes preserved in SCE metadata", {
+  skip_if_not_installed("arrow")
+  sce_orig <- make_cell_matching_sce()
+  tmp <- tempfile("pq_test_")
+  dir.create(tmp)
+
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce_orig
+
+  save_parquet_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+
+  cc_orig <- S4Vectors::metadata(sce_orig)$cluster_codes
+  cc_loaded <- S4Vectors::metadata(sce_loaded)$cluster_codes
+
+  expect_false(is.null(cc_loaded))
+  expect_equal(colnames(cc_loaded), colnames(cc_orig))
+  expect_equal(
+    as.character(cc_loaded[[1]]),
+    as.character(cc_orig[[1]])
+  )
+
+  unlink(tmp, recursive = TRUE)
+})
+
 
 # ── Section 10: Relabelling and DA filter ──
 test_that("apply_relabelling_pure: row order and sce_idx unchanged", {

@@ -12,6 +12,7 @@ Depends:
   R (>= 4.3)
 Imports:
   arrow,
+  basilisk,
   BiocGenerics,
   BiocManager,
   CATALYST,
@@ -81,7 +82,6 @@ Imports:
   writexl,
   zip
 Suggests:
-  basilisk,
   qs,
   basilisk.utils,
   FastPG,

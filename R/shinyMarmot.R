@@ -3,7 +3,6 @@
 #' @return An interactive shiny app session in console.
 #' @author Peter Leary
 #' @export
-#' @import Rcpp
 #' @examples
 #' \dontrun{
 #' shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")

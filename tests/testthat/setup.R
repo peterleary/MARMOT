@@ -69,7 +69,7 @@ make_mock_sce <- function(n_cells = 100, n_markers = 5, n_samples = 2) {
 #' @param n_cells Cells per FCS file (default 500)
 #' @param n_markers Number of markers (default 8)
 #' @return Path to the temp directory containing FCS + metadata
-make_test_pipeline_data <- function(n_cells = 500, n_markers = 8) {
+make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list()) {
   set.seed(123)
   tmp <- tempfile("marmot_inttest_")
   dir.create(tmp, recursive = TRUE)
@@ -93,18 +93,18 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8) {
     colnames(mat) <- channel_names
 
     # Build parameter annotation
-    params <- S4Vectors::DataFrame(
+    fcs_params <- S4Vectors::DataFrame(
       name = channel_names,
       desc = marker_names,
       range = rep(4096, n_markers),
       minRange = rep(0, n_markers),
       maxRange = rep(4096, n_markers)
     )
-    rownames(params) <- paste0("$P", seq_len(n_markers))
+    rownames(fcs_params) <- paste0("$P", seq_len(n_markers))
 
     ff <- flowCore::flowFrame(
       exprs = mat,
-      parameters = Biobase::AnnotatedDataFrame(as.data.frame(params))
+      parameters = Biobase::AnnotatedDataFrame(as.data.frame(fcs_params))
     )
     flowCore::write.FCS(ff, file.path(tmp, file_names[i]))
   }
@@ -119,7 +119,8 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8) {
       "downsampleTo", "RDataFolder", "excludeTheseSamples",
       "gimmePDFs", "greyscalePlots", "quantileNormaliseAll",
       "runInParallel", "nCores", "ramPerCore",
-      "themeToUse", "viridisColour"
+      "themeToUse", "viridisColour",
+      "runScGate"
     ),
     Setting = c(
       "FlowSOM", "all", "10", "10",
@@ -128,10 +129,19 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8) {
       NA, NA, NA,
       "FALSE", "FALSE", "FALSE",
       "FALSE", "1", "4",
-      "prism", "viridis"
+      "prism", "viridis",
+      "FALSE"
     ),
     stringsAsFactors = FALSE
   )
+
+  # Merge parameter overrides
+  for (nm in names(params)) {
+    idx <- which(settings$Variable == nm)
+    if (length(idx) == 1) {
+      settings$Setting[idx] <- params[[nm]]
+    }
+  }
 
   # Sheet 2: File Data
   file_data <- data.frame(
@@ -240,4 +250,113 @@ make_cell_matching_sce <- function(n_cells = 100, n_markers = 5, n_samples = 2,
   }
 
   sce
+}
+
+#' Skip helper for pipeline integration tests
+skip_pipeline_deps <- function() {
+  skip_on_cran()
+  skip_if_not(nzchar(Sys.which("quarto")), "Quarto not installed")
+  skip_if_not_installed("flowCore")
+  skip_if_not_installed("FlowSOM")
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("pacman")
+}
+
+#' Run a pipeline integration test
+#'
+#' Creates synthetic data with parameter overrides, renders the pipeline,
+#' and returns paths for validation.
+#'
+#' @param params Named list of Pipeline Settings overrides
+#' @param test_name Name for the pipeline output (default "IntTest")
+#' @param n_cells Cells per FCS file (default 500)
+#' @param n_markers Number of markers (default 8)
+#' @return A list with test_dir, results_path, pq_dir, params, n_cells, n_markers
+run_pipeline_test <- function(params = list(), test_name = "IntTest",
+                              n_cells = 500, n_markers = 8) {
+  test_dir <- make_test_pipeline_data(n_cells = n_cells, n_markers = n_markers,
+                                       params = params)
+
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  stopifnot(file.exists(meta_path))
+
+  marmot(metadata = meta_path, name = test_name, render = TRUE)
+
+  # Find the results directory
+  results_dirs <- list.dirs(test_dir, recursive = FALSE)
+  results_dir <- grep("^Results_Files_", basename(results_dirs), value = TRUE)
+  stopifnot(length(results_dir) == 1)
+  results_path <- file.path(test_dir, results_dir)
+
+  pq_dir <- file.path(results_path, "R_files", "parquet")
+
+  list(
+    test_dir = test_dir,
+    results_path = results_path,
+    pq_dir = pq_dir,
+    params = params,
+    n_cells = n_cells,
+    n_markers = n_markers
+  )
+}
+
+#' Validate common pipeline output structure
+#'
+#' Runs structural checks that every pipeline run should pass.
+#'
+#' @param result Output from run_pipeline_test()
+#' @param expected_cells Expected total cell count, or NULL to skip the check
+validate_pipeline_output <- function(result, expected_cells = NULL) {
+  pq_dir <- result$pq_dir
+
+  # Parquet directory exists
+  expect_true(dir.exists(pq_dir))
+
+  # Manifest
+  manifest_path <- file.path(pq_dir, "_manifest.json")
+  expect_true(file.exists(manifest_path))
+  manifest <- jsonlite::fromJSON(manifest_path)
+  expect_equal(manifest$format, "marmot-parquet-v1")
+
+  # Cell metadata
+  cell_meta_path <- file.path(pq_dir, "cell_metadata.parquet")
+  expect_true(file.exists(cell_meta_path))
+  if (!is.null(expected_cells)) {
+    cell_meta <- arrow::read_parquet(cell_meta_path)
+    expect_equal(nrow(cell_meta), expected_cells)
+  }
+
+  # Expression assays (>=1)
+  expr_dir <- file.path(pq_dir, "expression")
+  expect_true(dir.exists(expr_dir))
+  expr_files <- list.files(expr_dir, pattern = "\\.parquet$")
+  expect_true(length(expr_files) >= 1)
+
+  # DR reductions (>=1)
+  red_dir <- file.path(pq_dir, "reductions")
+  expect_true(dir.exists(red_dir))
+  red_files <- list.files(red_dir, pattern = "\\.parquet$")
+  expect_true(length(red_files) >= 1)
+
+  # DR data frames (>=1)
+  dr_dir <- file.path(pq_dir, "dr_dataframes")
+  expect_true(dir.exists(dr_dir))
+  dr_files <- list.files(dr_dir, pattern = "\\.parquet$")
+  expect_true(length(dr_files) >= 1)
+
+  # SCE reconstructs
+  sce <- reconstruct_sce_from_parquet(pq_dir)
+  expect_s4_class(sce, "SingleCellExperiment")
+
+  # Excel output
+  excel_dir <- file.path(result$results_path, "Excel_Files")
+  expect_true(dir.exists(excel_dir))
+  xlsx_files <- list.files(excel_dir, pattern = "\\.xlsx$")
+  expect_true(length(xlsx_files) >= 1)
+
+  # HTML report
+  html_files <- list.files(dirname(result$results_path), pattern = "\\.html$")
+  expect_true(length(html_files) >= 1)
+
+  invisible(sce)
 }

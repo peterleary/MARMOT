@@ -60,6 +60,8 @@ ENV RETICULATE_MINICONDA_PATH="/opt/miniforge"
 # ── R packages: pak → MARMOT + all dependencies ─────────────────────
 RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
 
+# Change CACHEBUST value to force re-pull of MARMOT from GitHub
+ARG CACHEBUST=1
 RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}', dependencies = TRUE)"
 
 RUN Rscript -e "MARMOT::install_dependencies(include_suggests = TRUE)"

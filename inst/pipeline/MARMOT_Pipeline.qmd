@@ -109,7 +109,7 @@ condaDir <- "/Users/peterleary/miniforge3/bin/mamba"      # Where conda/mamba li
 parcScriptDir <- "~/Desktop/FGCZ/MARMOT/" # Folder with f_pacmap.py and f_parc.py
 
 ## 🧪 Preprocessing
-downsampleTo <- 1000  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
+downsampleTo <- NULL  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
 
 ## 🔍 Clustering
 clusteringMethodToUse <- "FlowSOM"   # One of: "Rphenograph", "FastPG", "PARC", "FlowSOM"
@@ -2262,13 +2262,17 @@ openxlsx::write.xlsx(
 #### Cluster Frequency
 
 ```{r, label = "Cluster barplot 1", fig.width = ceiling(length(condLevels)/2)*10, fig.height=5}
-plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism(axis_text_angle = 45)
+{ sorted_ids <- gtools::mixedsort(names(coloursList[[paste0(mergeBy, knn)]]))
+  sorted_pal <- coloursList[[paste0(mergeBy, knn)]][sorted_ids]
+  plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism(axis_text_angle = 45) + scale_fill_manual(values = sorted_pal, breaks = sorted_ids) }
 ```
 
 ```{r, label = "save cluster barplot", results = "hide"}
 if (gimmePDFs) {
+  sorted_ids <- gtools::mixedsort(names(coloursList[[paste0(mergeBy, knn)]]))
+  sorted_pal <- coloursList[[paste0(mergeBy, knn)]][sorted_ids]
   pdf(file = file.path(pdfDir, "cluster_barplot.pdf"), width = ceiling(length(condLevels)/2)*10, height = 5, bg = "transparent")
-  print(plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism())
+  print(plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism() + scale_fill_manual(values = sorted_pal, breaks = sorted_ids))
   dev.off()
 }
 ```
@@ -2318,6 +2322,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
 ```{r, label = "Save Cluster Barplots 3", include = FALSE}
 if (gimmePDFs) {
   lapply(names(selectedBarplotList), function(x) {
+    if (is.null(selectedBarplotList[[x]])) return(NULL)
     pdf(file = paste0(pdfDir, "/", selectedBarplotList[[x]][["cx"]], "_", selectedBarplotList[[x]][["sx"]], "_barplot.pdf"), width = 10, height = 5)
     print(selectedBarplotList[[x]][["g"]])
     dev.off()

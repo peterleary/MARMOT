@@ -1,16 +1,12 @@
 # MARMOT
 
-Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
+**M**ultif**a**ceted **R** Pipeline for **M**easuring Spectral Fl**o**w Cytometry Da**t**a
 
 <p align="center">
 <img src="images/MARMOT_Logo_2-min.png" width="150"/>
 </p>
 
-<html>
-
-<hr style="height:5px;border-width:0;color:gray;background-color:gray">
-
-</html>
+---
 
 **If you are using MARMOT in your work, please cite the MARMOT paper:**
 
@@ -22,32 +18,41 @@ Kirsche L, He J, Müller A, Leary P (2025). MARMOT: A multifaceted R pipeline fo
 
 For additional information, guidelines, and tips, please refer to the [Wiki](../../wiki) on this GitHub.
 
-<html>
+---
 
-<hr style="height:5px;border-width:0;color:gray;background-color:gray">
+## GUI App
 
-</html>
+Good news! A new standalone desktop app that can prepare and run the entire MARMOT pipeline — no code required - is here! Download the latest release for your platform from the [GitHub Releases page](https://github.com/peterleary/MARMOT/releases).
 
-## New GUI app! 
+- **macOS**: Download the `.zip`, unzip, and open MARMOT.app. On first launch, right-click → Open (to bypass Gatekeeper).
+- **Windows**: Download and run the `.msi` installer. [Untested!]
+- **Linux**: Download and extract the `.tar.gz`. [Untested!]
 
-The marmots have been hard at work creating a nice little application that can prepare and run the entire MARMOT pipeline, no code! 
+Nonetheless, it is still **highly** recommended to run the couple of lines of R code required to install and run the pipeline in R! 
 
 ## Quick Install + Run
 
 This is all the R code you will need to run the MARMOT pipeline and load the Shiny app.
 
-```{r eval = F}
+```r
 # Step 1. Install and load
 install.packages("pak")
 pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
 library(MARMOT)
+```
 
-# Step 2: Save the template metadata file in a folder with the gated FCS files
+```r
+# Step 2: Save the template metadata file in a folder with your exported gated FCS files
 addMetadataToFCSFolder(FCS_folder = "~/Desktop/Flow_Data/")
 # This will place a copy of the template Excel Metadata file in the folder you specified
+```
 
+```r
 # Step 3: Fill the metadata file in manually in Excel
+# There's three sheets, use the dummy data included for inspiration!
+```
 
+```r
 # Step 4: Run the pipeline
 marmot(
   metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx",
@@ -55,22 +60,38 @@ marmot(
   render = TRUE
   )
 # The marmots will run the pipeline for a while... and generate a results folder
+```
 
+```r
 # Step 5: Load the shiny app
 shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
-This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
+These instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
 
 For PARC (clustering) and PaCMAP (dimensionality reduction), you just need to set up the Python environment — see below.
 
-<hr>
+---
+
+## Shiny App
+
+After running the pipeline, explore your results interactively with `shinyMarmot()`. The app provides dimensionality reduction plots, feature plots, violin/dot/ridge plots, heatmaps, and barplots — all with cluster relabelling, cell subsetting, and PDF/FCS export.
+
+```r
+shinyMarmot(marmot_output = "path/to/R_files")
+```
 
 ## Full Installation
 
+Follow these extra instructions if you want to unleash the full potential of the marmots. These steps just install extra packages so that you can have more options available. **It's totally optional!**
+
+### Install mamba/conda
+
+This is required for the PARC clustering algorithm, and for the PacMAP dimension reduction algorithm.
+
 ### Install MARMOT and all R dependencies
 
-```{r eval = F}
+```r
 install.packages("pak")
 pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
 
@@ -83,17 +104,15 @@ MARMOT::check_setup()
 
 ### Set up PARC and PaCMAP (Python)
 
-PARC and PaCMAP run via Python through a conda environment. MARMOT bundles the Python scripts and environment definition — you just need conda/mamba installed.
+PARC and PaCMAP run via Python through basilisk, which manages an isolated Python environment automatically. You just need to trigger the one-time setup.
 
 #### Step 1: Install conda/mamba
 
 If you don't already have conda or mamba, install [miniforge](https://github.com/conda-forge/miniforge) for your platform.
 
-**NOTE**: If you're using an M-series Mac, it is **required** that you install the **x86_64** version of both R and miniforge to ensure compatibility with FastPG, PARC, and PaCMAP.
-
 #### Step 2: Create the Python environment
 
-```{r eval = F}
+```r
 MARMOT::setup_python()
 ```
 
@@ -101,8 +120,6 @@ That's it. This creates the `p4r` conda environment with all required Python pac
 
 You can verify everything is ready with:
 
-```{r eval = F}
+```r
 MARMOT::check_setup()
 ```
-</content>
-</invoke>
