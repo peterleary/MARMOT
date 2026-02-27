@@ -18,7 +18,7 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             asset_name: marmot-gui-macos-arm64
-          - platform: macos-13
+          - platform: macos-15
             target: x86_64-apple-darwin
             asset_name: marmot-gui-macos-x86_64
           - platform: ubuntu-22.04

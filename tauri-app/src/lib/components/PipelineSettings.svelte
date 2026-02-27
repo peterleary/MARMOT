@@ -8,6 +8,25 @@
   let groupedFields = $derived(SETTING_GROUPS.flatMap(g => g.fields));
   let ungrouped = $derived(currentMetadata.pipeline_settings.filter(s => !groupedFields.includes(s.variable)));
 
+  // Auto-inject missing defined fields so they always appear in the UI,
+  // even when loaded metadata doesn't include them.
+  $effect(() => {
+    const existing = new Set(currentMetadata.pipeline_settings.map(s => s.variable));
+    const missing = groupedFields.filter(f => FIELD_DEFINITIONS[f] && !existing.has(f));
+    if (missing.length > 0) {
+      metadata.update(m => {
+        for (const f of missing) {
+          m.pipeline_settings.push({
+            variable: f,
+            setting: "",
+            info: FIELD_DEFINITIONS[f].placeholder || "",
+          });
+        }
+        return m;
+      });
+    }
+  });
+
   // Build a map of field → [disabled option values] from current package status
   let disabledByField = $derived(
     Object.entries(PACKAGE_REQUIREMENTS).reduce((acc, [pkg, { field, option }]) => {
@@ -38,6 +57,7 @@
             placeholder={def.placeholder || ""}
             min={def.min}
             allowEmpty={def.allowEmpty || false}
+            onchange={(v) => updateSetting(field, v)}
           />
         {/if}
       {/each}

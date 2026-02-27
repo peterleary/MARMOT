@@ -1,5 +1,14 @@
 <script>
-  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false } = $props();
+  import { open } from "@tauri-apps/plugin-dialog";
+  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false, onchange = undefined } = $props();
+
+  async function handleBrowseFolder() {
+    const selected = await open({ directory: true, title: `Select ${label || "folder"}` });
+    if (selected) {
+      value = selected;
+      onchange?.(selected);
+    }
+  }
 
   let fieldId = $derived("field-" + label.replace(/\s+/g, "-").toLowerCase());
   let showTooltip = $state(false);
@@ -44,7 +53,6 @@
   {:else if type === "checkbox"}
     <label class="checkbox-wrapper">
       <input type="checkbox" checked={isChecked} onchange={handleCheckbox} />
-      <span class="checkmark">{isChecked ? "Yes" : "No"}</span>
     </label>
   {:else if type === "number"}
     <input
@@ -55,6 +63,18 @@
       {placeholder}
       {min}
     />
+  {:else if type === "folder"}
+    <div class="folder-browse">
+      <input
+        id={fieldId}
+        type="text"
+        bind:value
+        class="field-control"
+        {placeholder}
+        readonly
+      />
+      <button class="browse-btn" onclick={handleBrowseFolder}>Browse</button>
+    </div>
   {:else}
     <input
       id={fieldId}
@@ -134,10 +154,12 @@
     border: 1px solid #cbd5e1;
     border-radius: 5px;
     font-size: 0.85rem;
-    max-width: 300px;
+    min-width: 0;
     font-family: inherit;
     background: #fff;
     transition: border-color 0.15s, box-shadow 0.15s;
+    height: 32px;
+    box-sizing: border-box;
   }
   .field-control:focus {
     outline: none;
@@ -150,20 +172,46 @@
   :global(option.unavailable-opt) {
     color: #9ca3af;
   }
+  .folder-browse {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .folder-browse .field-control {
+    flex: 1;
+    max-width: none;
+    background: #fafafa;
+  }
+  .browse-btn {
+    padding: 0 0.6rem;
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-family: inherit;
+    color: #333;
+    white-space: nowrap;
+    height: 32px;
+    box-sizing: border-box;
+  }
+  .browse-btn:hover {
+    background: #dbeafe;
+    border-color: #2563eb;
+  }
   .checkbox-wrapper {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     cursor: pointer;
     font-size: 0.85rem;
+    height: 32px;
   }
   .checkbox-wrapper input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     accent-color: #2563eb;
-  }
-  .checkmark {
-    color: #666;
-    font-size: 0.82rem;
   }
 </style>
