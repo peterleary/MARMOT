@@ -38,7 +38,7 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
     "openxlsx", "writexl",
     "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
     "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter", "fresh", "ragg",
-    "chameleon", "gplots", "BiocManager",
+    "chameleon", "BiocManager",
     "pacman", "data.table", "zip", "later"
   )
   missing_cran <- cran_pkgs[!sapply(cran_pkgs, requireNamespace, quietly = TRUE)]

@@ -39,7 +39,8 @@ Imports:
   ggrepel,
   ggridges,
   glue,
-  gplots,
+  grDevices,
+  grid,
   gridExtra,
   gtools,
   jsonlite,
@@ -75,6 +76,7 @@ Imports:
   SingleCellExperiment,
   slingshot,
   sortable,
+  stats,
   SummarizedExperiment,
   tidyverse,
   viridis,
@@ -82,7 +84,9 @@ Imports:
   writexl,
   zip
 Suggests:
+  pak,
   qs,
+  remotes,
   basilisk.utils,
   FastPG,
   flowAI,
