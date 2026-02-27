@@ -6,6 +6,13 @@
 \usage{
 marmot(metadata = NULL, name = "Title", render = FALSE)
 }
+\arguments{
+\item{metadata}{Path to the MARMOT metadata Excel file (.xlsx)}
+
+\item{name}{Name for this analysis run (used in output filenames)}
+
+\item{render}{Logical; if TRUE, render the pipeline report (default FALSE)}
+}
 \value{
 A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
 }

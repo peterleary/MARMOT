@@ -629,9 +629,11 @@ if (runQC == "PeacoQC") {
     # Generate a QC summary table
     qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
     QCmini <- read_tsv(qc_files[[1]], show_col_types = FALSE)
-    for (i in 2:length(qc_files)) {
-      xx <- read_tsv(qc_files[[i]], show_col_types = FALSE)
-      QCmini[i,] <- xx[1,]
+    if (length(qc_files) > 1) {
+      for (i in 2:length(qc_files)) {
+        xx <- read_tsv(qc_files[[i]], show_col_types = FALSE)
+        QCmini[i,] <- xx[1,]
+      }
     }
     write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
     message("✅ PeacoQC processing complete. QC files saved to: ", qc_dir)
@@ -678,7 +680,7 @@ fsList <- purrr::imap(framesList, function(sample_list, name) {
 })
 ```
 
-```{r plot_cofactor_histograms, results = "hide", eval = TRUE}
+```{r plot_cofactor_histograms, results = "hide", eval = is.null(RDataFolder)}
 
 message("📉 Generating cofactor histograms for visualising transformations...")
 
@@ -1815,7 +1817,11 @@ if (runMarkerPairPlots) {
         theme_prism() +
         theme(legend.position = "hide") +
         ggtitle(paste0(x, "\nTransformed & QN"))
-      return(list(q1, p1))
+      if (!quantileNormaliseAll) {
+        return(list(q1, p1))
+      } else {
+        return(list(p1))
+      }
     }), toPlot)
   }), markerPairTypes)
   
@@ -1839,7 +1845,7 @@ if (runMarkerPairPlots) {
 ```
 
 ```{r, label = "save marker pair scatterplots", results = "hide", include = FALSE}
-if (gimmePDFs) {
+if (gimmePDFs && exists("markerPairsList")) {
   lapply(names(markerPairsList), function(x) {
     lapply(names(markerPairsList[[x]]), function(y) {
       pdf(file = file.path(pdfDir, paste0(y, "_scatter.pdf")), width = 5, height = 5, bg = "transparent")
@@ -2047,8 +2053,9 @@ features = NULL
 hm_pal = rev(brewer.pal(11, "RdYlBu"))
 left_anno = TRUE
 row_clust = TRUE
-row_anno = TRUE 
-col_anno = TRUE 
+row_anno = TRUE
+col_anno = TRUE
+perc = TRUE
 row_clust = TRUE 
 col_clust = TRUE
 row_dend = TRUE
@@ -2646,7 +2653,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
       show_cluster_labels = var
       )
     m1 <- m1 + ggtitle(marker) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
-    med_expr <- median(m1$data$colour, na.rm = TRUE)
+    med_expr <- median(m1$data[[marker]], na.rm = TRUE)
     pal <- hcl.colors(64, viridisColour)
     fill_col <- pal[max(1, round(med_expr * 63) + 1)]
     text_col <- ifelse(med_expr > 0.5, "white", "black")

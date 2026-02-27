@@ -58,7 +58,7 @@ umapReactive <- eventReactive(
       contrasts_vec <- inputDataReactive$Results$smd$`Conditions To Test`
       contrasts_vec <- contrasts_vec[!is.na(contrasts_vec)]
       n_contrasts <- length(contrasts_vec)
-      contrastToUse <- grep(input$umapContrastToUse, contrasts_vec)
+      contrastToUse <- which(contrasts_vec == input$umapContrastToUse)
       if (length(contrastToUse) == 0) contrastToUse <- 1L
       contrastIndexes <- seq(1, max(1, 2 * n_contrasts - 1), by = 2)[contrastToUse]
       clustersToPlot <- inputDataReactive$Results$selectedClustersList[c(contrastIndexes, contrastIndexes + 1)]

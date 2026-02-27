@@ -9,6 +9,7 @@
 #'   environment for PARC/PaCMAP via \code{\link{setup_python}}.
 #'   Default \code{FALSE}.
 #'
+#' @importFrom utils install.packages
 #' @export
 install_dependencies <- function(include_suggests = TRUE, include_python = FALSE) {
 

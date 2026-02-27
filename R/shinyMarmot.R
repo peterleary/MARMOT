@@ -1,5 +1,7 @@
 #' @title shinyMarmot
 #' @description Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.
+#' @param marmot_output Path to the pipeline output directory (R_files folder)
+#' @param demo Logical; if TRUE, launch with bundled demo data (default NA)
 #' @return An interactive shiny app session in console.
 #' @author Peter Leary
 #' @export

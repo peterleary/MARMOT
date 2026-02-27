@@ -1,7 +1,11 @@
 #' @title marmot
 #' @description The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
+#' @param metadata Path to the MARMOT metadata Excel file (.xlsx)
+#' @param name Name for this analysis run (used in output filenames)
+#' @param render Logical; if TRUE, render the pipeline report (default FALSE)
 #' @return A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
 #' @author Peter Leary
+#' @importFrom stats na.omit setNames
 #' @export
 #' @examples
 #' \dontrun{
@@ -25,7 +29,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   md_fp <- basename(metadata)
   
   # Read Metadata Excel file
-  if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
+  if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = TRUE))) {
     stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run the getMetadata function again.")
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")

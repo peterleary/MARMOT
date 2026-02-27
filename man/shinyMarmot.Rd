@@ -6,6 +6,11 @@
 \usage{
 shinyMarmot(marmot_output = NA, demo = NA)
 }
+\arguments{
+\item{marmot_output}{Path to the pipeline output directory (R_files folder)}
+
+\item{demo}{Logical; if TRUE, launch with bundled demo data (default NA)}
+}
 \value{
 An interactive shiny app session in console.
 }

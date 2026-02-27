@@ -122,7 +122,7 @@ updateSelectInput(session, "fpColumnToPlot",
 updateSelectInput(session, "fpColumnToSplit",
   choices = c("None", colsThatCanBePlot), selected = "None")
 # Server-side selectize for markers: backed by sorted_markers_cache for fast lookup
-marker_choices <- res$sorted_markers_cache %||% names(res$sce)
+marker_choices <- res$sorted_markers_cache %||% rownames(res$sce)
 updateSelectizeInput(session, "fpFeatureToPlot",
   choices = marker_choices, selected = NULL, server = TRUE)
 

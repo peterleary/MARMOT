@@ -257,7 +257,7 @@ observeEvent({
       previousFeatureSelection(input$fpFeatureToPlot)
       updateSelectInput(
         session = session, inputId = "fpFeatureToPlot",
-        selected = names(inputDataReactive$Results$sce)
+        selected = rownames(inputDataReactive$Results$sce)
       )
     } else {
       updateSelectInput(
@@ -374,6 +374,11 @@ observeEvent(
             !is.null(inputDataReactive$Results[["subsetCellIds"]])) {
         subsetIds <- inputDataReactive$Results[["subsetCellIds"]]
         if (!is.null(sce) && length(subsetIds) > 0) {
+          # Filter umapDF to match the SCE subset
+          if (!is.null(umapDF) && "sce_idx" %in% colnames(umapDF)) {
+            keep_idx <- which(colnames(inputDataReactive$Results$sce) %in% subsetIds)
+            umapDF <- umapDF[umapDF$sce_idx %in% keep_idx, ]
+          }
           sce <- sce[, colnames(sce) %in% subsetIds]
         }
       }
@@ -405,7 +410,7 @@ observeEvent(
       contrasts_vec <- inputDataReactive$Results$smd$`Conditions To Test`
       contrasts_vec <- contrasts_vec[!is.na(contrasts_vec)]
       n_contrasts <- length(contrasts_vec)
-      contrastToUse <- grep(input$fpContrastToUse, contrasts_vec)
+      contrastToUse <- which(contrasts_vec == input$fpContrastToUse)
       if (length(contrastToUse) == 0) contrastToUse <- 1L
       contrastIndexes <- seq(1, max(1, 2 * n_contrasts - 1), by = 2)[contrastToUse]
       clustersToPlot <- inputDataReactive$Results$selectedClustersList[
