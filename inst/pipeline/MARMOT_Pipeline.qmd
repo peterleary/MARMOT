@@ -938,6 +938,17 @@ if (clusteringMethodToUse == "FlowSOM") {
 # stores raw integers (not a factor), and on reload all clustering chunks are skipped.
 kids <- sce$cluster_id
 numbersOfClusters <- gtools::mixedsort(levels(kids))
+
+# Derive featuresToUmap from panel — works for both fresh run and reload.
+# On fresh run this is redundant (dim_reduction chunk sets it too), but on reload
+# the dim_reduction chunk is skipped and featuresToUmap would be missing.
+if (!is.null(featureType) && markersToDimRedBy == "type") {
+  featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
+} else if (!is.null(featureType) && markersToDimRedBy == "state") {
+  featuresToUmap <- panel$marker_name[panel$marker_class == "state"]
+} else {
+  featuresToUmap <- panel$marker_name
+}
 ```
 
 ```{r dim_reduction, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}

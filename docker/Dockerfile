@@ -60,6 +60,14 @@ ENV RETICULATE_MINICONDA_PATH="/opt/miniforge"
 # ── R packages: pak → MARMOT + all dependencies ─────────────────────
 RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
 
+# Arrow C++ build: enable Parquet but skip optional network-dependent components
+ENV NOT_CRAN=true
+ENV LIBARROW_MINIMAL=false
+ENV ARROW_PARQUET=ON
+ENV ARROW_WITH_THRIFT=OFF
+ENV ARROW_S3=OFF
+ENV ARROW_GCS=OFF
+
 # Change CACHEBUST value to force re-pull of MARMOT from GitHub
 ARG CACHEBUST=1
 RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}', dependencies = TRUE)"
