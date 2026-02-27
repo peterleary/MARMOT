@@ -98,6 +98,12 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
     if (!is.null(cc) && is.data.frame(cc)) {
       arrow::write_parquet(cc, file.path(pq_dir, "cluster_codes.parquet"))
     }
+
+    # rowData (marker metadata — needed by diffcyt on reload)
+    rd <- as.data.frame(SummarizedExperiment::rowData(sce))
+    if (nrow(rd) > 0 && ncol(rd) > 0) {
+      arrow::write_parquet(rd, file.path(pq_dir, "row_data.parquet"))
+    }
   }
 
   # ── DR data frames (umapDFList) ──
@@ -523,6 +529,17 @@ reconstruct_sce_from_parquet <- function(pq_dir) {
       rd_name <- tools::file_path_sans_ext(basename(f))
       SingleCellExperiment::reducedDim(sce, rd_name) <- as.matrix(rd)
     }
+  }
+
+  # Restore rowData (marker metadata — needed by diffcyt on reload)
+  rd_path <- file.path(pq_dir, "row_data.parquet")
+  if (file.exists(rd_path)) {
+    rd <- as.data.frame(arrow::read_parquet(rd_path))
+    # Restore factor columns
+    for (col in colnames(rd)) {
+      if (is.character(rd[[col]])) rd[[col]] <- factor(rd[[col]])
+    }
+    SummarizedExperiment::rowData(sce) <- S4Vectors::DataFrame(rd)
   }
 
   # Try to add experiment_info to metadata (needed for CATALYST functions)
