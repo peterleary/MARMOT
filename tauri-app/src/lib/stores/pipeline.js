@@ -18,6 +18,10 @@ export const rscriptPath = writable("");
 export const rVersion = writable("");
 export const marmotInstalled = writable(false);
 
+// Quarto environment info
+export const quartoPath = writable("");
+export const quartoVersion = writable("");
+
 export const installState = writable("idle"); // "idle" | "running" | "done" | "error"
 export const installLines = writable([]);
 export const installStartTime = writable(null);

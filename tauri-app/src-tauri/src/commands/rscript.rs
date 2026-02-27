@@ -23,3 +23,20 @@ pub fn find_rscript_cached() -> Result<String, String> {
 pub fn get_r_info(rscript_path: String) -> Result<(String, bool), String> {
     runner::get_r_info(&rscript_path)
 }
+
+/// Like find_rscript_cached but for Quarto.
+#[tauri::command]
+pub fn find_quarto_cached() -> Result<String, String> {
+    if let Some(cached) = runner::load_cached_quarto() {
+        return Ok(cached);
+    }
+    let path = runner::find_quarto().ok_or_else(|| "Quarto not found".to_string())?;
+    runner::save_cached_quarto(&path);
+    Ok(path)
+}
+
+/// Returns the Quarto version string (e.g. "1.6.40").
+#[tauri::command]
+pub fn get_quarto_info(quarto_path: String) -> Result<String, String> {
+    runner::get_quarto_version(&quarto_path)
+}

@@ -80,6 +80,72 @@ pub fn kill_shiny(process: &SharedShinyProcess) {
     }
 }
 
+pub fn find_quarto() -> Option<String> {
+    let candidates = if cfg!(target_os = "macos") {
+        vec![
+            "/Applications/quarto/bin/quarto",
+            "/opt/homebrew/bin/quarto",
+            "/usr/local/bin/quarto",
+        ]
+    } else if cfg!(target_os = "windows") {
+        vec![
+            r"C:\Program Files\Quarto\bin\quarto.exe",
+        ]
+    } else {
+        vec!["/usr/bin/quarto", "/usr/local/bin/quarto"]
+    };
+
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
+    let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
+    if let Ok(output) = Command::new(cmd).arg("quarto").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn get_quarto_version(quarto_path: &str) -> Result<String, String> {
+    let output = Command::new(quarto_path)
+        .arg("--version")
+        .env("PATH", enrich_path())
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("quarto --version failed".to_string())
+    }
+}
+
+fn quarto_cache_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    std::path::Path::new(&home)
+        .join(".config").join("marmot").join("quarto_path.txt")
+}
+
+pub fn load_cached_quarto() -> Option<String> {
+    let cached = std::fs::read_to_string(quarto_cache_path()).ok()?.trim().to_string();
+    if std::path::Path::new(&cached).exists() { Some(cached) } else { None }
+}
+
+pub fn save_cached_quarto(path: &str) {
+    if let Some(p) = quarto_cache_path().parent() {
+        let _ = std::fs::create_dir_all(p);
+    }
+    let _ = std::fs::write(quarto_cache_path(), path);
+}
+
 pub fn find_rscript() -> Option<String> {
     // Platform-specific known paths
     let candidates = if cfg!(target_os = "macos") {

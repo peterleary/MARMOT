@@ -3,7 +3,7 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { metadata, isDirty, fcsFolder, runName } from "../stores/metadata.js";
   import { pipelineState, logLines, startTime, clearLog, addLogLine, rscriptPath,
-           pipelineOutputDir, pipelineHtmlPath } from "../stores/pipeline.js";
+           pipelineOutputDir, pipelineHtmlPath, quartoPath } from "../stores/pipeline.js";
   import { validateSettings, validateFileData } from "../utils/validation.js";
   import { listen } from "@tauri-apps/api/event";
 
@@ -86,6 +86,11 @@
 
     if (!$rscriptPath) {
       alert("Rscript not found. Please check R installation.");
+      return;
+    }
+
+    if (!$quartoPath) {
+      alert("Quarto not found. Install it from https://quarto.org/docs/get-started/");
       return;
     }
 

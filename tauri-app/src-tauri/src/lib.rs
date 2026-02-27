@@ -29,6 +29,8 @@ pub fn run() {
             commands::rscript::find_rscript,
             commands::rscript::find_rscript_cached,
             commands::rscript::get_r_info,
+            commands::rscript::find_quarto_cached,
+            commands::rscript::get_quarto_info,
             commands::install::run_install,
             commands::install::run_check_setup,
             commands::install::query_installed_packages,
