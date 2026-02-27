@@ -66,7 +66,7 @@ jobs:
       - name: Package binary (Windows)
         if: runner.os == 'Windows'
         run: |
-          copy inst\tauri-app\src-tauri\target\${{ matrix.target }}\release\marmot-gui.exe ${{ matrix.asset_name }}.exe
+          copy tauri-app\src-tauri\target\${{ matrix.target }}\release\marmot-gui.exe ${{ matrix.asset_name }}.exe
           Compress-Archive -Path ${{ matrix.asset_name }}.exe -DestinationPath ${{ matrix.asset_name }}.zip
         shell: pwsh
 
