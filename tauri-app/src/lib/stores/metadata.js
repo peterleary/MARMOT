@@ -6,7 +6,6 @@ export const metadata = writable({
   pipeline_settings: [],
   study_data: { headers: [], rows: [] },
   file_data: { headers: [], rows: [] },
-  options: { headers: [], rows: [] },
 });
 
 // FCS folder path

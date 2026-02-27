@@ -16,7 +16,7 @@
       setTimeout(() => { shinyLaunching = false; }, 8000);
     } catch (e) {
       shinyLaunching = false;
-      alert("Could not launch Shiny app: " + e);
+      alert("Could not launch Shiny app: " + (e.message || e));
     }
   }
 

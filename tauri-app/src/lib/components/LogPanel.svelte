@@ -51,7 +51,7 @@
     } catch (e) {
       shinyLaunching = false;
       console.error("Failed to launch Shiny app:", e);
-      alert("Could not launch Shiny app: " + e);
+      alert("Could not launch Shiny app: " + (e.message || e));
     }
   }
 
@@ -59,7 +59,7 @@
     try {
       await invoke("open_path", { path: $pipelineHtmlPath });
     } catch (e) {
-      alert("Could not open report: " + e);
+      alert("Could not open report: " + (e.message || e));
     }
   }
 
@@ -67,7 +67,7 @@
     try {
       await invoke("open_path", { path: $pipelineOutputDir });
     } catch (e) {
-      alert("Could not open folder: " + e);
+      alert("Could not open folder: " + (e.message || e));
     }
   }
 

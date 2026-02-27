@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter};
 /// missing Homebrew, Quarto, conda, user-local bins, etc.
 pub(crate) fn enrich_path() -> String {
     let current = std::env::var("PATH").unwrap_or_default();
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/unknown".to_string());
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
 
     let extra_dirs: Vec<String> = vec![
         // Quarto
@@ -336,7 +336,7 @@ pub fn kill_pipeline(process: &SharedProcess) -> Result<(), String> {
         {
             // Kill process group
             unsafe {
-                libc::kill(-(pid as i32), libc::SIGTERM);
+                libc::kill(-(pid as libc::pid_t), libc::SIGTERM);
             }
         }
         #[cfg(windows)]

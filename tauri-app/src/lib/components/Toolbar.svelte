@@ -9,6 +9,10 @@
 
   let { onActiveTab = () => {} } = $props();
 
+  // Track active listeners so re-runs clean up properly
+  let activeUnlistenLog = null;
+  let activeUnlistenDone = null;
+
   async function handleOpen() {
     const selected = await open({
       title: "Open MARMOT Metadata",
@@ -26,7 +30,7 @@
       const parent = selected.substring(0, selected.lastIndexOf(sep));
       if (parent) fcsFolder.set(parent);
     } catch (e) {
-      alert("Failed to open file: " + e);
+      alert("Failed to open file: " + (e.message || e));
     }
   }
 
@@ -46,7 +50,7 @@
       metadata.update((m) => ({ ...m, path }));
       isDirty.set(false);
     } catch (e) {
-      alert("Failed to save file: " + e);
+      alert("Failed to save file: " + (e.message || e));
     }
   }
 
@@ -57,7 +61,7 @@
       metadata.set(data);
       isDirty.set(false);
     } catch (e) {
-      alert("Failed to create new metadata: " + e);
+      alert("Failed to create new metadata: " + (e.message || e));
     }
   }
 
@@ -103,13 +107,17 @@
     try {
       await invoke("write_excel", { metadata: $metadata, path: metadataPath });
     } catch (e) {
-      alert("Failed to save metadata: " + e);
+      alert("Failed to save metadata: " + (e.message || e));
       return;
     }
 
     // Clear stale post-run state before starting a new run
     pipelineOutputDir.set(null);
     pipelineHtmlPath.set(null);
+
+    // Clean up any lingering listeners from a previous run
+    if (activeUnlistenLog) { activeUnlistenLog(); activeUnlistenLog = null; }
+    if (activeUnlistenDone) { activeUnlistenDone(); activeUnlistenDone = null; }
 
     // Set up event listeners
     const unlistenLog = await listen("pipeline-log", (event) => {
@@ -129,7 +137,11 @@
       }
       unlistenLog();
       unlistenDone();
+      activeUnlistenLog = null;
+      activeUnlistenDone = null;
     });
+    activeUnlistenLog = unlistenLog;
+    activeUnlistenDone = unlistenDone;
 
     // Start pipeline
     clearLog();
