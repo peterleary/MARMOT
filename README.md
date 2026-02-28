@@ -89,13 +89,33 @@ A pre-built Docker image with R, all packages, Quarto, and the Python environmen
 
 ```bash
 docker pull ghcr.io/peterleary/marmot:dev
+```
 
-# Run the pipeline
-docker run --rm -v /path/to/data:/data ghcr.io/peterleary/marmot:dev \
+Mount the folder containing your FCS files and metadata Excel into the container with `-v`. Replace the path before the `:` with your actual data folder:
+
+```bash
+docker run --rm -it -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:dev
+```
+
+This opens an interactive R session inside the container. Your data folder is available at `/data`. From here you can verify the setup and run the pipeline:
+
+```r
+library(MARMOT)
+check_setup()
+
+# Run the pipeline (your files are mounted at /data)
+marmot(
+  metadata = "/data/MARMOT_Metadata.xlsx",
+  name = "MyRun",
+  render = TRUE
+)
+```
+
+Or run the pipeline directly without entering R:
+
+```bash
+docker run --rm -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:dev \
   Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
-
-# Interactive R session
-docker run --rm -it -v /path/to/data:/data ghcr.io/peterleary/marmot:dev
 ```
 
 ### Apptainer / Singularity (HPC)
@@ -105,13 +125,28 @@ Most university clusters don't allow Docker but do support [Apptainer](https://a
 ```bash
 # Pull once (creates a ~5 GB .sif file)
 apptainer pull docker://ghcr.io/peterleary/marmot:dev
+```
 
-# Run the pipeline
+Mount your data folder with `--bind` and run interactively:
+
+```bash
+apptainer shell --bind /path/to/data:/data marmot_dev.sif
+```
+
+This opens a shell inside the container. Start R and run the pipeline as above:
+
+```r
+R
+library(MARMOT)
+check_setup()
+marmot(metadata = "/data/MARMOT_Metadata.xlsx", name = "MyRun", render = TRUE)
+```
+
+Or run non-interactively:
+
+```bash
 apptainer run --bind /path/to/data:/data marmot_dev.sif \
   Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
-
-# Interactive R session
-apptainer shell --bind /path/to/data:/data marmot_dev.sif
 ```
 
 ---
