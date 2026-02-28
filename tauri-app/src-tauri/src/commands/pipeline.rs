@@ -9,7 +9,7 @@ pub fn run_pipeline(
     run_name: String,
     process: State<'_, SharedProcess>,
 ) -> Result<(), String> {
-    let proc = process.lock().unwrap();
+    let proc = process.lock().map_err(|e| format!("Lock error: {}", e))?;
     if proc.running {
         return Err("Pipeline is already running".to_string());
     }
@@ -68,7 +68,7 @@ pub fn launch_shiny_app(
 
     // Store PID. Dropping Child here does NOT kill the process (Rust stdlib guarantee).
     let pid = child.id();
-    *shiny_process.lock().unwrap() = Some(pid);
+    *shiny_process.lock().map_err(|e| format!("Lock error: {}", e))? = Some(pid);
 
     Ok(())
 }

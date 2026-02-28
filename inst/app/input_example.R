@@ -81,7 +81,7 @@ input <- list(
   fpShowDAClusters = "All",
   ncolFPGene = 2,
   ncolFPSplit = 2,
-  fpLegendPosition = "Bottom",
+  fpLegendPosition = "bottom",
   viridisColourFP = "magma",
   flipViridisFP = FALSE,
   fpHeatmapPlotAll = FALSE,
@@ -111,12 +111,12 @@ input <- list(
 
 input$clusterLabelTable_cell_edit <- data.frame(row = c(1, 2), col = c(1, 1), value = c("hi", "hi"))
 importedDf <- read_xlsx("~/Desktop/FGCZ/MARMOT/Data/Paper/Results_Files_2025-06-30_16.45.46/R_files/clusterInfos.xlsx")
-importedDf <- importedDf %>% data.frame(check.names = F) %>% column_to_rownames("original")
+importedDf <- importedDf |> data.frame(check.names = FALSE) |> tibble::column_to_rownames("original")
 clusterTableReactive <- reactiveValues(table = NULL)
 clusterTableReactive$table <- data.frame(
-  "cluster_id" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "relabelled_clusters" = levels(inputDataReactive$Results[["sce"]]@colData$cluster_id),
-  "colours" = inputDataReactive$Results$coloursList$cluster_id[match(levels(inputDataReactive$Results[["sce"]]@colData$cluster_id), names(inputDataReactive$Results$coloursList$cluster_id))]
+  "cluster_id" = levels(inputDataReactive$Results[["sce"]]|> SummarizedExperiment::colData() |> (\(cd) cd$cluster_id)()),
+  "relabelled_clusters" = levels(inputDataReactive$Results[["sce"]]|> SummarizedExperiment::colData() |> (\(cd) cd$cluster_id)()),
+  "colours" = inputDataReactive$Results$coloursList$cluster_id[match(levels(inputDataReactive$Results[["sce"]]|> SummarizedExperiment::colData() |> (\(cd) cd$cluster_id)()), names(inputDataReactive$Results$coloursList$cluster_id))]
 )
 rownames(clusterTableReactive$table) <- NULL
 clusterTableReactive$table <- column_to_rownames(clusterTableReactive$table, "cluster_id")

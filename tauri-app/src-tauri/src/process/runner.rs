@@ -62,9 +62,9 @@ pub type SharedShinyProcess = Arc<Mutex<Option<u32>>>;
 /// Kill the Shiny process (and its process group on Unix) if one is running.
 /// Clears the stored PID atomically so double-calls are safe.
 pub fn kill_shiny(process: &SharedShinyProcess) {
-    let pid = {
-        let mut guard = process.lock().unwrap();
-        guard.take()
+    let pid = match process.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(_) => return,
     };
     if let Some(pid) = pid {
         #[cfg(unix)]
@@ -275,8 +275,7 @@ pub fn spawn_pipeline(
         };
 
         let pid = child.id();
-        {
-            let mut proc = process.lock().unwrap();
+        if let Ok(mut proc) = process.lock() {
             proc.pid = Some(pid);
             proc.running = true;
         }
@@ -325,8 +324,7 @@ pub fn spawn_pipeline(
             }
         }
 
-        {
-            let mut proc = process.lock().unwrap();
+        if let Ok(mut proc) = process.lock() {
             proc.pid = None;
             proc.running = false;
         }
@@ -334,7 +332,7 @@ pub fn spawn_pipeline(
 }
 
 pub fn kill_pipeline(process: &SharedProcess) -> Result<(), String> {
-    let proc = process.lock().unwrap();
+    let proc = process.lock().map_err(|e| format!("Lock error: {}", e))?;
     if let Some(pid) = proc.pid {
         #[cfg(unix)]
         {

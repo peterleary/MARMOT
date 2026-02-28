@@ -12,6 +12,7 @@
   import SplashScreen from "./lib/components/SplashScreen.svelte";
   import { metadata } from "./lib/stores/metadata.js";
   import { rscriptPath, rVersion, marmotInstalled, packageStatus, quartoPath, quartoVersion } from "./lib/stores/pipeline.js";
+  import { MARMOT_VERSION } from "./lib/stores/constants.js";
 
   let activeTab = $state("setup");
   let activeSetupTab = $state("install");
@@ -117,7 +118,7 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="version-tag">v0.4.0</span>
+      <span class="version-tag">v{MARMOT_VERSION}</span>
     </div>
   </header>
 

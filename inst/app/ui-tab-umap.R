@@ -281,7 +281,8 @@ tabItem(
             ),
             selectInput(
               inputId = "fpLegendPosition", label = "Legend Position",
-              choices = c("Right", "Bottom", "None"), selected = "Right"
+              choices = c("Right" = "right", "Bottom" = "bottom", "None" = "none"),
+              selected = "right"
             )
           ),
           tabPanel(

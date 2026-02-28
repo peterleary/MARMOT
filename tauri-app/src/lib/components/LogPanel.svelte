@@ -47,7 +47,9 @@
         rscriptPath: $rscriptPath,
         rFilesPath: $pipelineOutputDir + "/R_files",
       });
-      setTimeout(() => { shinyLaunching = false; }, 8000);
+      // Shiny app launches in a background R process; reset button after
+      // a generous delay since we can't poll the Shiny port from here.
+      setTimeout(() => { shinyLaunching = false; }, 15000);
     } catch (e) {
       shinyLaunching = false;
       console.error("Failed to launch Shiny app:", e);

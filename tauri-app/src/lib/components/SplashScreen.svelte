@@ -1,5 +1,6 @@
 <script>
   import { open } from "@tauri-apps/plugin-shell";
+  import { MARMOT_VERSION } from "../stores/constants.js";
 
   let { status = "Starting up...", missing = [] } = $props();
   let blocked = $derived(missing.length > 0);
@@ -41,7 +42,7 @@
     {/if}
   </div>
 
-  <div class="splash-version">v0.4.0</div>
+  <div class="splash-version">v{MARMOT_VERSION}</div>
 </div>
 
 <style>

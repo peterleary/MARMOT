@@ -2282,7 +2282,7 @@ ggplot(x1rfmelt, aes(x = cluster_id, y = value, fill = variable)) +
 ```
 
 ```{r, label = "cells per cluster per sample table"}
-.cells_wide <- tidyr::spread(df, cluster_id, Freq) |> dplyr::select(-condition) |> tibble::column_to_rownames("sample_id") |> t() |> data.frame() |> tibble::rownames_to_column("cluster_id")
+.cells_wide <- tidyr::pivot_wider(df, names_from = cluster_id, values_from = Freq) |> dplyr::select(-condition) |> tibble::column_to_rownames("sample_id") |> t() |> data.frame() |> tibble::rownames_to_column("cluster_id")
 DT::datatable(.cells_wide, rownames = FALSE)
 openxlsx::write.xlsx(
   x = .cells_wide,
