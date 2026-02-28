@@ -237,10 +237,14 @@ pub fn spawn_pipeline(
     process: SharedProcess,
 ) {
     std::thread::spawn(move || {
+        let safe_metadata = metadata_path
+            .replace('\\', "/")
+            .replace('"', "\\\"");
+        let safe_name = run_name.replace('"', "\\\"");
         let r_expr = format!(
-            "MARMOT::marmot(metadata='{}', name='{}', render=TRUE)",
-            metadata_path.replace('\\', "/").replace('\'', "\\'"),
-            run_name.replace('\'', "\\'")
+            "MARMOT::marmot(metadata=\"{}\", name=\"{}\", render=TRUE)",
+            safe_metadata,
+            safe_name
         );
 
         let mut cmd = Command::new(&rscript_path);

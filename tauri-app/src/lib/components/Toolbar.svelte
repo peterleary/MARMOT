@@ -6,12 +6,18 @@
            pipelineOutputDir, pipelineHtmlPath, quartoPath } from "../stores/pipeline.js";
   import { validateSettings, validateFileData } from "../utils/validation.js";
   import { listen } from "@tauri-apps/api/event";
+  import { onDestroy } from "svelte";
 
   let { onActiveTab = () => {} } = $props();
 
   // Track active listeners so re-runs clean up properly
   let activeUnlistenLog = null;
   let activeUnlistenDone = null;
+
+  onDestroy(() => {
+    if (activeUnlistenLog) { activeUnlistenLog(); activeUnlistenLog = null; }
+    if (activeUnlistenDone) { activeUnlistenDone(); activeUnlistenDone = null; }
+  });
 
   async function handleOpen() {
     const selected = await open({

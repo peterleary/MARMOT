@@ -8,6 +8,8 @@ observeEvent({
   fpColumnToPlot <- if (input$fpColumnToPlot == "None" ||
                         is.null(input$fpColumnToPlot)) NULL else input$fpColumnToPlot
 
+  if (is.null(fpColumnToPlot)) return()
+
   output$plotByBucket <- renderUI({
     sortable::bucket_list(
       header = "Drag and drop groups in order to be plotted",

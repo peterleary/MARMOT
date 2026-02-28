@@ -48,7 +48,7 @@ output$dlFP <- downloadHandler(
     } else if (input$featurePlotType %in%
                c("Feature Plot", "Nebulosa Plot", "Ridge Plot", "Violin Plot") &&
                is.list(fp) && length(fp) >= 2) {
-      gridExtra::grid.arrange(grobs = fp, ncol = input$ncolFPGene)
+      print(patchwork::wrap_plots(fp, ncol = input$ncolFPGene))
     } else {
       print(fp)
     }

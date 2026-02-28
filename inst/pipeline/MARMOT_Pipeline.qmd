@@ -1555,7 +1555,7 @@ Started on `r paste(timeRun)`
 ```{r, label = "print QC", results = 'asis'}
 if (runQC %in% c("FlowAI", "PeacoQC") && exists("QCmini")) {
   cat("### [QC Cell Filtering]{style=\"color: #dc3545;\"} \n\n")
-  if(runQC %in% c("FlowAI", "PeacoQC") & !useQC) {
+  if(runQC %in% c("FlowAI", "PeacoQC") && !useQC) {
     cat("\n\n")
     cat("::: {.callout-warning}\n")
     cat("## QC Not Applied\n\n")
@@ -1636,7 +1636,7 @@ table(md$condition)
 ```
 
 ```{r, label = "warn qc counts"}
-if (useQC & !is.null(downsampleTo)) {
+if (useQC && !is.null(downsampleTo)) {
   cat("\n\n")
   print("You chose to downsample AND use the QC-filtered counts. Therefore, cells were QC'd and then downsampled. The numbers here reflect this two-step approach.")
   cat("\n\n")
@@ -1879,7 +1879,7 @@ if (gimmePDFs && exists("markerPairsList")) {
 
 ```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(useMarkers)/3.5)}
 heatmapsList <- list()
-if("type" %in% markerType & "state" %in% markerType) {
+if("type" %in% markerType && "state" %in% markerType) {
   cat("##### Type Markers Only \n\n")
   pET <- plotExprHeatmap(
     x = sce, 
@@ -1976,7 +1976,7 @@ exH
 ```
 
 ```{r, label = "top marker table", include = TRUE}
-if("type" %in% markerType & "state" %in% markerType) { 
+if("type" %in% markerType && "state" %in% markerType) {
   topMarkerTable <- dplyr::left_join(topLineageTable, topStateTable)
   openxlsx::write.xlsx(as.data.frame(topMarkerTable), file.path(excelDir, "topMarkerTable.xlsx"))
   DT::datatable(

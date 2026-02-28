@@ -40,9 +40,12 @@ pub fn launch_shiny_app(
     // Option C: kill any existing Shiny instance before starting a new one
     runner::kill_shiny(shiny_process.inner());
 
+    let safe_path = r_files_path
+        .replace('\\', "/")
+        .replace('"', "\\\"");
     let r_expr = format!(
-        "MARMOT::shinyMarmot(marmot_output='{}')",
-        r_files_path.replace('\\', "/").replace('\'', "\\'")
+        "MARMOT::shinyMarmot(marmot_output=\"{}\")",
+        safe_path
     );
 
     let enriched_path = runner::enrich_path();
