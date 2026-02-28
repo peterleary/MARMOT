@@ -590,7 +590,7 @@ observeEvent(
 
           # Cluster labels
           if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot)) {
-            median_pos <- compute_label_positions(df, fpColumnToPlot)
+            median_pos <- compute_label_positions(df, fpColumnToPlot, marker)
             fp2 <- fp2 + ggnewscale::new_scale_color() + ggnewscale::new_scale_fill()
             if (input$fpLabelColour == "label") {
               fp2 <- fp2 +
@@ -606,7 +606,6 @@ observeEvent(
                   values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
                 )
             } else {
-              median_pos <- compute_label_positions(df, fpColumnToPlot, marker)
               fp2 <- fp2 +
                 ggrepel::geom_label_repel(
                   data = median_pos,
@@ -659,19 +658,33 @@ observeEvent(
 
           # Cluster labels on joint plot
           if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot)) {
-            median_pos <- compute_label_positions(df_joint, fpColumnToPlot)
-            joint_plot <- joint_plot + ggnewscale::new_scale_color() + ggnewscale::new_scale_fill() +
-              ggrepel::geom_label_repel(
-                data = median_pos,
-                aes(label = .data[[fpColumnToPlot]],
-                    x = .data[["x"]], y = .data[["y"]],
-                    fill = .data[[fpColumnToPlot]]),
-                show.legend = FALSE, size = input$textSizeFP / 4,
-                max.overlaps = 100
-              ) +
-              scale_fill_manual(
-                values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
-              )
+            median_pos <- compute_label_positions(df_joint, fpColumnToPlot, "density")
+            joint_plot <- joint_plot + ggnewscale::new_scale_color() + ggnewscale::new_scale_fill()
+            if (input$fpLabelColour == "label") {
+              joint_plot <- joint_plot +
+                ggrepel::geom_label_repel(
+                  data = median_pos,
+                  aes(label = .data[[fpColumnToPlot]],
+                      x = .data[["x"]], y = .data[["y"]],
+                      fill = .data[[fpColumnToPlot]]),
+                  show.legend = FALSE, size = input$textSizeFP / 4,
+                  max.overlaps = 100
+                ) +
+                scale_fill_manual(
+                  values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
+                )
+            } else {
+              joint_plot <- joint_plot +
+                ggrepel::geom_label_repel(
+                  data = median_pos,
+                  aes(label = .data[[fpColumnToPlot]],
+                      x = .data[["x"]], y = .data[["y"]],
+                      fill = .data[[input$fpLabelColour]]),
+                  show.legend = FALSE, size = input$textSizeFP / 4,
+                  max.overlaps = 100
+                )
+              joint_plot <- apply_continuous_scale(joint_plot, input$viridisColourFP, viridisFlip, "fill")
+            }
           }
 
           fp <- c(fp, list(joint_plot))

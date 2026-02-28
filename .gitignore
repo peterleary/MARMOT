@@ -45,3 +45,8 @@ MARMOT_labbook.qmd
 
 # Docker test environment (dev playground, not shipped)
 docker-test/
+
+# Synthetic data
+synthetic_v4_test
+synthetic_v5_test
+synthetic_v5e_test
