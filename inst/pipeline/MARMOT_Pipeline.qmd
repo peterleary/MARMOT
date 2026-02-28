@@ -1421,11 +1421,16 @@ MARMOT::save_parquet_data(rFilesDir, envir = .GlobalEnv)
 
 ```{r nice_umap_function}
 
+# Adaptive point size: 50/sqrt(n) clamped to [0.1, 1.0]
+# ~1000 cells → 1.0, ~10k → 0.5, ~50k → 0.22, ~100k → 0.16, ~500k+ → 0.1
+n_dr_cells <- nrow(umapDFList[[ifelse(is.null(drCellPerCondition), "All", "Downsampled")]])
+dr_point_size <- max(0.1, min(1.0, 50 / sqrt(n_dr_cells)))
+
 plotUMAPNice <- function(
   df = umapDF,
   colour_by = "condition",
   show_density = FALSE,
-  size = 0.7,
+  size = dr_point_size,
   alpha = 1,
   text_size = 12,
   facet_by = NULL,
@@ -2506,7 +2511,7 @@ paste(featuresToUmap)
 if (!is.null(drCellPerCondition)) {
   cat("#### All Cells", dimRedMethodToUse, "\n\n")
   cat("Since you clustered on all available cells (after initial downsampling), here is a DR plot of all available cells. All subsequent DR plots are subset from this main DR plot.\n\n")
-  dr0 <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.9, show_cluster_labels = TRUE, show_grids = F, text_size = 14) + 
+  dr0 <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, alpha = 0.9, show_cluster_labels = TRUE, show_grids = FALSE, text_size = 14) +
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
   dr0
 }
@@ -2525,7 +2530,7 @@ if (!is.null(drCellPerCondition)) {
 ```{r, label = "DR all cells unlabelled", fig.height=6, fig.width=(3.5*ceiling(length(levels(umapDFList$All$cluster_id))/18))+0.5, results = 'asis'}
 if (!is.null(drCellPerCondition)) {
   cat("\n\n")
-  dr0a <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.9, show_cluster_labels = FALSE, show_grids = F, text_size = 14) + 
+  dr0a <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, alpha = 0.9, show_cluster_labels = FALSE, show_grids = FALSE, text_size = 14) +
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
   dr0a
   cat("\n\n")
@@ -2553,20 +2558,19 @@ if (is.null(drCellPerCondition)) {
 openxlsx::write.xlsx(x = as.data.frame(umapDFList[[umapsDFToPlot]]), file = file.path(excelDir, paste0(dimRedMethodToUse, "_Coordinates.xlsx")))
 dr1a <- plotUMAPNice(
   df = as.data.frame(umapDFList[[umapsDFToPlot]]),
-  colour_by = "cluster_id", 
-  show_density = FALSE, 
-  size = 0.2, 
-  alpha = 0.9, 
-  show_cluster_labels = TRUE, 
-  show_grids = F, 
+  colour_by = "cluster_id",
+  show_density = FALSE,
+  alpha = 0.9,
+  show_cluster_labels = TRUE,
+  show_grids = FALSE,
   text_size = 14
-  ) + 
+  ) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 dr1a
 ```
 
 ```{r, label = "main cluster DR 2", fig.height=6, fig.width=7}
-dr1b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, size = 0.2, alpha = 0.8, show_cluster_labels = FALSE, show_grids = F, text_size = 14) + 
+dr1b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.8, show_cluster_labels = FALSE, show_grids = FALSE, text_size = 14) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 dr1b
 ```
@@ -2586,7 +2590,7 @@ if (gimmePDFs) {
 
 ```{r, label = "plot k DRs", fig.height=ceiling(6*length(kValuesIWant)), fig.width=9}
 pDRList <- setNames(lapply(kValuesIWant, function(i) {
-  plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = F, size = 0.4)  + 
+  plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = FALSE) +
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 }), paste0(mergeBy, kValuesIWant))
 plot_grid(plotlist = pDRList, ncol = 1, align = "hv")
@@ -2607,7 +2611,7 @@ for (i in seq_along(condLevels)) {
   condLabels[i] <- paste(condLevels[i], "\n n =", as.numeric(nrow(umapDFList[[umapsDFToPlot]][which(umapDFList[[umapsDFToPlot]]$condition == condLevels[i]),])))
 }
 names(condLabels) <- condLevels
-dr2a <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, size = 0.3, alpha = 0.85, text_size = 14, show_cluster_labels = TRUE, show_grids = F) +
+dr2a <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = TRUE, show_grids = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 ```
@@ -2617,7 +2621,7 @@ dr2a
 ```
 
 ```{r, label = "plot DRs split by condition 2", fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
-dr2b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, size = 0.3, alpha = 0.85, text_size = 14, show_cluster_labels = F, show_grids = F) +
+dr2b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = FALSE, show_grids = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 dr2b
@@ -2635,8 +2639,8 @@ if (gimmePDFs) {
 ```
 
 ```{r, label = "full DR by condition", fig.height=(6+length(conditionOrder)*2.5), fig.width=7}
-u1_by_cond <- plotUMAPNice(umapDFList[[umapsDFToPlot]], "condition", size = 0.2)
-u2_by_cond <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = "condition", show_density = FALSE, size = 0.3) + 
+u1_by_cond <- plotUMAPNice(umapDFList[[umapsDFToPlot]], "condition")
+u2_by_cond <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = "condition", show_density = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels))
 plot_grid(u1_by_cond, u2_by_cond, ncol = 1, align = "hv", rel_heights = c(1.4, 1))
 ```
@@ -2654,10 +2658,9 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
   )
   l1 <- setNames(lapply(useMarkers, function(marker) {
     m1 <- plotUMAPNice(
-      df = as.data.frame(umapDFList[[umapsDFToPlot]]), 
-      colour_by = marker, 
-      name = "Normalised\nExpression\n", 
-      size = 0.3, 
+      df = as.data.frame(umapDFList[[umapsDFToPlot]]),
+      colour_by = marker,
+      name = "Normalised\nExpression\n",
       show_cluster_labels = var
       )
     m1 <- m1 + ggtitle(marker) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
@@ -2720,10 +2723,9 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
   )
   l1 <- setNames(lapply(useMarkers, function(marker) {
     m1 <- plotUMAPNice(
-      df = as.data.frame(umapDFList[[umapsDFToPlot]]), 
-      colour_by = marker, 
-      name = "Normalised\nExpression\n", 
-      size = 0.3, 
+      df = as.data.frame(umapDFList[[umapsDFToPlot]]),
+      colour_by = marker,
+      name = "Normalised\nExpression\n",
       show_cluster_labels = var
       ) + 
       facet_wrap(~condition, ncol = 2) +
@@ -2784,7 +2786,6 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
       df = umapDFList$Downsampled,
       colour_by = "Gated_Cells",
       show_density = FALSE,
-      size = 0.2,
       alpha = 1,
       facet_by = "condition",
       show_cluster_labels = TRUE,
@@ -2814,7 +2815,6 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
       df = umapDFList$Downsampled,
       colour_by = paste0("is_", y),
       show_density = FALSE,
-      size = 0.2,
       alpha = 1
     ) + ggtitle(paste0("Are ", mpt, "?")) +
       theme(legend.position = "none")
@@ -2822,7 +2822,7 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
     # Panel 2: FeaturePlot — UCell score
     ucell_col <- paste0(mpt, "_UCell")
     p2 <- ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
-      geom_point(size = 0.2, shape = 16) +
+      geom_point(size = dr_point_size, shape = 16) +
       scale_colour_gradientn(colours = hcl.colors(64, "mako")) +
       labs(
         x = paste(dimRedMethodToUse, "dim 1"),
@@ -2856,7 +2856,7 @@ if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
     }, error = function(e) {
       message("Nebulosa density plot failed: ", e$message)
       ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]])) +
-        geom_point(size = 0.1, colour = "grey85") +
+        geom_point(size = dr_point_size * 0.5, colour = "grey85") +
         stat_density_2d(aes(fill = after_stat(density)), geom = "raster", contour = FALSE) +
         scale_fill_viridis_c(option = "mako") +
         ggtitle(paste0(m1, " + ", m2, " Density")) +
@@ -3194,13 +3194,13 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
     cd_bg  <- kde_bg$z[cbind(ix_bg, iy_bg)]
     border_bg <- umapDF3[cd_bg < quantile(cd_bg, 1), ]
     gp <- gp +
-      geom_point(data = border_bg, size = 0.6, colour = "black", show.legend = FALSE) +
-      geom_point(data = umapDF3, size = 0.2, colour = "grey75", show.legend = FALSE)
+      geom_point(data = border_bg, size = dr_point_size * 3, colour = "black", show.legend = FALSE) +
+      geom_point(data = umapDF3, size = dr_point_size, colour = "grey75", show.legend = FALSE)
   } else {
-    gp <- gp + geom_point(data = umapDF3, size = 0.2, alpha = 0.2, shape = 16)
+    gp <- gp + geom_point(data = umapDF3, size = dr_point_size, alpha = 0.2, shape = 16)
   }
 
-  gp <- gp + geom_point(data = umapDF2, size = 0.3, alpha = 0.95)
+  gp <- gp + geom_point(data = umapDF2, size = dr_point_size * 1.5, alpha = 0.95)
   gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black")
   gp <- gp + scale_color_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
   gp <- gp + scale_fill_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
@@ -3258,13 +3258,13 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
     cd_bg2  <- kde_bg2$z[cbind(ix_bg2, iy_bg2)]
     border_bg2 <- umapDF3[cd_bg2 < quantile(cd_bg2, 1), ]
     gp <- gp +
-      geom_point(data = border_bg2, size = 1.5, colour = "black", show.legend = FALSE) +
-      geom_point(data = umapDF3, size = 0.5, colour = "grey75", show.legend = FALSE)
+      geom_point(data = border_bg2, size = dr_point_size * 5, colour = "black", show.legend = FALSE) +
+      geom_point(data = umapDF3, size = dr_point_size * 2, colour = "grey75", show.legend = FALSE)
   } else {
-    gp <- gp + geom_point(data = umapDF3, size = 0.5, alpha = 0.25, shape = 16)
+    gp <- gp + geom_point(data = umapDF3, size = dr_point_size * 2, alpha = 0.25, shape = 16)
   }
 
-  gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95)
+  gp <- gp + geom_point(data = umapDF2, size = dr_point_size * 2, alpha = 0.95)
   gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = FALSE)
   gp <- gp + scale_color_manual(
     values = c(cTM, na.value = "black"),
