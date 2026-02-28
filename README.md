@@ -81,6 +81,41 @@ After running the pipeline, explore your results interactively with `shinyMarmot
 shinyMarmot(marmot_output = "path/to/R_files")
 ```
 
+## Docker & HPC (Apptainer/Singularity)
+
+A pre-built Docker image with R, all packages, Quarto, and the Python environment is available on GitHub Container Registry. This is the easiest way to run MARMOT on a server or HPC cluster.
+
+### Docker
+
+```bash
+docker pull ghcr.io/peterleary/marmot:dev
+
+# Run the pipeline
+docker run --rm -v /path/to/data:/data ghcr.io/peterleary/marmot:dev \
+  Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
+
+# Interactive R session
+docker run --rm -it -v /path/to/data:/data ghcr.io/peterleary/marmot:dev
+```
+
+### Apptainer / Singularity (HPC)
+
+Most university clusters don't allow Docker but do support [Apptainer](https://apptainer.org/) (formerly Singularity). Apptainer can pull the Docker image directly:
+
+```bash
+# Pull once (creates a ~5 GB .sif file)
+apptainer pull docker://ghcr.io/peterleary/marmot:dev
+
+# Run the pipeline
+apptainer run --bind /path/to/data:/data marmot_dev.sif \
+  Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
+
+# Interactive R session
+apptainer shell --bind /path/to/data:/data marmot_dev.sif
+```
+
+---
+
 ## Full Installation
 
 Follow these extra instructions if you want to unleash the full potential of the marmots. These steps just install extra packages so that you can have more options available. **It's totally optional!**
