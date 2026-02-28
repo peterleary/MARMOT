@@ -22,8 +22,8 @@ addMetadataToFCSFolder <- function(FCS_folder = ".", name = NULL, overwrite = FA
   success <- file.copy(from = metadata_file, to = file.path(FCS_folder, name), overwrite = overwrite)
   
   if (!success) {
-    stop("❌ Failed to copy metadata file.")
+    stop("Failed to copy metadata file.")
   }
-  
-  message("✅ Metadata file has been saved to: ", file.path(FCS_folder, name))
+
+  message("Metadata file has been saved to: ", file.path(FCS_folder, name))
 }

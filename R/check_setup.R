@@ -84,7 +84,7 @@ check_setup <- function() {
       envs <- tryCatch(reticulate::conda_list(conda = conda), error = function(e) NULL)
       if (!is.null(envs) && "p4r" %in% envs$name) {
         cat("  \u2705 p4r environment found\n")
-        # Load in-process — avoids SIP stripping DYLD in subprocesses
+        # Load in-process - avoids SIP stripping DYLD in subprocesses
         parc_ok <- tryCatch({
           reticulate::use_condaenv("p4r", conda = conda, required = FALSE)
           reticulate::py_run_string("import parc",   convert = FALSE)

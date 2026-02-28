@@ -101,6 +101,7 @@ Suggests:
   scGate,
   SCpubr,
   Seurat,
+  Biobase,
   testthat (>= 3.0.0),
   UCell,
   withr

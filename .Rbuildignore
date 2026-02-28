@@ -15,3 +15,8 @@
 ^\.claude$
 ^docker-test$
 ^docker$
+^\.dockerignore$
+^MARMOT\s.*\.app$
+^synthetic_v4_test$
+^inst/testdata$
+^MARMOT_Pipeline_.*\.html$

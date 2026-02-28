@@ -28,7 +28,7 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
     if (exists(name, envir = envir, inherits = FALSE)) get(name, envir = envir) else NULL
   }
 
-  # ── Manifest ──
+  # -- Manifest --
   manifest <- list(
     schema_version = 1L,
     pipeline_version = as.character(utils::packageVersion("MARMOT")),
@@ -37,7 +37,7 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
   )
   jsonlite::write_json(manifest, file.path(pq_dir, "_manifest.json"), auto_unbox = TRUE, pretty = TRUE)
 
-  # ── Small metadata tables ──
+  # -- Small metadata tables --
   md <- safe_get("md")
   if (!is.null(md)) arrow::write_parquet(as.data.frame(md), file.path(pq_dir, "sample_metadata.parquet"))
 
@@ -47,7 +47,7 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
   panel <- safe_get("panel")
   if (!is.null(panel)) arrow::write_parquet(as.data.frame(panel), file.path(pq_dir, "panel.parquet"))
 
-  # ── Pipeline settings (scalar values → key-value table) ──
+  # -- Pipeline settings (scalar values -> key-value table) --
   settings_vars <- c("clusteringMethodToUse", "dimRedMethodToUse", "knn",
                      "downsampleTo", "daPValToUse", "kValuesIWant")
   settings_list <- lapply(settings_vars, function(v) {
@@ -60,7 +60,7 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
     arrow::write_parquet(settings_df, file.path(pq_dir, "pipeline_settings.parquet"))
   }
 
-  # ── SCE decomposition ──
+  # -- SCE decomposition --
   sce <- safe_get("sce")
   if (!is.null(sce) && inherits(sce, "SingleCellExperiment")) {
     # Cell IDs: use colnames, fall back to rownames of colData, then generate
@@ -99,14 +99,14 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
       arrow::write_parquet(cc, file.path(pq_dir, "cluster_codes.parquet"))
     }
 
-    # rowData (marker metadata — needed by diffcyt on reload)
+    # rowData (marker metadata - needed by diffcyt on reload)
     rd <- as.data.frame(SummarizedExperiment::rowData(sce))
     if (nrow(rd) > 0 && ncol(rd) > 0) {
       arrow::write_parquet(rd, file.path(pq_dir, "row_data.parquet"))
     }
   }
 
-  # ── DR data frames (umapDFList) ──
+  # -- DR data frames (umapDFList) --
   umapDFList <- safe_get("umapDFList")
   if (!is.null(umapDFList) && is.list(umapDFList)) {
     for (name in names(umapDFList)) {
@@ -118,7 +118,7 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
     }
   }
 
-  # ── Colours ──
+  # -- Colours --
   coloursList <- safe_get("coloursList")
   if (!is.null(coloursList) && is.list(coloursList)) {
     for (name in names(coloursList)) {
@@ -132,11 +132,11 @@ save_parquet_data <- function(qs_dir, envir = .GlobalEnv) {
     }
   }
 
-  # ── DA/DS results ──
+  # -- DA/DS results --
   save_da_ds_parquet(pq_dir, safe_get("daList"), safe_get("dsList"),
                      safe_get("selectedClustersList"), safe_get("daPValToUse"))
 
-  # ── QC data ──
+  # -- QC data --
   QCmini <- safe_get("QCmini")
   if (!is.null(QCmini) && is.data.frame(QCmini)) {
     arrow::write_parquet(QCmini, file.path(pq_dir, "qc", "qc_summary.parquet"))
@@ -246,7 +246,7 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
   manifest_path <- file.path(pq_dir, "_manifest.json")
   if (!file.exists(manifest_path)) stop("No _manifest.json found in: ", pq_dir)
 
-  # ── Metadata ──
+  # -- Metadata --
   .safe_read <- function(path) {
     if (file.exists(path)) arrow::read_parquet(path) else NULL
   }
@@ -260,7 +260,7 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
   panel <- .safe_read(file.path(pq_dir, "panel.parquet"))
   if (!is.null(panel)) assign("panel", panel, envir = envir)
 
-  # ── Pipeline settings ──
+  # -- Pipeline settings --
   settings <- .safe_read(file.path(pq_dir, "pipeline_settings.parquet"))
   if (!is.null(settings)) {
     for (i in seq_len(nrow(settings))) {
@@ -285,22 +285,22 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
     }
   }
 
-  # ── Reconstruct SCE ──
+  # -- Reconstruct SCE --
   sce <- reconstruct_sce_from_parquet(pq_dir)
   if (!is.null(sce)) assign("sce", sce, envir = envir)
 
-  # ── umapDFList ──
+  # -- umapDFList --
   dr_dir <- file.path(pq_dir, "dr_dataframes")
   if (dir.exists(dr_dir)) {
     dr_files <- list.files(dr_dir, pattern = "\\.parquet$", full.names = TRUE)
     umapDFList <- lapply(dr_files, arrow::read_parquet)
     names(umapDFList) <- tools::file_path_sans_ext(basename(dr_files))
-    # Restore dots in names (e.g., "Downsampled_UMAP" → "Downsampled.UMAP")
+    # Restore dots in names (e.g., "Downsampled_UMAP" -> "Downsampled.UMAP")
     names(umapDFList) <- gsub("_", ".", names(umapDFList))
     assign("umapDFList", umapDFList, envir = envir)
   }
 
-  # ── Colours ──
+  # -- Colours --
   col_dir <- file.path(pq_dir, "colours")
   if (dir.exists(col_dir)) {
     col_files <- list.files(col_dir, pattern = "\\.parquet$", full.names = TRUE)
@@ -319,7 +319,7 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
     assign("coloursList", coloursList, envir = envir)
   }
 
-  # ── DA results ──
+  # -- DA results --
   da_dir <- file.path(pq_dir, "da_results")
   if (dir.exists(da_dir)) {
     da_files <- list.files(da_dir, pattern = "\\.parquet$", full.names = TRUE)
@@ -338,7 +338,7 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
     }
   }
 
-  # ── DS results ──
+  # -- DS results --
   ds_dir <- file.path(pq_dir, "ds_results")
   if (dir.exists(ds_dir)) {
     ds_files <- list.files(ds_dir, pattern = "\\.parquet$", full.names = TRUE)
@@ -349,7 +349,7 @@ load_parquet_to_env <- function(pq_dir, envir = .GlobalEnv) {
     }
   }
 
-  # ── QC ──
+  # -- QC --
   qc_summary <- .safe_read(file.path(pq_dir, "qc", "qc_summary.parquet"))
   if (!is.null(qc_summary)) assign("QCmini", qc_summary, envir = envir)
 
@@ -531,7 +531,7 @@ reconstruct_sce_from_parquet <- function(pq_dir) {
     }
   }
 
-  # Restore rowData (marker metadata — needed by diffcyt on reload)
+  # Restore rowData (marker metadata - needed by diffcyt on reload)
   rd_path <- file.path(pq_dir, "row_data.parquet")
   if (file.exists(rd_path)) {
     rd <- as.data.frame(arrow::read_parquet(rd_path))

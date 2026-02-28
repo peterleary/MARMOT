@@ -31,7 +31,7 @@ setup_python <- function(conda = NULL, force = FALSE) {
   envs <- reticulate::conda_list(conda = conda)
 
   if ("p4r" %in% envs$name && !force) {
-    # Env exists — verify PARC and PaCMAP are actually importable in-process
+    # Env exists - verify PARC and PaCMAP are actually importable in-process
     p4r_py <- envs$python[envs$name == "p4r"]
     parc_ok <- tryCatch({
       reticulate::use_condaenv("p4r", conda = conda, required = FALSE)
@@ -47,7 +47,7 @@ setup_python <- function(conda = NULL, force = FALSE) {
       message("p4r environment found and PARC/PaCMAP are working.")
       return(invisible(p4r_py))
     }
-    message("p4r environment exists but packages not importable — recreating...")
+    message("p4r environment exists but packages not importable - recreating...")
 
     # Remove before recreating (conda_create can't overwrite)
     system2(conda, c("env", "remove", "-n", "p4r", "-y"),
