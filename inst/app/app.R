@@ -1,6 +1,7 @@
 cat("loading packages...\n\n")
 packagesToLoad <- c(
-  "shiny", "shinydashboard", "tidyverse", "RColorBrewer", "DT", "colourpicker",
+  "shiny", "shinydashboard", "ggplot2", "dplyr", "tidyr", "purrr", "tibble",
+  "RColorBrewer", "DT", "colourpicker",
   "writexl", "circlize", "kableExtra", "ggrepel", "sortable", "waiter",
   "ggprism", "rstatix", "gridExtra", "Matrix", "fresh", "viridis",
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",

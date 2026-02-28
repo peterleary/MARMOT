@@ -30,7 +30,8 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
 
   # -- CRAN packages --
   cran_pkgs <- c(
-    "tidyverse", "readxl", "reshape2", "matrixStats", "qs", "glue", "gtools",
+    "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
+    "readxl", "reshape2", "matrixStats", "qs", "glue", "gtools",
     "future", "future.apply", "reticulate", "rmarkdown",
     "ComplexHeatmap", "circlize", "plotly", "cowplot", "ggpubr", "ggprism",
     "ggrepel", "ggbeeswarm", "RColorBrewer", "gridExtra", "kableExtra", "DT",

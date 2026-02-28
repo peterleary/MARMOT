@@ -211,7 +211,8 @@ if (is.null(condaDir) || !nzchar(trimws(condaDir))) {
 suppressWarnings(suppressPackageStartupMessages(
   pacman::p_load(
     BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
-    flowCore, FlowSOM, tidyverse, CATALYST, readxl, cowplot, diffcyt, ggpubr,
+    flowCore, FlowSOM, ggplot2, dplyr, tidyr, purrr, tibble, readr,
+    CATALYST, readxl, cowplot, diffcyt, ggpubr,
     ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
     RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
     DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats,
@@ -465,21 +466,21 @@ framesList <- list(
 ```{r create_panel, results = "hide", eval = is.null(RDataFolder)}
 
 # Extract parameter metadata
-param_df <- pData(parameters(framesList$Untransformed[[1]])) %>%
-  as.data.frame() %>%
-  mutate(desc = ifelse(is.na(desc), name, desc))
+param_df <- pData(parameters(framesList$Untransformed[[1]])) |>
+  as.data.frame() |>
+  dplyr::mutate(desc = ifelse(is.na(desc), name, desc))
 
 # Build panel
-panel <- param_df %>%
-  select(fcs_colname = name, marker_name = desc) %>%
-  mutate(
+panel <- param_df |>
+  dplyr::select(fcs_colname = name, marker_name = desc) |>
+  dplyr::mutate(
     antigen       = marker_name,
     marker_class  = ifelse(marker_name %in% useMarkers, markerType, "none"),
     use_channel   = marker_name %in% useMarkers
-  ) %>%
-  dplyr::filter(!marker_name %in% removeMarkers) %>%
-  dplyr::filter(marker_name %in% useMarkers) %>%
-  arrange(match(marker_name, useMarkers))
+  ) |>
+  dplyr::filter(!marker_name %in% removeMarkers) |>
+  dplyr::filter(marker_name %in% useMarkers) |>
+  dplyr::arrange(match(marker_name, useMarkers))
 
 # Sanity check
 missing <- setdiff(useMarkers, panel$marker_name)
@@ -512,7 +513,7 @@ asinh_transforms <- transformList(
 # Apply to the flowSet
 framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), function(i) {
   flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
-}) %>% setNames(names(framesList$Untransformed))
+}) |> setNames(names(framesList$Untransformed))
 ```
 
 ```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
@@ -543,7 +544,7 @@ if (runQC == "FlowAI") {
 
   # Load the QC FCS files
   fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
-  fcsFilesQC <- fcsFilesQC[grep(paste((md$file_name %>% gsub("\\.fcs", "", .)), collapse = "|"), fcsFilesQC)]
+  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC)]
   fcsNames <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
 
   message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
@@ -556,8 +557,8 @@ if (runQC == "FlowAI") {
   invisible(lapply(framesList[["FlowAI"]], range, type = "data"))
 
   # Load and annotate QC summary table
-  QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
-    distinct(`Name file`, .keep_all = TRUE)
+  QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
+    dplyr::distinct(`Name file`, .keep_all = TRUE)
   QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$`Name file`), ]
 
   message("🧾 Processing QC summary metadata...")
@@ -628,19 +629,19 @@ if (runQC == "PeacoQC") {
     
     # Generate a QC summary table
     qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
-    QCmini <- read_tsv(qc_files[[1]], show_col_types = FALSE)
+    QCmini <- readr::read_tsv(qc_files[[1]], show_col_types = FALSE)
     if (length(qc_files) > 1) {
       for (i in 2:length(qc_files)) {
-        xx <- read_tsv(qc_files[[i]], show_col_types = FALSE)
+        xx <- readr::read_tsv(qc_files[[i]], show_col_types = FALSE)
         QCmini[i,] <- xx[1,]
       }
     }
-    write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
+    readr::write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
     message("✅ PeacoQC processing complete. QC files saved to: ", qc_dir)
   }
   
   # Load the QC FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = T)
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
   fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
   fcsNames <- sub("_QC.fcs$", "", basename(fcsFilesQC))
 
@@ -654,7 +655,7 @@ if (runQC == "PeacoQC") {
   invisible(lapply(framesList[["PeacoQC"]], range, type = "data"))
 
   # Load QC summary table
-  QCmini <- read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
+  QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
   QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$Filename), ]
   message("🧾 Processing QC summary metadata...")
 
@@ -712,20 +713,20 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
   # Flat vector of expression values
   expr_vec <- unlist(marker_expr)
   sample_vec <- rep(names(marker_expr), times = purrr::map_int(marker_expr, length))
-  cond_vec <- md$condition[match(sample_vec, (md$file_name %>% gsub("\\.fcs", "", .)))]
+  cond_vec <- md$condition[match(sample_vec, gsub("\\.fcs", "", md$file_name))]
 
   # Build only what's needed: wide format DF with just transformed values + condition
-  df <- tibble(
+  df <- tibble::tibble(
     condition = cond_vec,
     pretransform = expr_vec
   )
 
   # Transform in-place
-  transformed_cols <- purrr::map_dfc(cofactorsToTry, function(cof) {
-    tibble(!!paste0("Cofactor_", cof) := asinh(expr_vec / cof))
-  })
+  transformed_cols <- purrr::map(cofactorsToTry, function(cof) {
+    tibble::tibble(!!paste0("Cofactor_", cof) := asinh(expr_vec / cof))
+  }) |> purrr::list_cbind()
 
-  df <- bind_cols(df, transformed_cols)
+  df <- dplyr::bind_cols(df, transformed_cols)
 
   # Generate plots and strip ggplot data
   plot_names <- c("pretransform", paste0("Cofactor_", cofactorsToTry))
@@ -1107,13 +1108,13 @@ build_dr_df <- function(method) {
   
   # Add cluster annotations
   if (!is.null(metadata(sce)$cluster_codes)) {
-    df <- left_join(df, cluster_codes(sce), by = c("cluster_id" = clusteringMethodToUse))
+    df <- dplyr::left_join(df, cluster_codes(sce), by = c("cluster_id" = clusteringMethodToUse))
   }
   df[[clusteringMethodToUse]] <- df$cluster_id
-  
+
   # Add quantile-normalised expression
   qn <- t(assay(sce, "exprsQuantNorm"))
-  df <- bind_cols(df, as.data.frame(qn))
+  df <- dplyr::bind_cols(df, as.data.frame(qn))
   
   # Drop only rows with missing DR coordinates (not all NAs — scGate is_* columns
   # have NA for negative cells and must be preserved)
@@ -1130,14 +1131,14 @@ names(umapDFList) <- valid_methods
 if (!is.null(drCellPerCondition)) {
   for (method in valid_methods) {
     df <- umapDFList[[method]]
-    down_df <- df %>%
-      group_by(sample_id) %>%
-      group_modify(~ {
+    down_df <- df |>
+      dplyr::group_by(sample_id) |>
+      dplyr::group_modify(~ {
         cond <- unique(md$condition[md$sample_id == .y$sample_id])
         target_n <- as.numeric(drCellPerCondition[as.character(cond)])
         if (nrow(.x) > target_n) .x[sample(nrow(.x), target_n), ] else .x
-      }) %>%
-      ungroup()
+      }) |>
+      dplyr::ungroup()
     umapDFList[[paste0("Downsampled.", method)]] <- down_df
   }
 }
@@ -1146,11 +1147,11 @@ if (!is.null(drCellPerCondition)) {
 labsList <- lapply(valid_methods, function(method) {
   source_group <- if (!is.null(drCellPerCondition)) paste0("Downsampled.", method) else method
   df <- umapDFList[[source_group]]
-  labs <- df %>%
-    group_by(condition) %>%
-    summarise(n = n(), .groups = "drop") %>%
-    mutate(label = paste0(condition, "\n n = ", n)) %>%
-    deframe()
+  labs <- df |>
+    dplyr::group_by(condition) |>
+    dplyr::summarise(n = dplyr::n(), .groups = "drop") |>
+    dplyr::mutate(label = paste0(condition, "\n n = ", n)) |>
+    tibble::deframe()
   names(labs) <- levels(factor(df$condition))
   return(labs)
 })
@@ -1188,20 +1189,20 @@ daPValToUse <- "p_adj"
 ei <- metadata(sce)$experiment_info
 ei$condition <- gsub(" ", ".", ei$condition)
 
-ei$conditionToTest <- ei$condition %>%
-  gsub(" ", ".", .) %>%
-  gsub("-", "0", .) %>%
-  gsub("\\+", "1", .) %>%
-  gsub("/", "", .) %>%
+ei$conditionToTest <- ei$condition |>
+  gsub(pattern = " ", replacement = ".", x = _) |>
+  gsub(pattern = "-", replacement = "0", x = _) |>
+  gsub(pattern = "\\+", replacement = "1", x = _) |>
+  gsub(pattern = "/", replacement = "", x = _) |>
   as.factor()
 
-cTTforEdgeR <- contrastsToTest %>%
-  gsub(" ", ".", .) %>%
-  gsub("-", "0", .) %>%
-  gsub("\\+", "1", .) %>%
-  gsub("\\.over\\.", "-", .) %>%
-  gsub("\\.vs\\.", "-", .) %>%
-  gsub("/", "", .)
+cTTforEdgeR <- contrastsToTest |>
+  gsub(pattern = " ", replacement = ".", x = _) |>
+  gsub(pattern = "-", replacement = "0", x = _) |>
+  gsub(pattern = "\\+", replacement = "1", x = _) |>
+  gsub(pattern = "\\.over\\.", replacement = "-", x = _) |>
+  gsub(pattern = "\\.vs\\.", replacement = "-", x = _) |>
+  gsub(pattern = "/", replacement = "", x = _)
 
 cTTForPlots <- contrastsToTest
 
@@ -1493,16 +1494,16 @@ plotUMAPNice <- function(
   # Cluster label overlays
   if (show_cluster_labels) {
     label_coords <- data.frame(
-      df %>%
-        group_by(.data[[cluster_labels]]) %>%
-        summarise(x = median(x), y = median(y)))
+      df |>
+        dplyr::group_by(.data[[cluster_labels]]) |>
+        dplyr::summarise(x = median(x), y = median(y)))
     if (colour_by %in% useMarkers) {
       label_coords[[colour_by]] <- lapply(levels(df[[cluster_labels]]), function(level) {
         mean(df[[colour_by]][df[[cluster_labels]] == level])
-      }) %>% unlist()
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = F)
+      }) |> unlist()
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = FALSE)
     } else {
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = F)
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = FALSE)
     }
   }
 
@@ -1547,7 +1548,7 @@ Started on `r paste(timeRun)`
 :::: panel-tabset
 
 ```{r, label = "print QC", results = 'asis'}
-if (runQC %in% c("FlowAI", "PeacoQC")) {
+if (runQC %in% c("FlowAI", "PeacoQC") && exists("QCmini")) {
   cat("### [QC Cell Filtering]{style=\"color: #dc3545;\"} \n\n")
   if(runQC %in% c("FlowAI", "PeacoQC") & !useQC) {
     cat("\n\n")
@@ -1558,9 +1559,12 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
         "If you wish to also use only the cells that passed QC, please change the `useQC` variable to TRUE in the metadata file.")
     cat("\n:::\n\n")
   }
-  print(kable(QCmini, format = "html", escape = FALSE) %>% kable_styling())
+  print(kable(QCmini, format = "html", escape = FALSE) |> kable_styling())
   cat("\n\n")
   openxlsx::write.xlsx(as.data.frame(QCmini), file = file.path(excelDir, "QCtable.xlsx"))
+} else if (!is.null(RDataFolder)) {
+  cat("### [QC Cell Filtering]{style=\"color: #dc3545;\"} \n\n")
+  cat("QC data not available on reload.\n\n")
 }
 ```
 
@@ -1568,7 +1572,7 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
 
 ::::: panel-tabset
 
-```{r, label = "print cofactor plots", results = 'asis', fig.height=12, fig.width=12}
+```{r, label = "print cofactor plots", results = 'asis', fig.height=12, fig.width=12, eval = exists("cofactorPlotList")}
 for (marker in useMarkers) {
   cat("####", marker, "\n")
   cat(paste(marker, "Cofactor you chose:", cf2[[marker]]))
@@ -1576,6 +1580,9 @@ for (marker in useMarkers) {
   grid.arrange(grobs = cofactorPlotList[[marker]], ncol = 3, top = marker)
   cat("\n\n")
 }
+```
+
+```{r, label = "cofactor_dims", include = FALSE}
 nrowsCofactors <- ceiling(length(useMarkers)/4)
 ```
 
@@ -1653,17 +1660,17 @@ plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_man
 ```
 
 ```{r, label = "plot full counts", results = 'asis', fig.height=4, fig.width=ceiling(length(conditions)*3)}
-if (!is.null(downsampleTo)) {
+if (!is.null(downsampleTo) && exists("framesList") && "Untransformed" %in% names(framesList)) {
   cat("\n\nHowever, because you downsampled, here are those numbers for the full dataset. The black line is what you downsampled to.\n\n")
   cat("\n\n")
   originalCellNumbers <- lapply(names(framesList$Untransformed), function(x) {
     nrow(framesList$Untransformed[[x]])
-  }) %>% setNames(names(framesList$Untransformed))
-  originalCellNumbers <- originalCellNumbers %>% data.frame(check.names = F) %>% t %>% data.frame
+  }) |> setNames(names(framesList$Untransformed))
+  originalCellNumbers <- originalCellNumbers |> data.frame(check.names = FALSE) |> t() |> data.frame()
   colnames(originalCellNumbers)[[1]] <- "Cells"
-  originalCellNumbers <- rownames_to_column(.data = originalCellNumbers, "file_name")
+  originalCellNumbers <- tibble::rownames_to_column(.data = originalCellNumbers, "file_name")
   originalCellNumbers$file_name <- paste0(originalCellNumbers$file_name, ".fcs")
-  originalCellNumbers <- left_join(originalCellNumbers, md, by = "file_name")
+  originalCellNumbers <- dplyr::left_join(originalCellNumbers, md, by = "file_name")
   barplotAllCells <- ggplot(originalCellNumbers, aes(x = sample_id, y = Cells, fill = condition)) +
     geom_bar(stat = "identity") +
     scale_fill_manual(values = coloursList$condition) +
@@ -1680,7 +1687,7 @@ if (!is.null(downsampleTo)) {
 
 ```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
 mdsList <- setNames(lapply(conditions, function(x) {
-  mds1 <- CATALYST::pbMDS(x = sce, color_by = x, size_by = T, features = featureType)
+  mds1 <- CATALYST::pbMDS(x = sce, color_by = x, size_by = TRUE, features = featureType)
   mds1 <- mds1 + scale_colour_manual(values = coloursList[[x]]) + theme_prism(base_size = 16) + theme(panel.grid = element_blank())
   mds1
 }), conditions)
@@ -1785,7 +1792,7 @@ if (runMarkerPairPlots) {
   markerPairsList <- setNames(lapply(markerPairTypes, function(x) {
     toPlot <- markerPairs[grep(paste0("^", x), markerPairs)]
     plots <- setNames(lapply(toPlot, function(y) {
-      markersToPlot <- y %>% strsplit("\\: ") %>% .[[1]] %>% .[[2]] %>% strsplit(., " ") %>% .[[1]]
+      markersToPlot <- strsplit(strsplit(y, "\\: ")[[1]][[2]], " ")[[1]]
       clr_vals <- coloursList[[paste0(mergeBy, knn)]]
       if (!quantileNormaliseAll) {
         median_es <- do.call(rbind, lapply(unique(es[[mergeBy]]), function(cl) {
@@ -1889,14 +1896,14 @@ if("type" %in% markerType & "state" %in% markerType) {
   )
   topLineageTable$Top_Lineage_Markers <- NA
   for (i in seq_along(1:nrow(topLineageTable))) {
-    topLineageTable$Top_Lineage_Markers[i] <- paste(names(head(sort(pETdf[i,] %>% .[. > 0.4], decreasing = T), n = 2)), collapse = " ")
+    row_vals <- pETdf[i,]; topLineageTable$Top_Lineage_Markers[i] <- paste(names(head(sort(row_vals[row_vals > 0.4], decreasing = TRUE), n = 2)), collapse = " ")
   }
   topLineageTable <- topLineageTable[mixedorder(topLineageTable$Cluster), ]
   print(
     htmltools::tagList(
       DT::datatable(
         data = topLineageTable, 
-        rownames = F, 
+        rownames = FALSE, 
         colnames = c("Cluster", "Top 2 Type Markers"), 
         filter = "top", 
         width = 800, 
@@ -1925,15 +1932,15 @@ if("type" %in% markerType & "state" %in% markerType) {
   )
   topStateTable$Top_State_Markers <- NA
   for (i in seq_along(1:nrow(topStateTable))) {
-    topStateTable$Top_State_Markers[i] <- paste(names(head(sort(pESdf[i,], decreasing = T), n = 3)), collapse = " ")
-    topStateTable$Bottom_State_Markers[i] <- paste(names(tail(sort(pESdf[i,], decreasing = T), n = 3)), collapse = " ")
+    topStateTable$Top_State_Markers[i] <- paste(names(head(sort(pESdf[i,], decreasing = TRUE), n = 3)), collapse = " ")
+    topStateTable$Bottom_State_Markers[i] <- paste(names(tail(sort(pESdf[i,], decreasing = TRUE), n = 3)), collapse = " ")
   }
   topStateTable <- topStateTable[mixedorder(topStateTable$Cluster), ]
   print(
     htmltools::tagList(
       DT::datatable(
         data = topStateTable, 
-        rownames = F, 
+        rownames = FALSE, 
         colnames = c("Cluster", "Top 3 State Markers", "Bottom 3 State Markers"), 
         filter = "top", 
         width = 800
@@ -1965,11 +1972,11 @@ exH
 
 ```{r, label = "top marker table", include = TRUE}
 if("type" %in% markerType & "state" %in% markerType) { 
-  topMarkerTable <- left_join(topLineageTable, topStateTable)
+  topMarkerTable <- dplyr::left_join(topLineageTable, topStateTable)
   openxlsx::write.xlsx(as.data.frame(topMarkerTable), file.path(excelDir, "topMarkerTable.xlsx"))
   DT::datatable(
     data = topMarkerTable, 
-    rownames = F, 
+    rownames = FALSE, 
     filter = "top", 
     width = 800, 
     colnames = c("Cluster ID", "Top 2 Lineage Markers", "Top 3 State Markers", "Bottom 3 State Markers"),
@@ -1983,9 +1990,9 @@ if("type" %in% markerType & "state" %in% markerType) {
   )
   topMarkerTable$Top_Markers <- NA
   for (i in seq_along(1:nrow(topMarkerTable))) {
-    topMarkerTable$Top_Markers[i] <- paste(names(head(sort(exTDF[i,], decreasing = T), n = 3)), collapse = " ")
+    topMarkerTable$Top_Markers[i] <- paste(names(head(sort(exTDF[i,], decreasing = TRUE), n = 3)), collapse = " ")
   }
-  DT::datatable(topMarkerTable, rownames = F, filter = "top", width = 800)
+  DT::datatable(topMarkerTable, rownames = FALSE, filter = "top", width = 800)
 }
 ```
 
@@ -2133,7 +2140,7 @@ for (i in seq_along(selectedClustersList)) {
     ns2 <- ns[which(names(ns) %in% cl)]
     fq <- round(ns/sum(ns) * 100, 2)
     txt <- sprintf("%s%%(%s)", fq, names(fq))
-    txt <- txt[which((txt %>% gsub(".*\\(|\\).*", "" , .)) %in% names(ns2))]
+    txt <- txt[which(gsub(".*\\(|\\).*", "", txt) %in% names(ns2))]
     foo <- row_anno_text(txt, just = "center", gp = gpar(fontsize = 8), location = unit(0.5, "npc"))
     right_anno <- rowAnnotation(n_cells = row_anno_barplot(x = as.matrix(ns2), width = unit(2, "cm"), gp = gpar(fill = "grey", col = "white"), border = FALSE, axis = TRUE, bar_width = 0.8), foo = foo)
     
@@ -2156,8 +2163,8 @@ for (i in seq_along(selectedClustersList)) {
     )
     print(h1)
     heatmapClustersList[[i]] <- h1
-    cx <- names(selectedClustersList)[[i]] %>% gsub(": .*", "", .) %>% gsub("Contrast ", "Contrast_", .) %>% gsub("\\/", ".", .)
-    sx <- names(selectedClustersList)[[i]] %>% gsub(".*\\: ", "", .) %>% gsub(" ", "_", .) %>% gsub("\\/", ".", .)
+    cx <- names(selectedClustersList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
+    sx <- names(selectedClustersList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
     if (gimmePDFs) {
       pdf(file = paste0(pdfDir, "/", cx, "_", sx, "_heatmaps.pdf"), width = 10, height = ceiling(length(cl)*0.5)+1)
       print(h1)
@@ -2181,7 +2188,7 @@ Seurat::DoHeatmap(
   object = scData,
   assay = "originalexp",
   slot = "scale.data",
-  features = (useMarkers %>% gsub("_", "-", .)),
+  features = gsub("_", "-", useMarkers),
   group.by = "cluster_id",
   group.colors = coloursList[[paste0(mergeBy, knn)]],
   size = 4,
@@ -2270,9 +2277,10 @@ ggplot(x1rfmelt, aes(x = cluster_id, y = value, fill = variable)) +
 ```
 
 ```{r, label = "cells per cluster per sample table"}
-DT::datatable(spread(df, cluster_id, Freq) %>% select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id"), rownames = F)
+.cells_wide <- tidyr::spread(df, cluster_id, Freq) |> dplyr::select(-condition) |> tibble::column_to_rownames("sample_id") |> t() |> data.frame() |> tibble::rownames_to_column("cluster_id")
+DT::datatable(.cells_wide, rownames = FALSE)
 openxlsx::write.xlsx(
-  x = (spread(df, cluster_id, Freq) %>% select(-condition) %>% column_to_rownames("sample_id") %>% t %>% data.frame %>% rownames_to_column("cluster_id")), 
+  x = .cells_wide,
   file = file.path(excelDir, "Cells_Per_Cluster_Per_Sample.xlsx")
 )
 ```
@@ -2327,8 +2335,8 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
     g <- g + theme(panel.border = element_blank(), panel.spacing.x = unit(1, "lines"))
     g <- g + ylab("Proportion [%]") + xlab("Sample ID")
     print(g)
-    cx <- names(dfList)[[i]] %>% gsub(": .*", "", .) %>% gsub("Contrast ", "Contrast_", .) %>% gsub("\\/", "", .)
-    sx <- names(dfList)[[i]] %>% gsub(".*\\: ", "", .) %>% gsub(" ", "_", .) %>% gsub("\\/", "", .)
+    cx <- names(dfList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
+    sx <- names(dfList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
     return(list("g" = g, "cx" = cx, "sx" = sx))
   } else {
     print("There are no DA clusters in this group.")
@@ -2368,13 +2376,13 @@ fq <- prop.table(ns, 2)
 fq.z <- as.matrix(unclass(fq))
 clusterBoxPlotsDF <- CATALYST:::.z_normalize(asin(sqrt(fq.z)))
 clusterBoxPlotsDF <- as.data.frame(t(clusterBoxPlotsDF))
-clusterBoxPlotsDF <- rownames_to_column(clusterBoxPlotsDF, "sample_id") %>% left_join(md)
+clusterBoxPlotsDF <- tibble::rownames_to_column(clusterBoxPlotsDF, "sample_id") |> dplyr::left_join(md)
 clusterBoxPlotsDFMelt <- melt(clusterBoxPlotsDF)
 
-ctsList <- lapply(names(daList), function(da) { da %>% strsplit(" over ") %>% unlist}) %>% setNames(names(daList))
+ctsList <- lapply(names(daList), function(da) { strsplit(da, " over ")[[1]] }) |> setNames(names(daList))
 
 clusterPvalues <- lapply(levels(kids), function(k) {
-  pvals <- lapply(names(daList), function(da) { daList[[da]]$p_adj[daList[[da]]$cluster_id == k] }) %>% setNames(names(daList)) %>% unlist
+  pvals <- lapply(names(daList), function(da) { daList[[da]]$p_adj[daList[[da]]$cluster_id == k] }) |> setNames(names(daList)) |> unlist()
   if(any(is.na(pvals))) {pvals[is.na(pvals)] <- 1}
   y_max <- max(clusterBoxPlotsDFMelt$value)
   spacing <- (y_max - min(clusterBoxPlotsDFMelt$value)) * 0.2
@@ -2388,18 +2396,18 @@ clusterPvalues <- lapply(levels(kids), function(k) {
   pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
   
   pval_df
-}) %>% setNames(levels(kids))
-maxY <- lapply(seq_along(clusterPvalues), function(i) {clusterPvalues[[i]]$y.position}) %>% unlist %>% max
+}) |> setNames(levels(kids))
+maxY <- lapply(seq_along(clusterPvalues), function(i) {clusterPvalues[[i]]$y.position}) |> unlist() |> max()
 
 clusterBoxplotList <- lapply(levels(kids), function(k) {
   ctp <- as.character(k)
   ggplot(clusterBoxPlotsDF, aes(x = .data[["condition"]], y = .data[[ctp]])) + 
     ## geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
     scale_y_continuous(limits = c(min(clusterBoxPlotsDFMelt$value), maxY)) +
-    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
     scale_fill_manual(values = coloursList$condition) +
-    stat_pvalue_manual(clusterPvalues[[ctp]], label = "p.signif", tip.length = 0, hide.ns = T, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
+    stat_pvalue_manual(clusterPvalues[[ctp]], label = "p.signif", tip.length = 0, hide.ns = TRUE, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
     theme_prism(axis_text_angle = 45) +
     ggtitle(paste("Cluster", ctp)) +
     theme(legend.position = "hide", axis.title = element_blank())
@@ -2425,17 +2433,17 @@ markerBoxplotsMeltDF <- melt(medianScaledDF, varnames = c("antigen", "sample_id"
 i <- match(markerBoxplotsMeltDF$sample_id, sce$sample_id)
 j <- setdiff(names(colData(sce)), c(names(markerBoxplotsMeltDF), "cluster_id"))
 markerBoxplotsMeltDF <- cbind(markerBoxplotsMeltDF, colData(sce)[i, j, drop = FALSE])
-medianScaledDF <- medianScaledDF %>%
-  t %>% 
-  data.frame(check.names = F) %>%
-  rownames_to_column("sample_id") %>%
-  left_join(md, by = "sample_id")
+medianScaledDF <- medianScaledDF |>
+  t() |>
+  data.frame(check.names = FALSE) |>
+  tibble::rownames_to_column("sample_id") |>
+  dplyr::left_join(md, by = "sample_id")
 openxlsx::write.xlsx(as.data.frame(medianScaledDF), file = file.path(excelDir, "Median_Markers_Per_Sample_Expression.xlsx"))
 ```
 
 ```{r, label = "draw marker boxplots", fig.height = heightToPlot*0.7, fig.width = widthToPlot}
 markerPvalues <- lapply(useMarkers, function(marker) {
-  pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) %>% setNames(names(dsList)[grep("Merged", names(dsList))]) %>% unlist
+  pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) |> setNames(names(dsList)[grep("Merged", names(dsList))]) |> unlist()
   if(length(pvals) == 0) {pvals <- 1}
   y_max <- max(markerBoxplotsMeltDF$value)
   spacing <- (y_max - min(markerBoxplotsMeltDF$value)) * 0.1
@@ -2448,17 +2456,17 @@ markerPvalues <- lapply(useMarkers, function(marker) {
   )
   pval_df <- add_significance(pval_df, p.col = "p", output.col = "p.signif")
   pval_df
-}) %>% setNames(useMarkers)
-maxY <- lapply(seq_along(markerPvalues), function(i) {markerPvalues[[i]]$y.position}) %>% unlist %>% max
+}) |> setNames(useMarkers)
+maxY <- lapply(seq_along(markerPvalues), function(i) {markerPvalues[[i]]$y.position}) |> unlist() |> max()
 
 markerBoxplotList <- lapply(useMarkers, function(marker) {
   ggplot(medianScaledDF, aes(x = .data[["condition"]], y = .data[[marker]])) + 
     ## geom_vline(xintercept = (seq_along(condLevels)+0.5)[-length(condLevels)], linetype = "dashed", alpha = 0.6) +
     scale_y_continuous(limits = c(min(markerBoxplotsMeltDF$value), maxY)) +
-    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
     scale_fill_manual(values = coloursList$condition) +
-    stat_pvalue_manual(markerPvalues[[marker]], label = "p.signif", tip.length = 0, hide.ns = T, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
+    stat_pvalue_manual(markerPvalues[[marker]], label = "p.signif", tip.length = 0, hide.ns = TRUE, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
     theme_prism(axis_text_angle = 45) +
     ggtitle(marker) +
     theme(legend.position = "hide", axis.title = element_blank())
@@ -2898,14 +2906,14 @@ daResultsList <- setNames(lapply(names(daList), function(cont) {
   }
   print(pDH)
   cat("\n\n")
-  cx <- cont %>% gsub(" ", "_", .) %>% gsub("-", "_", .) %>% gsub("\\+", ".", .) %>% gsub("\\/", ".", .)
+  cx <- cont |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "-", replacement = "_", x = _) |> gsub(pattern = "\\+", replacement = ".", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
   ## daDF <- as.data.frame(daList[[cont]][which(daList[[cont]][[daPValToUse]] <= 0.05), c("cluster_id", "logFC", "p_val", "p_adj")])
   daDF <- as.data.frame(daList[[cont]][, c("cluster_id", "logFC", "p_val", "p_adj")])
   daDF <- daDF[order(daDF[[daPValToUse]]),]
   print(htmltools::tagList(
-    datatable(daDF, rownames = F, width = "600px") %>% 
-      formatSignif(c("p_val", "p_adj", "logFC"), digits = 3) %>% 
-      formatStyle(columns = c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")), fontWeight = "bold") %>%
+    datatable(daDF, rownames = FALSE, width = "600px") |>
+      formatSignif(c("p_val", "p_adj", "logFC"), digits = 3) |>
+      formatStyle(columns = c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")), fontWeight = "bold") |>
       formatStyle(columns = "logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold")
   ))
   cat("\n\n")
@@ -2948,8 +2956,8 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
 
   openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Full_Results.xlsx")))
 
-  dsUp <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = T) %>% .[. >= 1] %>% data.frame
-  dsDown <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = T) %>% .[. >= 1] %>% data.frame
+  dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- data.frame(dsUp_tbl[dsUp_tbl >= 1])
+  dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- data.frame(dsDown_tbl[dsDown_tbl >= 1])
 
   if (nrow(dsUp) == 1) {
     dsUp <- data.frame("Marker" = rownames(dsUp), "Number of clusters" = dsUp[1,])
@@ -2963,7 +2971,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     print(
       kable(
         x = dsUp,
-        col.names = c("Marker", "Number of clusters")) %>%
+        col.names = c("Marker", "Number of clusters")) |>
         kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
     )
     cat("\n\n")
@@ -2976,7 +2984,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     print(
       kable(
         x = dsDown,
-        col.names = c("Marker", "Number of clusters")) %>%
+        col.names = c("Marker", "Number of clusters")) |>
         kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
     )
     cat("\n\n")
@@ -3006,9 +3014,9 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
       data = dsTab1,
       rownames = FALSE,
       width = "700px"
-      ) %>%
-        DT::formatSignif(c("logFC", "p_val", "p_adj"), digits = 3) %>%
-        DT::formatStyle("logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold") %>%
+      ) |>
+        DT::formatSignif(c("logFC", "p_val", "p_adj"), digits = 3) |>
+        DT::formatStyle("logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold") |>
         DT::formatStyle(c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")),fontWeight = "bold")
     )
   )
@@ -3035,8 +3043,8 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
   cat("####", cont, "\n\n")
 
   openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Merged_Results.xlsx")))
-  dsUp <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = T) %>% .[. >= 1]
-  dsDown <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = T) %>% .[. >= 1]
+  dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- dsUp_tbl[dsUp_tbl >= 1]
+  dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- dsDown_tbl[dsDown_tbl >= 1]
 
   cat("**Markers up in", strsplit(cont, split = " over ")[[1]][1], "**\n\n")
   if (length(dsUp) >= 1) {
@@ -3074,9 +3082,9 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
       data = dsTab1,
       rownames = FALSE,
       width = "700px"
-      ) %>%
-        DT::formatSignif(c("logFC", "p_val", "p_adj"), digits = 3) %>%
-        DT::formatStyle("logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold") %>%
+      ) |>
+        DT::formatSignif(c("logFC", "p_val", "p_adj"), digits = 3) |>
+        DT::formatStyle("logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold") |>
         DT::formatStyle(c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")),fontWeight = "bold")
     )
   )
@@ -3109,7 +3117,7 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[
     scale_y_continuous(limits = c(0, 1), breaks = c(0.25, 0.5, 0.75, 1)) +
     geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
     geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
-    geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
+    geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
     scale_fill_manual(values = coloursList$condition) +
     theme_prism(axis_text_angle = 45) +
@@ -3138,7 +3146,7 @@ for (i in seq_along(selectedClustersList)) {
     for (j in (selectedClustersList[[i]])) {
       df1 <- df[df$cluster_id == as.character(j),]
       g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
-        geom_boxplot(alpha = 0.2, show.legend = F, outlier.shape = NA) +
+        geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
         geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
         geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
         geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
@@ -3172,9 +3180,9 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   umapDF3 <- umapDF[!umapDF[["cluster_id"]] %in% clustersToMap, ]
 
   ## Get the mean x/y coordinate for each cluster so we can add labels manually 
-  cluster_centre <- umapDF2 %>%
-  group_by(cluster_id) %>%
-  summarize(center_x = mean(x), center_y = mean(y))
+  cluster_centre <- umapDF2 |>
+  dplyr::group_by(cluster_id) |>
+  dplyr::summarize(center_x = mean(x), center_y = mean(y))
 
   gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
 
@@ -3209,8 +3217,8 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
   gp <- gp + guides(colour = guide_legend(override.aes = list(size = 3)))
   gp <- gp + theme(legend.position = "hide")
   print(gp)
-  cx <- names(clustersToMapList)[[i]] %>% gsub(": .*", "", .) %>% gsub("Contrast ", "Contrast_", .) %>% gsub("\\/", "", .)
-  sx <- names(clustersToMapList)[[i]] %>% gsub(".*\\: ", "", .) %>% gsub(" ", "_", .) %>% gsub("\\/", "", .)
+  cx <- names(clustersToMapList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
+  sx <- names(clustersToMapList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
   return(list("gp" = gp, "cx" = cx, "sx" = sx))
 }), names(clustersToMapList))
 ```
@@ -3236,10 +3244,10 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   umapDF3 <- umapDF[!umapDF[["cluster_id"]] %in% clustersToMap, ]
 
   ## Get the mean x/y coordinate for each cluster so we can add labels manually 
-  cluster_centre <- umapDF2 %>%
-  group_by(cluster_id) %>%
-  summarize(center_x = mean(x), center_y = mean(y))
-  
+  cluster_centre <- umapDF2 |>
+  dplyr::group_by(cluster_id) |>
+  dplyr::summarize(center_x = mean(x), center_y = mean(y))
+
   gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
 
   # Density-based borders on background cells
@@ -3257,7 +3265,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
   }
 
   gp <- gp + geom_point(data = umapDF2, size = 0.5, alpha = 0.95)
-  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = F)
+  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = FALSE)
   gp <- gp + scale_color_manual(
     values = c(cTM, na.value = "black"),
     breaks = levels(as.factor(umapDF2[["cluster_id"]])))

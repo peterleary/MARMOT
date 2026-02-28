@@ -20,7 +20,8 @@ check_setup <- function() {
   core_pkgs <- c(
     "MARMOT", "CATALYST", "flowCore", "FlowSOM", "diffcyt",
     "SingleCellExperiment", "SummarizedExperiment",
-    "tidyverse", "Rphenograph", "reticulate", "future",
+    "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
+    "Rphenograph", "reticulate", "future",
     "ComplexHeatmap", "plotly", "qs", "shiny", "shinydashboard"
   )
 
