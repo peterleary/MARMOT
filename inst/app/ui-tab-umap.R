@@ -52,7 +52,7 @@ tabItem(
               )
             ),
             hr(style = "border-top: 1px solid #000000;"), h4("Border Style"),
-            selectInput("umapBorderType", NULL,
+            selectInput("umapBorderType", "Border type",
               choices  = c("Density borders", "Per-cell", "None"),
               selected = "Density borders", width = "100%"),
             conditionalPanel("input.umapBorderType == 'Per-cell'",

@@ -27,7 +27,7 @@
       <span
         class="info-icon"
         role="button"
-        tabindex="-1"
+        tabindex="0"
         onmouseenter={() => showTooltip = true}
         onmouseleave={() => showTooltip = false}
         onfocus={() => showTooltip = true}

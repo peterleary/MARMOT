@@ -336,10 +336,20 @@ pub fn kill_pipeline(process: &SharedProcess) -> Result<(), String> {
     if let Some(pid) = proc.pid {
         #[cfg(unix)]
         {
-            // Kill process group
+            // Kill process group; follow up with SIGKILL after 2s if still alive
             unsafe {
                 libc::kill(-(pid as libc::pid_t), libc::SIGTERM);
             }
+            let pgid = -(pid as libc::pid_t);
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                unsafe {
+                    // SIGKILL if process group is still alive (kill returns 0)
+                    if libc::kill(pgid, 0) == 0 {
+                        libc::kill(pgid, libc::SIGKILL);
+                    }
+                }
+            });
         }
         #[cfg(windows)]
         {
