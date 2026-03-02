@@ -93,9 +93,7 @@ Suggests:
   pak,
   qs2,
   remotes,
-  Rphenograph,
   basilisk.utils,
-  FastPG,
   flowAI,
   knitr,
   ks,
@@ -110,5 +108,4 @@ Suggests:
   withr
 Config/testthat/edition: 3
 Remotes:
-  sararselitsky/FastPG,
   hypebright/fireworks
