@@ -70,9 +70,9 @@ ENV ARROW_GCS=OFF
 
 # Change CACHEBUST value to force re-pull of MARMOT from GitHub
 ARG CACHEBUST=1
-RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}', dependencies = TRUE)"
+RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}')"
 
-RUN Rscript -e "MARMOT::install_dependencies(include_suggests = TRUE)"
+RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE)"
 
 # ── Python environment (PARC / PaCMAP) ──────────────────────────────
 RUN Rscript -e 'MARMOT::setup_python(conda = "/opt/miniforge/bin/conda")'

@@ -5,6 +5,6 @@ if (!requireNamespace("pak", quietly = TRUE)) {
   install.packages("pak", repos = "https://cran.rstudio.com")
 }
 
-pak::pkg_install("peterleary/MARMOT", ask = FALSE, dependencies = TRUE)
+pak::pkg_install("peterleary/MARMOT", ask = FALSE)
 
-MARMOT::install_dependencies()
+MARMOT::install_marmot_extras()

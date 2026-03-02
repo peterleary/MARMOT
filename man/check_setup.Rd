@@ -8,9 +8,10 @@ check_setup()
 }
 \value{
 Invisibly returns a data.frame with columns \code{package},
-  \code{status}, and \code{version}.
+  \code{type}, \code{status}, and \code{version}.
 }
 \description{
 Prints a formatted status report showing which packages and the Python
-environment are installed and available.
+environment are installed and available. Core packages (CRAN/Bioconductor)
+show a red X if missing; GitHub and optional packages show a yellow warning.
 }

@@ -91,9 +91,9 @@ pub fn run_install(
         "options(repos=c(CRAN='https://cloud.r-project.org')); \
 if (!requireNamespace('MARMOT',quietly=TRUE)) {{ \
   if (!requireNamespace('pak',quietly=TRUE)) install.packages('pak'); \
-  pak::pkg_install('peterleary/MARMOT',ask=FALSE,dependencies=TRUE) \
+  pak::pkg_install('peterleary/MARMOT',ask=FALSE) \
 }}; \
-MARMOT::install_dependencies(include_suggests={suggests},include_python={python})",
+MARMOT::install_marmot_extras(include_suggests={suggests},include_python={python})",
         suggests = if include_suggests { "TRUE" } else { "FALSE" },
         python = if include_python { "TRUE" } else { "FALSE" },
     );

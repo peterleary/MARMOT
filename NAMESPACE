@@ -2,7 +2,7 @@
 
 export(addMetadataToFCSFolder)
 export(check_setup)
-export(install_dependencies)
+export(install_marmot_extras)
 export(launch_gui)
 export(load_parquet_for_shiny)
 export(load_parquet_to_env)

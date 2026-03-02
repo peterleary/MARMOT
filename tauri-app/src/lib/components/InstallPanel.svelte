@@ -5,7 +5,7 @@
 
   let logContainer = $state(null);
   let includeSuggests = $state(true);
-  let includePython = $state(false);
+  let includePython = $state(true);
   let elapsed = $state("0:00");
   let timer = $state(null);
   let runningCmd = $state(null); // "check" | "install" | null
@@ -124,14 +124,14 @@
         <input type="checkbox" bind:checked={includeSuggests} disabled={isRunning} />
         <span>
           <strong>Include optional packages</strong>
-          <small>FastPG, PeacoQC, flowAI, scGate, UCell, SCpubr</small>
+          <small>Seurat</small>
         </span>
       </label>
       <label class="option-row">
         <input type="checkbox" bind:checked={includePython} disabled={isRunning} />
         <span>
           <strong>Set up Python environment</strong>
-          <small>PARC &amp; PaCMAP clustering/DR — requires conda/miniforge</small>
+          <small>PARC &amp; PaCMAP — requires conda/miniforge (skipped gracefully if missing)</small>
         </span>
       </label>
     </div>

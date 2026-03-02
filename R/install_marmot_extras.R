@@ -1,22 +1,24 @@
-#' Install all MARMOT dependencies
+#' Install optional MARMOT extras
 #'
-#' Checks for and installs all packages required by the MARMOT pipeline,
-#' including CRAN, Bioconductor, and GitHub packages. CRAN and Bioconductor
-#' packages are installed as a batch (reliable). GitHub packages are installed
-#' individually with error handling — a single failure won't block the rest.
+#' Installs additional packages and sets up the Python environment on top of
+#' the base MARMOT install. CRAN and Bioconductor packages are installed as a
+#' batch (reliable). GitHub packages (Rphenograph, FastPG, fireworks) are
+#' installed individually with error handling — a single failure won't block
+#' the rest. The Python environment for PARC/PaCMAP is set up automatically
+#' if conda/mamba is available.
 #'
 #' @param include_suggests If \code{TRUE} (the default), also install optional
 #'   CRAN packages such as Seurat.
-#' @param include_python If \code{TRUE}, also set up the Python environment
-#'   for PARC/PaCMAP via \code{\link{setup_python}}.
-#'   Default \code{FALSE}.
+#' @param include_python If \code{TRUE} (the default), also set up the Python
+#'   environment for PARC/PaCMAP via \code{\link{setup_python}}.
+#'   Requires conda/mamba. Fails gracefully if not available.
 #'
 #' @return Invisibly returns a character vector of package names that failed
 #'   or were skipped.
 #'
 #' @importFrom utils install.packages
 #' @export
-install_dependencies <- function(include_suggests = TRUE, include_python = FALSE) {
+install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE) {
 
   skipped <- character(0)
 
