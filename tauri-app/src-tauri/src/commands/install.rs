@@ -3,13 +3,18 @@ use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
 use crate::process::runner::enrich_path;
 
-/// Internal helper: spawn Rscript with `r_expr`, stream lines to "install-log",
-/// emit "install-done" on completion.
-fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
+/// Internal helper: spawn a command, stream lines to `event_log`, emit `event_done` on completion.
+fn spawn_streamed(
+    app: AppHandle,
+    program: String,
+    args: Vec<String>,
+    event_log: &'static str,
+    event_done: &'static str,
+) {
     std::thread::spawn(move || {
         let enriched_path = enrich_path();
-        let mut child = match std::process::Command::new(&rscript_path)
-            .args(["-e", &r_expr])
+        let mut child = match std::process::Command::new(&program)
+            .args(&args)
             .env("PATH", &enriched_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -17,8 +22,8 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
         {
             Ok(c) => c,
             Err(e) => {
-                let _ = app.emit("install-log", format!("ERROR: {}", e));
-                let _ = app.emit("install-done", serde_json::json!({"success": false}));
+                let _ = app.emit(event_log, format!("ERROR: {}", e));
+                let _ = app.emit(event_done, serde_json::json!({"success": false}));
                 return;
             }
         };
@@ -27,7 +32,7 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
             let app2 = app.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stdout).lines().flatten() {
-                    let _ = app2.emit("install-log", line);
+                    let _ = app2.emit(event_log, line);
                 }
             });
         }
@@ -35,7 +40,7 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
             let app2 = app.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stderr).lines().flatten() {
-                    let _ = app2.emit("install-log", line);
+                    let _ = app2.emit(event_log, line);
                 }
             });
         }
@@ -44,21 +49,33 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
             Ok(status) => {
                 let ok = status.success();
                 let _ = app.emit(
-                    "install-log",
+                    event_log,
                     if ok {
                         "Done.".to_string()
                     } else {
                         format!("Exited with code {}", status.code().unwrap_or(-1))
                     },
                 );
-                let _ = app.emit("install-done", serde_json::json!({"success": ok}));
+                let _ = app.emit(event_done, serde_json::json!({"success": ok}));
             }
             Err(e) => {
-                let _ = app.emit("install-log", format!("Error: {}", e));
-                let _ = app.emit("install-done", serde_json::json!({"success": false}));
+                let _ = app.emit(event_log, format!("Error: {}", e));
+                let _ = app.emit(event_done, serde_json::json!({"success": false}));
             }
         }
     });
+}
+
+/// Internal helper: spawn Rscript with `r_expr`, stream lines to "install-log",
+/// emit "install-done" on completion.
+fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
+    spawn_streamed(
+        app,
+        rscript_path,
+        vec!["-e".to_string(), r_expr],
+        "install-log",
+        "install-done",
+    );
 }
 
 /// Install MARMOT dependencies.
@@ -150,5 +167,121 @@ cat('MARMOT_PKG_STATUS:{', paste(pairs, collapse = ','), '}', sep = '')
             fallback
         }
         Err(_) => fallback,
+    }
+}
+
+/// Install Quarto automatically using the platform's package manager.
+/// Streams progress to "quarto-install-log", emits "quarto-install-done".
+/// Returns Err("no_method") if no suitable package manager is found.
+#[tauri::command]
+pub fn install_quarto(app: AppHandle) -> Result<(), String> {
+    let enriched_path = enrich_path();
+
+    #[cfg(target_os = "macos")]
+    {
+        // Check if brew is available
+        let brew = std::process::Command::new("which")
+            .arg("brew")
+            .env("PATH", &enriched_path)
+            .output();
+        match brew {
+            Ok(out) if out.status.success() => {
+                let brew_path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let _ = app.emit("quarto-install-log", "Found Homebrew, installing Quarto...");
+                spawn_streamed(
+                    app,
+                    brew_path,
+                    vec!["install".to_string(), "--cask".to_string(), "quarto".to_string()],
+                    "quarto-install-log",
+                    "quarto-install-done",
+                );
+                Ok(())
+            }
+            _ => Err("no_method".to_string()),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Check if curl is available
+        let curl = std::process::Command::new("which")
+            .arg("curl")
+            .env("PATH", &enriched_path)
+            .output();
+        match curl {
+            Ok(out) if out.status.success() => {
+                let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                let script = format!(
+                    r#"set -e
+echo "Detecting latest Quarto release..."
+REDIR=$(curl -sI https://github.com/quarto-dev/quarto-cli/releases/latest 2>/dev/null | grep -i '^location:' | tr -d '\r')
+VER=$(echo "$REDIR" | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+')
+if [ -z "$VER" ]; then
+  echo "ERROR: Could not detect latest Quarto version"
+  exit 1
+fi
+echo "Downloading Quarto v$VER..."
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+  SUFFIX="linux-arm64"
+else
+  SUFFIX="linux-amd64"
+fi
+URL="https://github.com/quarto-dev/quarto-cli/releases/download/v$VER/quarto-$VER-$SUFFIX.tar.gz"
+mkdir -p "{home}/.local/opt" "{home}/.local/bin"
+curl -L "$URL" | tar xz -C "{home}/.local/opt/"
+ln -sf "{home}/.local/opt/quarto-$VER/bin/quarto" "{home}/.local/bin/quarto"
+echo "Quarto v$VER installed to {home}/.local/bin/quarto"
+"#,
+                    home = home
+                );
+                let _ = app.emit("quarto-install-log", "Installing Quarto from GitHub releases...");
+                spawn_streamed(
+                    app,
+                    "sh".to_string(),
+                    vec!["-c".to_string(), script],
+                    "quarto-install-log",
+                    "quarto-install-done",
+                );
+                Ok(())
+            }
+            _ => Err("no_method".to_string()),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Check if winget is available
+        let winget = std::process::Command::new("where")
+            .arg("winget")
+            .env("PATH", &enriched_path)
+            .output();
+        match winget {
+            Ok(out) if out.status.success() => {
+                let _ = app.emit("quarto-install-log", "Installing Quarto via winget...");
+                spawn_streamed(
+                    app,
+                    "winget".to_string(),
+                    vec![
+                        "install".to_string(),
+                        "--id".to_string(),
+                        "Posit.Quarto".to_string(),
+                        "--source".to_string(),
+                        "winget".to_string(),
+                        "--accept-package-agreements".to_string(),
+                        "--accept-source-agreements".to_string(),
+                    ],
+                    "quarto-install-log",
+                    "quarto-install-done",
+                );
+                Ok(())
+            }
+            _ => Err("no_method".to_string()),
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        Err("no_method".to_string())
     }
 }

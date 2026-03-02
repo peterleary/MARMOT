@@ -34,6 +34,7 @@ pub fn run() {
             commands::install::run_install,
             commands::install::run_check_setup,
             commands::install::query_installed_packages,
+            commands::install::install_quarto,
             commands::pipeline::run_pipeline,
             commands::pipeline::cancel_pipeline,
             commands::pipeline::launch_shiny_app,

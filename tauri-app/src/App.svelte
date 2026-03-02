@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import Toolbar from "./lib/components/Toolbar.svelte";
   import PipelineSettings from "./lib/components/PipelineSettings.svelte";
@@ -20,10 +21,86 @@
   let splashFading = $state(false);
   let splashStatus = $state("Starting up...");
   let splashMissing = $state([]);
+  let quartoInstalling = $state(false);
+  let quartoInstallStatus = $state("");
 
   function hideSplash() {
     splashFading = true;
     setTimeout(() => { splashVisible = false; }, 400);
+  }
+
+  /** Complete startup after R and Quarto are confirmed available. */
+  async function finishStartup(rPath) {
+    rscriptPath.set(rPath);
+    splashStatus = "Checking R environment...";
+    try {
+      const [version, installed] = await invoke("get_r_info", { rscriptPath: rPath });
+      rVersion.set(version);
+      marmotInstalled.set(installed);
+    } catch (e) {
+      console.warn("R info check failed:", e);
+    }
+    hideSplash();
+    invoke("query_installed_packages", { rscriptPath: rPath })
+      .then((status) => packageStatus.set(status))
+      .catch(() => {});
+  }
+
+  /** Called from SplashScreen when user clicks Install for Quarto. */
+  async function onInstallQuarto() {
+    quartoInstalling = true;
+    quartoInstallStatus = "Starting install...";
+
+    const unlistenLog = await listen("quarto-install-log", (e) => {
+      quartoInstallStatus = e.payload;
+    });
+    const unlistenDone = await listen("quarto-install-done", async (e) => {
+      unlistenLog();
+      unlistenDone();
+      if (e.payload.success) {
+        quartoInstallStatus = "Verifying installation...";
+        const qPath = await invoke("find_quarto_cached").catch(() => null);
+        if (qPath) {
+          quartoPath.set(qPath);
+          invoke("get_quarto_info", { quartoPath: qPath })
+            .then((ver) => quartoVersion.set(ver))
+            .catch(() => {});
+          quartoInstalling = false;
+          quartoInstallStatus = "";
+          splashMissing = splashMissing.filter((d) => d.name !== "Quarto");
+          // If no more missing deps, continue startup
+          if (splashMissing.length === 0) {
+            // rPath was found earlier (Quarto was the only missing dep)
+            const rPath = await invoke("find_rscript_cached").catch(() => null);
+            if (rPath) await finishStartup(rPath);
+          }
+        } else {
+          quartoInstalling = false;
+          quartoInstallStatus = "Installed but not found on PATH. Please restart the app.";
+        }
+      } else {
+        quartoInstalling = false;
+        quartoInstallStatus = "Installation failed. Try installing manually.";
+      }
+    });
+
+    try {
+      await invoke("install_quarto");
+    } catch (e) {
+      unlistenLog();
+      unlistenDone();
+      quartoInstalling = false;
+      // "no_method" means no package manager found — show the manual link
+      if (e === "no_method") {
+        // Mark as not installable so SplashScreen shows the link instead
+        splashMissing = splashMissing.map((d) =>
+          d.name === "Quarto" ? { ...d, installable: false } : d
+        );
+        quartoInstallStatus = "No package manager found.";
+      } else {
+        quartoInstallStatus = "Error: " + e;
+      }
+    }
   }
 
   const tabs = [
@@ -73,38 +150,32 @@
       deps.push({ name: "R", url: "https://cloud.r-project.org/", description: "Statistical computing environment" });
     }
     if (!qPath) {
-      deps.push({ name: "Quarto", url: "https://quarto.org/docs/get-started/", description: "Document rendering engine" });
+      // Quarto is installable only when R is present (R missing = sort that first)
+      deps.push({
+        name: "Quarto",
+        url: "https://quarto.org/docs/get-started/",
+        description: "Document rendering engine",
+        installable: !!rPath,
+      });
     }
     if (deps.length > 0) {
       splashMissing = deps;
       return; // stay on splash screen
     }
 
-    rscriptPath.set(rPath);
-
-    splashStatus = "Checking R environment...";
-
-    // One R subprocess for version + MARMOT check (saves ~500ms vs two sequential calls)
-    try {
-      const [version, installed] = await invoke("get_r_info", { rscriptPath: rPath });
-      rVersion.set(version);
-      marmotInstalled.set(installed);
-    } catch (e) {
-      console.warn("R info check failed:", e);
-    }
-
-    hideSplash();
-
-    // Optional packages: background, non-blocking
-    invoke("query_installed_packages", { rscriptPath: rPath })
-      .then((status) => packageStatus.set(status))
-      .catch(() => {});
+    await finishStartup(rPath);
   });
 </script>
 
 {#if splashVisible}
   <div class="splash-wrapper" class:fading={splashFading}>
-    <SplashScreen status={splashStatus} missing={splashMissing} />
+    <SplashScreen
+      status={splashStatus}
+      missing={splashMissing}
+      {onInstallQuarto}
+      installingQuarto={quartoInstalling}
+      installStatus={quartoInstallStatus}
+    />
   </div>
 {/if}
 

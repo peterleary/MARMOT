@@ -2,7 +2,13 @@
   import { open } from "@tauri-apps/plugin-shell";
   import { MARMOT_VERSION } from "../stores/constants.js";
 
-  let { status = "Starting up...", missing = [] } = $props();
+  let {
+    status = "Starting up...",
+    missing = [],
+    onInstallQuarto = null,
+    installingQuarto = false,
+    installStatus = "",
+  } = $props();
   let blocked = $derived(missing.length > 0);
 </script>
 
@@ -23,10 +29,30 @@
             <div class="missing-item">
               <span class="missing-x">&#10007;</span>
               <div class="missing-info">
-                <button class="missing-link" onclick={() => open(dep.url)}>
-                  {dep.name}
-                </button>
-                <span class="missing-desc">{dep.description}</span>
+                {#if dep.name === "Quarto" && dep.installable && onInstallQuarto}
+                  <span class="missing-name">{dep.name}</span>
+                  <span class="missing-desc">{dep.description}</span>
+                  {#if installingQuarto}
+                    <div class="install-progress">
+                      <span class="mini-spinner"></span>
+                      <span class="install-status-text">{installStatus}</span>
+                    </div>
+                  {:else if installStatus && !installingQuarto}
+                    <span class="install-error-text">{installStatus}</span>
+                    <button class="missing-link" onclick={() => open(dep.url)}>
+                      Install manually
+                    </button>
+                  {:else}
+                    <button class="install-btn" onclick={onInstallQuarto}>
+                      Install
+                    </button>
+                  {/if}
+                {:else}
+                  <button class="missing-link" onclick={() => open(dep.url)}>
+                    {dep.name}
+                  </button>
+                  <span class="missing-desc">{dep.description}</span>
+                {/if}
               </div>
             </div>
           {/each}
@@ -156,9 +182,66 @@
     color: #93bbfd;
   }
 
+  .missing-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+
   .missing-desc {
     font-size: 0.7rem;
     color: #64748b;
+  }
+
+  .install-btn {
+    margin-top: 0.3rem;
+    padding: 0.3rem 0.85rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+    align-self: flex-start;
+  }
+  .install-btn:hover {
+    background: #1d4ed8;
+  }
+
+  .install-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+  }
+
+  .mini-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(96, 165, 250, 0.3);
+    border-top-color: #60a5fa;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .install-status-text {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+
+  .install-error-text {
+    font-size: 0.7rem;
+    color: #f87171;
+    margin-top: 0.2rem;
   }
 
   /* ── loading state ── */
