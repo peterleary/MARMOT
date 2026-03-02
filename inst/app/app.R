@@ -66,7 +66,7 @@ ui <- dashboardPage(
       a(
         href = "http://www.ethz.ch/en.html",
         target = "_blank",
-        img(src = "eth_logo.png", title = "FGCZ", height = "22px"),
+        img(src = "eth_logo.png", title = "ETH Zurich", height = "22px"),
         style = "padding-top:13px; padding-bottom:10px;"
       ),
       class = "dropdown"
@@ -75,7 +75,7 @@ ui <- dashboardPage(
       a(
         href = "http://www.uzh.ch/en.html",
         target = "_blank",
-        img(src = "University_of_Zurich_Logo.png", title = "FGCZ", height = "30px"),
+        img(src = "University_of_Zurich_Logo.png", title = "University of Zurich", height = "30px"),
         style = "padding-top:10px; padding-bottom:5px;"
       ),
       class = "dropdown"

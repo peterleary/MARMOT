@@ -18,9 +18,10 @@ check_setup <- function() {
   }
 
   core_pkgs <- c(
-    "MARMOT", "CATALYST", "flowCore", "FlowSOM", "diffcyt",
+    "MARMOT", "CATALYST", "flowCore", "FlowSOM", "diffcyt", "limma",
     "SingleCellExperiment", "SummarizedExperiment",
     "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
+    "htmltools", "knitr", "MASS", "rlang",
     "Rphenograph", "reticulate", "future",
     "ComplexHeatmap", "plotly", "qs", "shiny", "shinydashboard"
   )

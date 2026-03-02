@@ -7,7 +7,7 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
+#' shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
 #' }
 shinyMarmot <- function(marmot_output = NA, demo = NA) {
   

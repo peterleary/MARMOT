@@ -19,7 +19,8 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
 
   # -- Core Bioconductor packages --
   bioc_pkgs <- c(
-    "BiocGenerics", "S4Vectors", "SummarizedExperiment", "SingleCellExperiment",
+    "BiocGenerics", "limma", "S4Vectors", "SummarizedExperiment",
+    "SingleCellExperiment",
     "flowCore", "FlowSOM", "CATALYST", "diffcyt", "Nebulosa", "slingshot"
   )
   missing_bioc <- bioc_pkgs[!sapply(bioc_pkgs, requireNamespace, quietly = TRUE)]
@@ -37,6 +38,7 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
     "ggrepel", "ggbeeswarm", "RColorBrewer", "gridExtra", "kableExtra", "DT",
     "clustree", "rstatix", "colorspace", "viridis", "scales", "scattermore",
     "scico", "ggnewscale", "pals",
+    "htmltools", "knitr", "MASS", "rlang",
     "openxlsx", "writexl",
     "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
     "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter", "fresh", "ragg",

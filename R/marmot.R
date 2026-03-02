@@ -29,7 +29,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Read Metadata Excel file
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = TRUE))) {
-    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run the getMetadata function again.")
+    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run addMetadataToFCSFolder() again.")
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
   
@@ -41,7 +41,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   )
   lapply(cantBeBlank, function(p) {
     if (is.na(params_df$Setting[params_df$Variable == p])) {
-      stop(p , " is blank! Please enter a value in the Excel Metadata file.")
+      stop(p, " is blank! Please enter a value in the Excel Metadata file.")
     }
   })
   

@@ -41,7 +41,7 @@ observeEvent(input$acceptCite, {
       downloadButton("downloadClusterCodes", "Download cluster codes"),
       hr(style = "border-top: 1px solid #000000;"), h4("Main Citations"),
       tags$p("Please also include citations for the main parts of this pipeline:"),
-      helpText("CATALYST; flowCore; FlowSOM; Phenograph; diffcyt; ComplexHeatmap; edgeR; FlowAI, PARC; PacMAP")
+      helpText("CATALYST; flowCore; FlowSOM; Rphenograph; diffcyt; ComplexHeatmap; edgeR; FlowAI; PARC; PaCMAP")
     )
   })
   showNotification(

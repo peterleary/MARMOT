@@ -18,5 +18,7 @@
 ^\.dockerignore$
 ^MARMOT\s.*\.app$
 ^synthetic_v4_test$
+^synthetic_v5_test$
+^synthetic_v5e_test$
 ^inst/testdata$
 ^MARMOT_Pipeline_.*\.html$

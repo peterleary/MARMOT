@@ -162,8 +162,6 @@ cat(":::\n\n")
 
 ```{r check_variables, include = FALSE}
 
-library(rlang)
-
 required_vars <- c(
   "fp", "md_fp", "downsampleTo",
   "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
@@ -176,11 +174,12 @@ required_vars <- c(
 missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
 
 if (length(missing_vars)) {
-  abort(paste0(
-    "❌ Missing required variables: ",
+  stop(
+    "Missing required variables: ",
     paste(missing_vars, collapse = ", "),
-    ".\nPlease define them in the 'input settings' chunk."
-  ))
+    ".\nPlease define them in the 'input settings' chunk.",
+    call. = FALSE
+  )
 }
 ```
 
@@ -841,7 +840,7 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
       ids <- factor(as.character(clusters$communities + 1))
     } else if (clusteringMethodToUse == "Rphenograph") {
       clusters <- Rphenograph::Rphenograph(data = es, k = k)
-      ids <- factor(as.character(membership(clusters[[2]])))
+      ids <- factor(as.character(igraph::membership(clusters[[2]])))
     }
     ids <- factor(ids, levels = gtools::mixedsort(levels(ids)))
     list(kids = ids, clusters = clusters)
@@ -1629,7 +1628,7 @@ if (gimmePDFs) {
 ::: {.callout-note collapse="true"}
 ## Sample and Cell Counts
 
-The number of samples per conditions is:
+The number of samples per condition is:
 
 ```{r, label = "print cell counts1"}
 table(md$condition)
@@ -1643,7 +1642,7 @@ if (useQC && !is.null(downsampleTo)) {
 }
 ```
 
-The number of cells per conditions is:
+The number of cells per condition is:
 
 ```{r, label = "print cell counts2"}
 table(sce$condition)
