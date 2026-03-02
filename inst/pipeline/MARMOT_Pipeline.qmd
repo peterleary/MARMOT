@@ -212,7 +212,7 @@ suppressWarnings(suppressPackageStartupMessages(
     BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
     flowCore, FlowSOM, ggplot2, dplyr, tidyr, purrr, tibble, readr,
     CATALYST, readxl, cowplot, diffcyt, ggpubr,
-    ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
+    ggprism, gridExtra, rstatix, Rphenograph, plotly, grDevices,
     RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
     DT, flowAI, parallel, qs2, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats,
     PeacoQC, MARMOT
