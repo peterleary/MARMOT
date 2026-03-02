@@ -94,7 +94,7 @@ Imports:
   zip
 Suggests:
   pak,
-  qs,
+  qs2,
   remotes,
   basilisk.utils,
   FastPG,

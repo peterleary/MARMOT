@@ -23,7 +23,7 @@ check_setup <- function() {
     "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
     "htmltools", "knitr", "MASS", "rlang",
     "Rphenograph", "reticulate", "future",
-    "ComplexHeatmap", "plotly", "qs", "shiny", "shinydashboard"
+    "ComplexHeatmap", "plotly", "qs2", "shiny", "shinydashboard"
   )
 
   optional_pkgs <- c(

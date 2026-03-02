@@ -72,10 +72,10 @@ tryCatch({
     files$topMarkerTable <- topMarkerTable
   }
 
-  # ── FCS frame objects (stored as qs — not decomposable to Parquet) ──
-  framesListPath <- file.path(dataDir, "framesList.qs")
+  # ── FCS frame objects (stored as qs2 — not decomposable to Parquet) ──
+  framesListPath <- file.path(dataDir, "framesList.qs2")
   if (file.exists(framesListPath)) {
-    files$framesList <- qs::qread(framesListPath, nthreads = 4)
+    files$framesList <- qs2::qs_read(framesListPath, nthreads = 4)
   }
 
   # ── Load into reactive values ──

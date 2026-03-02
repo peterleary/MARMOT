@@ -32,7 +32,7 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
   # -- CRAN packages --
   cran_pkgs <- c(
     "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
-    "readxl", "reshape2", "matrixStats", "qs", "glue", "gtools",
+    "readxl", "reshape2", "matrixStats", "glue", "gtools",
     "future", "future.apply", "reticulate", "rmarkdown",
     "ComplexHeatmap", "circlize", "plotly", "cowplot", "ggpubr", "ggprism",
     "ggrepel", "ggbeeswarm", "RColorBrewer", "gridExtra", "kableExtra", "DT",
@@ -43,7 +43,7 @@ install_dependencies <- function(include_suggests = TRUE, include_python = FALSE
     "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
     "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter", "fresh", "ragg",
     "chameleon", "BiocManager",
-    "pacman", "data.table", "zip", "later"
+    "pacman", "data.table", "zip", "later", "qs2"
   )
   missing_cran <- cran_pkgs[!sapply(cran_pkgs, requireNamespace, quietly = TRUE)]
   if (length(missing_cran) > 0) {

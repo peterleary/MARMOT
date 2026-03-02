@@ -145,7 +145,7 @@ suppressWarnings(suppressPackageStartupMessages(
     flowCore, FlowSOM, tidyverse, CATALYST, readxl, cowplot, diffcyt, ggpubr,
     ggprism, gridExtra, rstatix, Rphenograph, plotly, slingshot, grDevices,
     RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
-    DT, flowAI, parallel, qs, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats, Seurat,
+    DT, flowAI, parallel, qs2, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats, Seurat,
     PeacoQC, MARMOT, future, SCpubr, scGate
   )
 ))
@@ -215,11 +215,11 @@ if (!is.null(RDataFolder)) {
   }
   message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
   MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
-  # Also load FCS frame objects (stored as qs — not decomposable to Parquet)
+  # Also load FCS frame objects (stored as qs2 — not decomposable to Parquet)
   for (qs_obj in c("framesList", "frames")) {
-    qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs"))
+    qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs2"))
     if (file.exists(qs_path)) {
-      assign(qs_obj, qs::qread(qs_path, nthreads = nCores), envir = .GlobalEnv)
+      assign(qs_obj, qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
     }
   }
 }
@@ -1321,13 +1321,13 @@ if (is.null(RDataFolder)) {
   message("💾 Saving outputs...")
   knit_env <- knitr::knit_global()
 
-  # Save FCS frame objects as qs — flowFrame/flowSet cannot be stored in Parquet
+  # Save FCS frame objects as qs2 — flowFrame/flowSet cannot be stored in Parquet
   for (qs_obj in c("framesList", "frames")) {
     if (exists(qs_obj, envir = knit_env)) {
-      out_path <- file.path(rFilesDir, paste0(qs_obj, ".qs"))
-      qs::qsave(get(qs_obj, envir = knit_env), file = out_path,
-                nthreads = nCores, preset = "archive")
-      message("✔️ Saved (qs): ", qs_obj)
+      out_path <- file.path(rFilesDir, paste0(qs_obj, ".qs2"))
+      qs2::qs_save(get(qs_obj, envir = knit_env), file = out_path,
+                   nthreads = nCores)
+      message("Saved (qs2): ", qs_obj)
     }
   }
 
