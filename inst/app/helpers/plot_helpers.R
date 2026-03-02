@@ -289,6 +289,81 @@ make_percell_heatmap <- function(expr_mat, group_ids, group_colours = NULL,
   )
 }
 
+#' Create an expression heatmap (replaces SCpubr::do_ExpressionHeatmap)
+#'
+#' Aggregates mean expression per group × marker, optionally clusters rows
+#' and columns via hclust, and renders as a geom_tile heatmap.
+#'
+#' @param sce A SingleCellExperiment object
+#' @param features Character vector of marker names to plot
+#' @param assay_name Name of the assay to extract expression from
+#' @param group_col Column in colData to group cells by
+#' @param cluster Logical: hierarchically cluster rows and columns
+#' @param palette Colour palette name (passed to apply_continuous_scale)
+#' @param direction 1 or -1 for palette direction
+#' @param flip Logical: if TRUE (default) x = groups, y = features;
+#'   if FALSE x = features, y = groups
+#' @return A ggplot object
+make_expression_heatmap <- function(sce, features, assay_name, group_col,
+                                    cluster = TRUE, palette = "viridis",
+                                    direction = 1, flip = TRUE) {
+  expr_mat <- extract_expr_matrix(sce, assay_name, features)
+  cd <- as.data.frame(SummarizedExperiment::colData(sce))
+
+  # Build cell-level df and aggregate via existing helper
+  df <- as.data.frame(t(expr_mat))
+  df[[group_col]] <- cd[[group_col]]
+  markers_in_df <- rownames(expr_mat)[rownames(expr_mat) %in% colnames(df)]
+  agg_result <- aggregate_expression(df, markers_in_df, group_col)
+  mat <- agg_result$avg_expr  # groups x markers matrix
+  mat[is.na(mat)] <- 0
+
+  # Hierarchical clustering of rows (groups) and columns (features)
+  if (cluster && nrow(mat) > 1) {
+    row_ord <- rownames(mat)[hclust(dist(mat, "euclidean"), "ward.D")$order]
+  } else {
+    row_ord <- rownames(mat)
+  }
+  if (cluster && ncol(mat) > 1) {
+    col_ord <- colnames(mat)[hclust(dist(t(mat), "euclidean"), "ward.D")$order]
+  } else {
+    col_ord <- colnames(mat)
+  }
+
+  # Reshape to long format for ggplot
+  long <- reshape2::melt(mat, varnames = c("group", "feature"), value.name = "mean")
+  long$group   <- factor(long$group,   levels = row_ord)
+  long$feature <- factor(long$feature, levels = rev(col_ord))
+
+  # Axis mapping: flip controls whether groups are on x or y
+  if (flip) {
+    p <- ggplot2::ggplot(long, ggplot2::aes(x = .data$group, y = .data$feature, fill = .data$mean)) +
+      ggplot2::labs(x = group_col, y = NULL)
+  } else {
+    p <- ggplot2::ggplot(long, ggplot2::aes(x = .data$feature, y = .data$group, fill = .data$mean)) +
+      ggplot2::labs(x = NULL, y = group_col)
+  }
+
+  p <- p +
+    ggplot2::geom_tile(color = "white", linewidth = 0.5) +
+    ggplot2::scale_x_discrete(expand = c(0, 0), position = "top") +
+    ggplot2::scale_y_discrete(expand = c(0, 0)) +
+    ggplot2::coord_equal() +
+    ggplot2::theme_minimal(base_size = 14) +
+    ggplot2::theme(
+      axis.text.x.top    = ggplot2::element_text(angle = 45, hjust = 0, vjust = 0),
+      axis.text.x.bottom = ggplot2::element_blank(),
+      axis.ticks.x.bottom = ggplot2::element_blank(),
+      panel.grid         = ggplot2::element_blank(),
+      panel.border       = ggplot2::element_rect(fill = NA, color = "black", linewidth = 1),
+      legend.position    = "bottom",
+      plot.background    = ggplot2::element_rect(fill = "white", color = "white"),
+      panel.background   = ggplot2::element_rect(fill = "white", color = "white")
+    )
+
+  apply_continuous_scale(p, palette, direction, "fill")
+}
+
 #' Add facet wrapping with cell counts in strip labels
 #' @param p A ggplot object
 #' @param df The data frame used in the plot

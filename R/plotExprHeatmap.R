@@ -116,8 +116,8 @@ plotExprHeatmap <- function(x, features = NULL, by = c("sample_id", "cluster_id"
                                  lineheight = 0.8)
   sids <- levels(droplevels(factor(x$sample_id)))
   if (!isFALSE(row_anno)) {
-    left_anno <- switch(by[1], sample_id = CATALYST:::.anno_factors(x, 
-                                                                    sids, row_anno, "row"), CATALYST:::.anno_clusters(x, k, m, 
+    left_anno <- switch(by[1], sample_id = CATALYST:::.anno_factors(x,
+                                                                    sids, row_anno, "row"), CATALYST:::.anno_clusters(x, k, m,
                                                                                                                       k_pal, m_pal))
   }
   else left_anno <- NULL

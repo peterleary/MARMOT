@@ -233,9 +233,14 @@ umapReactive <- eventReactive(
           lvls
         )
       }
-      umapStatic <- umapStatic +
-        scale_fill_manual(values = col_vals, na.value = "grey80") +
-        scale_colour_manual(values = col_vals, na.value = "grey80")
+      # Apply scale matching the aesthetic used by the current border type
+      if (border_type == "Per-cell") {
+        umapStatic <- umapStatic +
+          scale_fill_manual(values = col_vals, na.value = "grey80")
+      } else {
+        umapStatic <- umapStatic +
+          scale_colour_manual(values = col_vals, na.value = "grey80")
+      }
 
       if (input$umapShowLabels) {
         median_pos <- compute_label_positions(umapDF, input$umapColumnToPlot)
@@ -262,7 +267,9 @@ umapReactive <- eventReactive(
         "umapStatic" = umapStatic
       ))
     }, error = function(e) {
-      showNotification(conditionMessage(e), type = "error")
+      if (!inherits(e, "shiny.silent.error")) {
+        showNotification(conditionMessage(e), type = "error")
+      }
       NULL
     })
   }

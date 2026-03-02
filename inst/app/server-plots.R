@@ -757,26 +757,17 @@ observeEvent(
       # ====== EXPRESSION HEATMAP (aggregated) ======
       } else if (input$featurePlotType == "Heatmap") {
         fp <- tryCatch({
-          # Ensure cluster_codes exists (missing after Parquet round-trip)
-          if (is.null(S4Vectors::metadata(sce)$cluster_codes)) {
-            lvls <- levels(factor(sce$cluster_id))
-            S4Vectors::metadata(sce)$cluster_codes <- data.frame(
-              cluster_id = factor(lvls, levels = lvls),
-              row.names = lvls
-            )
-          }
-          MARMOT::plotExprHeatmap(
-            x = sce,
-            features = fpFeaturesToPlot,
-            by = "cluster_id",
-            assay = switch(input$fpAssayToPlot,
-              "data" = "exprs",
-              "counts" = "counts",
-              "scale.data" = "exprs"
-            ),
-            scale = if (input$fpAssayToPlot == "scale.data") "last" else "never",
-            row_clust = isTRUE(input$umapFeaturePlotHeatmapCluster),
-            col_clust = isTRUE(input$umapFeaturePlotHeatmapCluster)
+          heatmap_group <- if (is.null(fpColumnToPlot)) "cluster_id" else fpColumnToPlot
+
+          make_expression_heatmap(
+            sce       = sce,
+            features  = fpFeaturesToPlot,
+            assay_name = assayToUse,
+            group_col = heatmap_group,
+            cluster   = isTRUE(input$umapFeaturePlotHeatmapCluster),
+            palette   = input$viridisColourFP,
+            direction = viridisFlip,
+            flip      = isTRUE(input$umapFeaturePlotHeatmapFlip)
           )
         }, error = function(e) {
           showNotification(paste("Heatmap error:", e$message), type = "error")
@@ -839,7 +830,9 @@ observeEvent(
 
       featurePlotReactive$fp <- fp
     }, error = function(e) {
-      showNotification(conditionMessage(e), type = "error")
+      if (!inherits(e, "shiny.silent.error")) {
+        showNotification(conditionMessage(e), type = "error")
+      }
     })
   }
 )
