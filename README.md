@@ -37,8 +37,15 @@ This is all the R code you will need to run the MARMOT pipeline and load the Shi
 ```r
 # Step 1. Install and load
 install.packages("pak")
-pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
+pak::pkg_install("peterleary/MARMOT")
 library(MARMOT)
+
+# Install remaining dependencies (CRAN, Bioconductor, and GitHub packages)
+# GitHub packages like Rphenograph will be attempted but won't block the install if they fail
+MARMOT::install_dependencies()
+
+# Check what's installed
+MARMOT::check_setup()
 ```
 
 ```r
@@ -67,7 +74,7 @@ marmot(
 shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
-These instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
+These instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM (default clustering), UMAP, and t-SNE. Alternative clustering methods (Rphenograph, FastPG) are installed separately — `install_dependencies()` will attempt them and let you know if any were skipped.
 
 For PARC (clustering) and PaCMAP (dimensionality reduction), you just need to set up the Python environment — see below.
 
@@ -163,10 +170,13 @@ This is required for the PARC clustering algorithm, and for the PacMAP dimension
 
 ```r
 install.packages("pak")
-pak::pkg_install("peterleary/MARMOT", dependencies = TRUE)
+pak::pkg_install("peterleary/MARMOT")
 
-# Install any remaining CRAN, Bioconductor, and GitHub dependencies
-MARMOT::install_dependencies()
+# Install all dependencies (CRAN, Bioconductor batch + GitHub packages with graceful failure)
+MARMOT::install_dependencies(include_suggests = TRUE)
+
+# Optional: install Seurat separately if needed
+# install.packages("Seurat")
 
 # Check everything is installed
 MARMOT::check_setup()
