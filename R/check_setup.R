@@ -1,10 +1,11 @@
 #' Check MARMOT installation status
 #'
 #' Prints a formatted status report showing which packages and the Python
-#' environment are installed and available.
+#' environment are installed and available. Core packages (CRAN/Bioconductor)
+#' show a red X if missing; GitHub and optional packages show a yellow warning.
 #'
 #' @return Invisibly returns a data.frame with columns \code{package},
-#'   \code{status}, and \code{version}.
+#'   \code{type}, \code{status}, and \code{version}.
 #' @export
 check_setup <- function() {
 
@@ -17,22 +18,38 @@ check_setup <- function() {
     }
   }
 
+  # -- Core: CRAN + Bioconductor (should always install) --
   core_pkgs <- c(
-    "MARMOT", "CATALYST", "flowCore", "FlowSOM", "diffcyt", "limma",
-    "SingleCellExperiment", "SummarizedExperiment",
+    "MARMOT",
+    # Bioconductor
+    "BiocGenerics", "limma", "S4Vectors", "SummarizedExperiment",
+    "SingleCellExperiment",
+    "flowCore", "FlowSOM", "CATALYST", "diffcyt", "ComplexHeatmap",
+    "Nebulosa", "PeacoQC", "flowAI", "scGate", "UCell",
+    # CRAN (key pipeline + Shiny)
     "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
     "htmltools", "knitr", "MASS", "rlang",
-    "Rphenograph", "reticulate", "future",
-    "ComplexHeatmap", "plotly", "qs2", "shiny", "shinydashboard"
+    "reticulate", "future", "pacman",
+    "plotly", "qs2", "shiny", "shinydashboard",
+    "data.table", "arrow", "jsonlite", "patchwork", "ragg"
   )
 
-  optional_pkgs <- c(
-    "FastPG", "flowAI", "PeacoQC", "SCpubr", "scGate", "UCell", "Seurat"
+  # -- GitHub packages (fragile, known compilation issues) --
+  github_pkgs <- c("Rphenograph", "fireworks", "FastPG")
+
+  # -- Optional (gated behind include_suggests) --
+  optional_pkgs <- c("Seurat")
+
+  all_pkgs <- c(core_pkgs, github_pkgs, optional_pkgs)
+  types <- c(
+    rep("core",     length(core_pkgs)),
+    rep("github",   length(github_pkgs)),
+    rep("optional", length(optional_pkgs))
   )
 
   results <- data.frame(
-    package = c(core_pkgs, optional_pkgs),
-    type    = c(rep("core", length(core_pkgs)), rep("optional", length(optional_pkgs))),
+    package = all_pkgs,
+    type    = types,
     status  = NA_character_,
     version = NA_character_,
     stringsAsFactors = FALSE
@@ -47,7 +64,8 @@ check_setup <- function() {
   # Print report
   cat("\n=== MARMOT Setup Check ===\n\n")
 
-  cat("-- Core packages --\n")
+  # Core packages (red X if missing)
+  cat("-- Core packages (CRAN / Bioconductor) --\n")
   core <- results[results$type == "core", ]
   for (i in seq_len(nrow(core))) {
     icon <- if (core$status[i] == "installed") "\u2705" else "\u274c"
@@ -55,6 +73,16 @@ check_setup <- function() {
     cat(sprintf("  %s %s%s\n", icon, core$package[i], ver))
   }
 
+  # GitHub packages (yellow warning if missing)
+  cat("\n-- GitHub packages (may require compilation) --\n")
+  gh <- results[results$type == "github", ]
+  for (i in seq_len(nrow(gh))) {
+    icon <- if (gh$status[i] == "installed") "\u2705" else "\u26a0\ufe0f"
+    ver  <- if (!is.na(gh$version[i])) paste0(" (", gh$version[i], ")") else ""
+    cat(sprintf("  %s %s%s\n", icon, gh$package[i], ver))
+  }
+
+  # Optional packages (yellow warning if missing)
   cat("\n-- Optional packages --\n")
   opt <- results[results$type == "optional", ]
   for (i in seq_len(nrow(opt))) {

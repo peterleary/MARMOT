@@ -1,106 +1,181 @@
 #' Install all MARMOT dependencies
 #'
 #' Checks for and installs all packages required by the MARMOT pipeline,
-#' including CRAN, Bioconductor, and GitHub packages.
+#' including CRAN, Bioconductor, and GitHub packages. CRAN and Bioconductor
+#' packages are installed as a batch (reliable). GitHub packages are installed
+#' individually with error handling — a single failure won't block the rest.
 #'
 #' @param include_suggests If \code{TRUE} (the default), also install optional
-#'   packages (FastPG, flowAI, PeacoQC, SCpubr, scGate, UCell).
-#' @param include_python If \code{TRUE}, also set up the Python conda
-#'   environment for PARC/PaCMAP via \code{\link{setup_python}}.
+#'   CRAN packages such as Seurat.
+#' @param include_python If \code{TRUE}, also set up the Python environment
+#'   for PARC/PaCMAP via \code{\link{setup_python}}.
 #'   Default \code{FALSE}.
+#'
+#' @return Invisibly returns a character vector of package names that failed
+#'   or were skipped.
 #'
 #' @importFrom utils install.packages
 #' @export
 install_dependencies <- function(include_suggests = TRUE, include_python = FALSE) {
 
+  skipped <- character(0)
+
+  # -- Bootstrap BiocManager --
   if (!requireNamespace("BiocManager", quietly = TRUE)) {
     install.packages("BiocManager")
   }
 
-  # -- Core Bioconductor packages --
+  # --- Helper: install a single GitHub package with graceful failure ---
+  try_install_github <- function(pkg_name, repo) {
+    if (requireNamespace(pkg_name, quietly = TRUE)) {
+      return(TRUE)
+    }
+    message("Installing from GitHub: ", repo)
+    tryCatch({
+      if (requireNamespace("pak", quietly = TRUE)) {
+        pak::pkg_install(repo, ask = FALSE)
+      } else if (requireNamespace("remotes", quietly = TRUE)) {
+        remotes::install_github(repo)
+      } else {
+        BiocManager::install(repo, ask = FALSE, update = FALSE)
+      }
+      TRUE
+    }, error = function(e) {
+      warning(
+        pkg_name, " failed to install from GitHub (", repo, "): ",
+        conditionMessage(e),
+        "\nThe pipeline can still run without it.",
+        call. = FALSE
+      )
+      FALSE
+    })
+  }
+
+  # =========================================================================
+  # Tier 1: CRAN + Bioconductor (reliable batch install)
+  # =========================================================================
+  message("\n-- Tier 1: Core packages (CRAN + Bioconductor) --")
+
   bioc_pkgs <- c(
     "BiocGenerics", "limma", "S4Vectors", "SummarizedExperiment",
     "SingleCellExperiment",
-    "flowCore", "FlowSOM", "CATALYST", "diffcyt", "Nebulosa", "slingshot"
+    "flowCore", "FlowSOM", "CATALYST", "diffcyt", "ComplexHeatmap",
+    "Nebulosa", "PeacoQC", "flowAI", "scGate", "UCell"
   )
-  missing_bioc <- bioc_pkgs[!sapply(bioc_pkgs, requireNamespace, quietly = TRUE)]
+
+  cran_pkgs <- c(
+    "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
+    "readxl", "reshape2", "matrixStats", "glue", "gtools",
+    "future", "future.apply", "cowplot", "plotly", "ggrepel", "ggbeeswarm",
+    "ggpubr", "ggprism", "RColorBrewer", "gridExtra", "kableExtra", "DT",
+    "clustree", "rstatix", "colorspace", "viridis", "scales", "circlize",
+    "htmltools", "knitr", "MASS", "rlang",
+    "openxlsx", "writexl", "data.table", "ragg", "arrow", "jsonlite",
+    "qs2", "pacman", "scattermore", "scico", "ggnewscale", "pals",
+    "patchwork", "ggridges", "zip",
+    "basilisk", "reticulate", "BiocManager",
+    "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
+    "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter",
+    "fresh", "chameleon", "later"
+  )
+
+  # Bioconductor batch
+  missing_bioc <- bioc_pkgs[!vapply(bioc_pkgs, requireNamespace,
+                                     quietly = TRUE, FUN.VALUE = logical(1))]
   if (length(missing_bioc) > 0) {
     message("Installing Bioconductor packages: ", paste(missing_bioc, collapse = ", "))
     BiocManager::install(missing_bioc, ask = FALSE, update = FALSE)
   }
 
-  # -- CRAN packages --
-  cran_pkgs <- c(
-    "ggplot2", "dplyr", "tidyr", "purrr", "tibble", "readr",
-    "readxl", "reshape2", "matrixStats", "glue", "gtools",
-    "future", "future.apply", "reticulate", "rmarkdown",
-    "ComplexHeatmap", "circlize", "plotly", "cowplot", "ggpubr", "ggprism",
-    "ggrepel", "ggbeeswarm", "RColorBrewer", "gridExtra", "kableExtra", "DT",
-    "clustree", "rstatix", "colorspace", "viridis", "scales", "scattermore",
-    "scico", "ggnewscale", "pals",
-    "htmltools", "knitr", "MASS", "rlang",
-    "openxlsx", "writexl",
-    "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
-    "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter", "fresh", "ragg",
-    "chameleon", "BiocManager",
-    "pacman", "data.table", "zip", "later", "qs2"
-  )
-  missing_cran <- cran_pkgs[!sapply(cran_pkgs, requireNamespace, quietly = TRUE)]
+  # CRAN batch
+  missing_cran <- cran_pkgs[!vapply(cran_pkgs, requireNamespace,
+                                     quietly = TRUE, FUN.VALUE = logical(1))]
   if (length(missing_cran) > 0) {
     message("Installing CRAN packages: ", paste(missing_cran, collapse = ", "))
     install.packages(missing_cran)
   }
 
-  # -- GitHub packages --
+  # Post-check: warn about any still-missing Tier 1 packages
+  still_missing_bioc <- bioc_pkgs[!vapply(bioc_pkgs, requireNamespace,
+                                           quietly = TRUE, FUN.VALUE = logical(1))]
+  still_missing_cran <- cran_pkgs[!vapply(cran_pkgs, requireNamespace,
+                                           quietly = TRUE, FUN.VALUE = logical(1))]
+  still_missing <- c(still_missing_bioc, still_missing_cran)
+  if (length(still_missing) > 0) {
+    warning(
+      "These core packages failed to install: ",
+      paste(still_missing, collapse = ", "),
+      "\nTry installing them manually.",
+      call. = FALSE
+    )
+  }
+
+  # =========================================================================
+  # Tier 2: GitHub packages (fragile, per-package tryCatch)
+  # =========================================================================
+  message("\n-- Tier 2: GitHub packages (optional, may require compilation) --")
+
   github_pkgs <- list(
     Rphenograph = "i-cyto/Rphenograph",
     fireworks   = "hypebright/fireworks",
-    SCpubr      = "enblacar/SCpubr"
+    FastPG      = "sararselitsky/FastPG"
   )
+
   for (pkg_name in names(github_pkgs)) {
-    if (!requireNamespace(pkg_name, quietly = TRUE)) {
-      message("Installing from GitHub: ", github_pkgs[[pkg_name]])
-      if (requireNamespace("pak", quietly = TRUE)) {
-        pak::pkg_install(github_pkgs[[pkg_name]], ask = FALSE)
-      } else {
-        remotes::install_github(github_pkgs[[pkg_name]])
-      }
+    ok <- try_install_github(pkg_name, github_pkgs[[pkg_name]])
+    if (!ok) {
+      skipped <- c(skipped, pkg_name)
     }
   }
 
-  # -- Optional / Suggests --
+  # =========================================================================
+  # Tier 3: Optional CRAN (gated behind include_suggests)
+  # =========================================================================
   if (include_suggests) {
-    suggests <- list(
-      FastPG    = "sararselitsky/FastPG",
-      flowAI    = "flowAI",
-      PeacoQC   = "PeacoQC",
-      scGate    = "scGate",
-      UCell     = "UCell",
-      Seurat    = "Seurat"
-    )
-    for (pkg_name in names(suggests)) {
-      if (!requireNamespace(pkg_name, quietly = TRUE)) {
-        src <- suggests[[pkg_name]]
-        message("Installing optional package: ", pkg_name)
-        if (grepl("/", src)) {
-          # GitHub
-          if (requireNamespace("pak", quietly = TRUE)) {
-            pak::pkg_install(src, ask = FALSE)
-          } else {
-            remotes::install_github(src)
-          }
-        } else {
-          # Bioconductor
-          BiocManager::install(src, ask = FALSE, update = FALSE)
+    message("\n-- Tier 3: Optional packages --")
+    if (!requireNamespace("Seurat", quietly = TRUE)) {
+      message("Installing optional package: Seurat")
+      tryCatch(
+        install.packages("Seurat"),
+        error = function(e) {
+          warning("Seurat failed to install: ", conditionMessage(e), call. = FALSE)
+          skipped <<- c(skipped, "Seurat")
         }
-      }
+      )
     }
   }
 
-  # -- Python --
+  # =========================================================================
+  # Python environment (gated behind include_python)
+  # =========================================================================
   if (include_python) {
-    setup_python()
+    message("\n-- Python environment (PARC/PaCMAP) --")
+    tryCatch(
+      setup_python(),
+      error = function(e) {
+        warning(
+          "Python setup failed: ", conditionMessage(e),
+          "\nPARC and PaCMAP will not be available.",
+          call. = FALSE
+        )
+        skipped <<- c(skipped, "Python (PARC/PaCMAP)")
+      }
+    )
   }
 
-  message("All done!")
+  # =========================================================================
+  # Summary
+  # =========================================================================
+  cat("\n")
+  if (length(skipped) > 0) {
+    message(
+      "Done! The following packages were skipped:\n  ",
+      paste(skipped, collapse = ", "),
+      "\nThe pipeline can still run without them."
+    )
+  } else {
+    message("All done! All packages installed successfully.")
+  }
+
+  invisible(skipped)
 }
