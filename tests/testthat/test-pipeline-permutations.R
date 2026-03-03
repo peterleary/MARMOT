@@ -48,19 +48,18 @@ test_that("pipeline: PARC + UMAP", {
   expect_true(all(cluster_vals >= 1, na.rm = TRUE))
 })
 
-test_that("pipeline: FastPG + UMAP", {
+test_that("pipeline: MfastPG + UMAP", {
   skip_pipeline_deps()
-  skip_if_not_installed("FastPG")
 
   result <- run_pipeline_test(
-    params = list(clusteringMethodToUse = "FastPG"),
-    test_name = "FastPG"
+    params = list(clusteringMethodToUse = "MfastPG"),
+    test_name = "MfastPG"
   )
   on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
 
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
-  # FastPG uses "k" prefix columns (same as Rphenograph)
+  # MfastPG uses "k" prefix columns (same as Rphenograph/Mphenograph)
   cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
   expect_true("k10" %in% colnames(cell_meta))
 })

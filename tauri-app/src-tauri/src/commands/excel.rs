@@ -28,7 +28,7 @@ pub fn create_new_metadata() -> MetadataFile {
     use crate::excel::types::{PipelineSetting, SheetData};
 
     let default_settings = vec![
-        ("clusteringMethodToUse", "Rphenograph", "Clustering algorithm: Rphenograph, FastPG, PARC, or FlowSOM"),
+        ("clusteringMethodToUse", "MfastPG", "Clustering algorithm: MfastPG (fast, approximate kNN), Mphenograph (exact kNN), Rphenograph (C++, optional), PARC, or FlowSOM"),
         ("markersToClusterBy", "all", "Which markers to cluster by: all, type, or state"),
         ("kValuesIWant", "20, 40", "Comma-separated k values for clustering"),
         ("knn", "20", "k-nearest neighbours value (must be in kValuesIWant)"),

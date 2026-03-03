@@ -50,3 +50,6 @@ docker-test/
 synthetic_v4_test
 synthetic_v5_test
 synthetic_v5e_test
+
+# Phenograph benchmarking
+inst/reports

@@ -35,7 +35,7 @@ check_setup <- function() {
   )
 
   # -- GitHub packages (fragile, known compilation issues) --
-  github_pkgs <- c("Rphenograph", "fireworks", "FastPG")
+  github_pkgs <- c("Rphenograph", "fireworks")
 
   # -- Optional (gated behind include_suggests) --
   optional_pkgs <- c("Seurat")
@@ -81,6 +81,9 @@ check_setup <- function() {
     ver  <- if (!is.na(gh$version[i])) paste0(" (", gh$version[i], ")") else ""
     cat(sprintf("  %s %s%s\n", icon, gh$package[i], ver))
   }
+
+  cat("\n  i  Clustering: MfastPG + Mphenograph are always available (bundled in MARMOT)\n")
+  cat("     Rphenograph (C++) is optional -- install via install_marmot_extras()\n")
 
   # Optional packages (yellow warning if missing)
   cat("\n-- Optional packages --\n")

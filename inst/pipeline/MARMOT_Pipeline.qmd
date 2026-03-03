@@ -112,7 +112,7 @@ parcScriptDir <- "~/Desktop/FGCZ/MARMOT/" # Folder with f_pacmap.py and f_parc.p
 downsampleTo <- NULL  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
 
 ## 🔍 Clustering
-clusteringMethodToUse <- "FlowSOM"   # One of: "Rphenograph", "FastPG", "PARC", "FlowSOM"
+clusteringMethodToUse <- "FlowSOM"   # One of: "MfastPG", "Mphenograph", "Rphenograph", "PARC", "FlowSOM"
 markersToClusterBy <- "all"       # One of: "all", "type", "state"
 kValuesIWant <- c(20, 40)
 knn <- 20          # Must be in kValuesIWant
@@ -212,7 +212,7 @@ suppressWarnings(suppressPackageStartupMessages(
     BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
     flowCore, FlowSOM, ggplot2, dplyr, tidyr, purrr, tibble, readr,
     CATALYST, readxl, cowplot, diffcyt, ggpubr,
-    ggprism, gridExtra, rstatix, Rphenograph, plotly, grDevices,
+    ggprism, gridExtra, rstatix, plotly, grDevices,
     RColorBrewer, reshape2, grid, ComplexHeatmap, circlize, clustree, kableExtra,
     DT, flowAI, parallel, qs2, ggrepel, gtools, reticulate, ggbeeswarm, matrixStats,
     PeacoQC, MARMOT
@@ -290,7 +290,7 @@ if (!is.null(RDataFolder)) {
 
 # Pick the merge method depending on clustering backend
 mergeBy <- dplyr::case_when(
-  clusteringMethodToUse %in% c("Rphenograph", "FastPG") ~ "k",
+  clusteringMethodToUse %in% c("Rphenograph", "Mphenograph", "MfastPG") ~ "k",
   clusteringMethodToUse == "PARC" ~ "p",
   clusteringMethodToUse == "FlowSOM" ~ "meta",
   TRUE ~ NA_character_  # temp placeholder
@@ -827,7 +827,7 @@ condLevels <- levels(conds)
 
 ```{r clustering_graph, results = "hide", eval = is.null(RDataFolder)}
 
-if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
+if (clusteringMethodToUse %in% c("MfastPG", "Mphenograph", "Rphenograph")) {
   message("🧠 Running clustering using ", clusteringMethodToUse, "...")
 
   # Expression matrix for clustering
@@ -835,13 +835,14 @@ if (clusteringMethodToUse %in% c("Rphenograph", "FastPG")) {
 
   cluster_fn <- function(k) {
     set.seed(2)
-    if (clusteringMethodToUse == "FastPG") {
-      clusters <- FastPG::fastCluster(data = es, k = k, num_threads = max(1, floor(nCores / length(kValuesIWant))))
-      ids <- factor(as.character(clusters$communities + 1))
+    if (clusteringMethodToUse == "MfastPG") {
+      clusters <- MARMOT::MfastPG(data = es, k = k, seed = 2, verbose = TRUE)
+    } else if (clusteringMethodToUse == "Mphenograph") {
+      clusters <- MARMOT::Mphenograph(data = es, k = k, seed = 2, verbose = TRUE)
     } else if (clusteringMethodToUse == "Rphenograph") {
       clusters <- Rphenograph::Rphenograph(data = es, k = k)
-      ids <- factor(as.character(igraph::membership(clusters[[2]])))
     }
+    ids <- factor(as.character(igraph::membership(clusters[[2]])))
     ids <- factor(ids, levels = gtools::mixedsort(levels(ids)))
     list(kids = ids, clusters = clusters)
   }
@@ -1009,7 +1010,7 @@ if (is.null(RDataFolder) && runScGate) {
 ```{r, label = "run_scGate", include = FALSE}
 if (is.null(RDataFolder) && runScGate) {
   if (requireNamespace("scGate", quietly = TRUE) && requireNamespace("UCell", quietly = TRUE)) {
-    message("🌉 Running scGate on marker pairs...")
+    message("Running scGate on marker pairs...")
     mp <- parse_marker_pairs(smd)
 
     if (is.null(mp) || length(mp$models) == 0) {
@@ -2773,7 +2774,7 @@ if (gimmePDFs) {
 
 ```{r, label = "gated_dr_plots", results = 'asis', fig.height=6, fig.width=18}
 if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
-  cat("### [🌉 scGate Gating]{style=\"color: #198754;\"} \n\n")
+  cat("### [scGate Gating]{style=\"color: #198754;\"} \n\n")
   cat("::::: {.panel-tabset}\n\n")
   cat("\n\n#### All \n\n")
 

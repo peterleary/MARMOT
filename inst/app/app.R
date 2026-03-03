@@ -5,7 +5,7 @@ packagesToLoad <- c(
   "writexl", "circlize", "kableExtra", "ggrepel", "sortable", "waiter",
   "ggprism", "rstatix", "gridExtra", "Matrix", "fresh", "viridis",
   "plotly", "shinycssloaders", "shinyBS", "CATALYST", "ComplexHeatmap", "gtools",
-  "fireworks", "ggnewscale", "scattermore", "Nebulosa", "scico", "chameleon",
+  "fireworks", "ggnewscale", "scattermore", "scico", "chameleon",
   "pals", "scales", "MARMOT", "flowCore", "readxl", "ggridges", "colorspace",
   "SingleCellExperiment", "shinyalert", "patchwork", "data.table"
 )

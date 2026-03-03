@@ -21,7 +21,7 @@ Invisibly returns a character vector of package names that failed
 \description{
 Installs additional packages and sets up the Python environment on top of
 the base MARMOT install. CRAN and Bioconductor packages are installed as a
-batch (reliable). GitHub packages (Rphenograph, FastPG, fireworks) are
+batch (reliable). GitHub packages (Rphenograph, fireworks) are
 installed individually with error handling — a single failure won't block
 the rest. The Python environment for PARC/PaCMAP is set up automatically
 if conda/mamba is available.

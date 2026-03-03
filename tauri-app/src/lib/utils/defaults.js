@@ -3,7 +3,7 @@
 export const FIELD_DEFINITIONS = {
   clusteringMethodToUse: {
     type: "dropdown",
-    options: ["Rphenograph", "FastPG", "PARC", "FlowSOM"],
+    options: ["MfastPG", "Mphenograph", "Rphenograph", "PARC", "FlowSOM"],
     label: "Clustering Method",
   },
   markersToClusterBy: {
@@ -109,11 +109,11 @@ export const FIELD_DEFINITIONS = {
 // Maps optional package/feature name → { field, option } it gates.
 // Used by PipelineSettings to disable unavailable dropdown options.
 export const PACKAGE_REQUIREMENTS = {
-  FastPG:  { field: "clusteringMethodToUse", option: "FastPG"   },
-  PARC:    { field: "clusteringMethodToUse", option: "PARC"     },
-  PeacoQC: { field: "runQC",                 option: "PeacoQC"  },
-  flowAI:  { field: "runQC",                 option: "FlowAI"   },
-  pacmap:  { field: "dimRedMethodToUse",      option: "pacmap"   },
+  Rphenograph: { field: "clusteringMethodToUse", option: "Rphenograph" },
+  PARC:        { field: "clusteringMethodToUse", option: "PARC"        },
+  PeacoQC:     { field: "runQC",                 option: "PeacoQC"     },
+  flowAI:      { field: "runQC",                 option: "FlowAI"      },
+  pacmap:      { field: "dimRedMethodToUse",      option: "pacmap"      },
 };
 
 // Group settings for display

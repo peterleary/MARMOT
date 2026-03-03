@@ -29,7 +29,7 @@ export const installStartTime = writable(null);
 // Optional package availability — updated by query_installed_packages on startup
 // and after check_setup / install. Default true so nothing is pre-disabled.
 export const packageStatus = writable({
-  FastPG: true, PeacoQC: true, flowAI: true, PARC: false, pacmap: false,
+  Rphenograph: true, PeacoQC: true, flowAI: true, PARC: false, pacmap: false,
 });
 
 export function addLogLine(line) {

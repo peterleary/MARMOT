@@ -113,7 +113,7 @@ pub fn run_check_setup(app: AppHandle, rscript_path: String) -> Result<(), Strin
 #[tauri::command]
 pub fn query_installed_packages(rscript_path: String) -> serde_json::Value {
     let fallback = serde_json::json!({
-        "FastPG": false, "PeacoQC": false, "flowAI": false,
+        "Rphenograph": false, "PeacoQC": false, "flowAI": false,
         "PARC": false, "pacmap": false
     });
 
@@ -121,7 +121,7 @@ pub fn query_installed_packages(rscript_path: String) -> serde_json::Value {
     // test imports via py_run_string(). Loading in-process avoids macOS SIP
     // stripping DYLD_LIBRARY_PATH in subprocesses, which breaks llvmlite/numba.
     let r_expr = r#"
-fast_pg <- requireNamespace('FastPG', quietly=TRUE)
+rphenograph <- requireNamespace('Rphenograph', quietly=TRUE)
 peacoqc <- requireNamespace('PeacoQC', quietly=TRUE)
 flow_ai <- requireNamespace('flowAI', quietly=TRUE)
 py <- tryCatch({
@@ -134,7 +134,7 @@ py <- tryCatch({
   list(PARC = parc_ok, pacmap = pcm_ok)
 }, error = function(e) list(PARC = FALSE, pacmap = FALSE))
 pairs <- c(
-  paste0('"FastPG":',  tolower(fast_pg)),
+  paste0('"Rphenograph":', tolower(rphenograph)),
   paste0('"PeacoQC":', tolower(peacoqc)),
   paste0('"flowAI":',  tolower(flow_ai)),
   paste0('"PARC":',    tolower(py$PARC)),

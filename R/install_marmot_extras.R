@@ -2,7 +2,7 @@
 #'
 #' Installs additional packages and sets up the Python environment on top of
 #' the base MARMOT install. CRAN and Bioconductor packages are installed as a
-#' batch (reliable). GitHub packages (Rphenograph, FastPG, fireworks) are
+#' batch (reliable). GitHub packages (Rphenograph, fireworks) are
 #' installed individually with error handling — a single failure won't block
 #' the rest. The Python environment for PARC/PaCMAP is set up automatically
 #' if conda/mamba is available.
@@ -119,8 +119,7 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
 
   github_pkgs <- list(
     Rphenograph = "i-cyto/Rphenograph",
-    fireworks   = "hypebright/fireworks",
-    FastPG      = "sararselitsky/FastPG"
+    fireworks   = "hypebright/fireworks"
   )
 
   for (pkg_name in names(github_pkgs)) {
@@ -128,6 +127,11 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
     if (!ok) {
       skipped <- c(skipped, pkg_name)
     }
+  }
+
+  if ("Rphenograph" %in% skipped) {
+    message("Note: Rphenograph (C++) not installed -- use MfastPG or Mphenograph ",
+            "(bundled in MARMOT, identical results)")
   }
 
   # =========================================================================

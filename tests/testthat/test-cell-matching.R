@@ -214,7 +214,7 @@ test_that("PARC-style assignment: labels match back to cells", {
   expect_identical(sce[["p10"]], labels)
 })
 
-test_that("Rphenograph/FastPG-style assignment: labels match back to cells", {
+test_that("Rphenograph/MfastPG/Mphenograph-style assignment: labels match back to cells", {
   sce <- make_cell_matching_sce()
   set.seed(9)
   labels <- factor(paste0("p", sample(1:10, ncol(sce), replace = TRUE)))

@@ -412,7 +412,8 @@ load_parquet_for_shiny <- function(pq_dir) {
   clusteringMethodToUse <- files$clusteringMethodToUse
   if (!is.null(clusteringMethodToUse)) {
     files$mergeBy <- switch(clusteringMethodToUse,
-      "Rphenograph" = "k", "FastPG" = "k", "PARC" = "p", "FlowSOM" = "meta"
+      "Rphenograph" = "k", "Mphenograph" = "k", "MfastPG" = "k",
+      "PARC" = "p", "FlowSOM" = "meta"
     )
   }
 
