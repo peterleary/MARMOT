@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libhdf5-dev \
     libglpk-dev \
     libgsl-dev \
+    libtbb-dev \
     cmake \
     curl \
     git \
