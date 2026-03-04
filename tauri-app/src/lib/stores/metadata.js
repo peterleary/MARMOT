@@ -28,9 +28,9 @@ export function updateSetting(variable, value) {
   metadata.update((m) => {
     const idx = m.pipeline_settings.findIndex((s) => s.variable === variable);
     if (idx >= 0) {
-      m.pipeline_settings[idx].setting = String(value);
+      m.pipeline_settings[idx] = { ...m.pipeline_settings[idx], setting: String(value) };
     }
-    return m;
+    return { ...m, pipeline_settings: [...m.pipeline_settings] };
   });
   isDirty.set(true);
 }

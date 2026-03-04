@@ -53,3 +53,6 @@ synthetic_v5e_test
 
 # Phenograph benchmarking
 inst/reports
+
+# R plot artifacts
+Rplots.pdf

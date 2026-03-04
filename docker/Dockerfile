@@ -75,6 +75,9 @@ RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}')"
 
 RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE)"
 
+# Reinstall qs2 from source so it links against libtbb (pak may use a binary without TBB)
+RUN Rscript -e 'install.packages("qs2", type = "source", repos = "https://cloud.r-project.org")'
+
 # ── Python environment (PARC / PaCMAP) ──────────────────────────────
 RUN Rscript -e 'MARMOT::setup_python(conda = "/opt/miniforge/bin/conda")'
 

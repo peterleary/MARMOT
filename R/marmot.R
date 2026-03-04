@@ -101,6 +101,13 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   output_qmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".qmd")
   writeLines(rmd_content, output_qmd)
+
+  # Copy companion files needed by the QMD
+  header_src <- system.file("pipeline", "marmot_header.html", package = "MARMOT")
+  if (nzchar(header_src)) {
+    file.copy(header_src, file.path(fp, "marmot_header.html"), overwrite = TRUE)
+  }
+
   Sys.sleep(0.2)
   message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
   if (!render) {
