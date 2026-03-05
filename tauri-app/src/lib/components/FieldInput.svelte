@@ -1,6 +1,6 @@
 <script>
   import { open } from "@tauri-apps/plugin-dialog";
-  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false, onchange = undefined } = $props();
+  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false, onchange = undefined, disabled = false } = $props();
 
   async function handleBrowseFolder() {
     const selected = await open({ directory: true, title: `Select ${label || "folder"}` });
@@ -42,7 +42,7 @@
   </label>
 
   {#if type === "dropdown"}
-    <select id={fieldId} bind:value class="field-control">
+    <select id={fieldId} bind:value class="field-control" {disabled}>
       {#each options as opt}
         {@const unavailable = disabledOptions.includes(opt)}
         <option value={opt} disabled={unavailable} class:unavailable-opt={unavailable}>
@@ -52,7 +52,7 @@
     </select>
   {:else if type === "checkbox"}
     <label class="checkbox-wrapper">
-      <input type="checkbox" checked={isChecked} onchange={handleCheckbox} />
+      <input type="checkbox" checked={isChecked} onchange={handleCheckbox} {disabled} />
     </label>
   {:else if type === "number"}
     <input
@@ -62,6 +62,7 @@
       class="field-control"
       {placeholder}
       {min}
+      {disabled}
     />
   {:else if type === "folder"}
     <div class="folder-browse">
@@ -73,7 +74,7 @@
         {placeholder}
         readonly
       />
-      <button class="browse-btn" onclick={handleBrowseFolder}>Browse</button>
+      <button class="browse-btn" onclick={handleBrowseFolder} {disabled}>Browse</button>
     </div>
   {:else}
     <input
@@ -82,6 +83,8 @@
       bind:value
       class="field-control"
       {placeholder}
+      {disabled}
+      oninput={(e) => onchange?.(e.target.value)}
     />
   {/if}
 </div>
@@ -166,6 +169,11 @@
     border-color: #2563eb;
     box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.12);
   }
+  .field-control:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f1f5f9;
+  }
   select.field-control {
     cursor: pointer;
   }
@@ -213,5 +221,14 @@
     width: 18px;
     height: 18px;
     accent-color: #2563eb;
+  }
+  .checkbox-wrapper input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .browse-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f1f5f9;
   }
 </style>

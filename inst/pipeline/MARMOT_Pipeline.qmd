@@ -1413,6 +1413,37 @@ for (qs_obj in c("framesList", "frames")) {
 # Save Parquet — main data store for Shiny app and reproducibility
 message("💾 Saving Parquet format...")
 MARMOT::save_parquet_data(rFilesDir, envir = .GlobalEnv)
+
+# Write pipeline_settings.json sidecar so Tauri GUI can reload & lock fields
+settings_list <- list(
+  clusteringMethodToUse = as.character(clusteringMethodToUse),
+  markersToClusterBy    = as.character(markersToClusterBy),
+  kValuesIWant          = paste(kValuesIWant, collapse = ", "),
+  knn                   = as.character(knn),
+  dimRedMethodToUse     = as.character(dimRedMethodToUse),
+  markersToDimRedBy     = as.character(markersToDimRedBy),
+  runQC                 = as.character(runQC),
+  useQC                 = toupper(as.character(useQC)),
+  runScGate             = toupper(as.character(runScGate)),
+  downsampleTo          = if (is.null(downsampleTo)) "" else as.character(downsampleTo),
+  quantileNormaliseAll  = toupper(as.character(quantileNormaliseAll)),
+  gimmePDFs             = toupper(as.character(gimmePDFs)),
+  greyscalePlots        = toupper(as.character(greyscalePlots)),
+  themeToUse            = as.character(themeToUse),
+  viridisColour         = as.character(viridisColour),
+  runInParallel         = toupper(as.character(runInParallel)),
+  nCores                = as.character(nCores),
+  ramPerCore            = as.character(ramPerCore)
+)
+jsonlite::write_json(settings_list, file.path(rFilesDir, "pipeline_settings.json"),
+                     auto_unbox = TRUE, pretty = TRUE)
+message("Saved: pipeline_settings.json")
+
+# Copy metadata Excel into results folder for self-contained archive
+file.copy(file.path(fp, md_fp), resultsDir, overwrite = TRUE)
+
+# Marker file so marmot.R can copy QMD/HTML into results folder after render
+writeLines(resultsDir, file.path(fp, ".marmot_last_results"))
 ```
 
 ```{r nice_umap_function}
@@ -1558,7 +1589,7 @@ if (runQC %in% c("FlowAI", "PeacoQC") && exists("QCmini")) {
         "If you wish to also use only the cells that passed QC, please change the `useQC` variable to TRUE in the metadata file.")
     cat("\n:::\n\n")
   }
-  print(kable(QCmini, format = "html", escape = FALSE) |> kable_styling())
+  print(kable(QCmini, format = "html", escape = FALSE, col.names = gsub("\\.", "", names(QCmini))) |> kable_styling())
   cat("\n\n")
   openxlsx::write.xlsx(as.data.frame(QCmini), file = file.path(excelDir, "QCtable.xlsx"))
 } else if (!is.null(RDataFolder)) {
@@ -3294,4 +3325,3 @@ sessionInfo()
 ```
 
 :::::::::::::
-2

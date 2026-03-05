@@ -26,6 +26,7 @@ pub fn run() {
             commands::filesystem::scan_fcs_folder,
             commands::filesystem::find_latest_results_dir,
             commands::filesystem::open_path,
+            commands::filesystem::read_reload_settings,
             commands::rscript::find_rscript,
             commands::rscript::find_rscript_cached,
             commands::rscript::get_r_info,

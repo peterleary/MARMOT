@@ -36,12 +36,12 @@ export function validateSettings(settings) {
       .map(Number);
     const knn = Number(knnSetting.setting);
     if (!kValues.includes(knn)) {
-      errors.push(`knn (${knn}) must be one of kValuesIWant (${kValues.join(", ")}).`);
+      errors.push(`Cluster level to test (${knn}) must be one of the Clustering levels (${kValues.join(", ")}).`);
     }
   }
 
   // Numeric fields must parse correctly
-  const numericFields = ["knn", "nCores", "ramPerCore"];
+  const numericFields = ["nCores", "ramPerCore"];
   for (const field of numericFields) {
     const setting = settings.find((s) => s.variable === field);
     if (setting && setting.setting !== "" && isNaN(Number(setting.setting))) {

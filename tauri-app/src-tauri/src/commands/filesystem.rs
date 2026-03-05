@@ -1,4 +1,15 @@
+use std::collections::HashMap;
 use std::fs;
+
+#[tauri::command]
+pub fn read_reload_settings(path: String) -> Result<HashMap<String, String>, String> {
+    let json_path = std::path::Path::new(&path).join("pipeline_settings.json");
+    if !json_path.exists() {
+        return Err("No pipeline_settings.json found".into());
+    }
+    let content = fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&content).map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 pub fn find_latest_results_dir(fcs_folder: String) -> Result<String, String> {

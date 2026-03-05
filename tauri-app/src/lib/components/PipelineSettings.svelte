@@ -1,8 +1,11 @@
 <script>
+  import { invoke } from "@tauri-apps/api/core";
   import { metadata, updateSetting, getSettingValue } from "../stores/metadata.js";
   import { packageStatus } from "../stores/pipeline.js";
   import { FIELD_DEFINITIONS, SETTING_GROUPS, PACKAGE_REQUIREMENTS } from "../utils/defaults.js";
   import FieldInput from "./FieldInput.svelte";
+
+  let reloadActive = $state(false);
 
   let currentMetadata = $derived($metadata);
   let groupedFields = $derived(SETTING_GROUPS.flatMap(g => g.fields));
@@ -27,6 +30,52 @@
     }
   });
 
+  // Derive knn dropdown options by parsing kValuesIWant
+  let kValuesOptions = $derived(() => {
+    const kSetting = currentMetadata.pipeline_settings.find(s => s.variable === "kValuesIWant");
+    if (!kSetting || !kSetting.setting) return [];
+    return kSetting.setting
+      .split(/[,\s]+/)
+      .filter(v => v && !isNaN(Number(v)))
+      .map(v => Number(v))
+      .sort((a, b) => a - b)
+      .map(String);
+  });
+
+  // Map dynamicOptionsFrom field name → derived options
+  let dynamicOptionsMap = $derived({ kValuesIWant: kValuesOptions() });
+
+  // Auto-select first valid knn value when current value becomes invalid
+  $effect(() => {
+    const opts = kValuesOptions();
+    const knnSetting = currentMetadata.pipeline_settings.find(s => s.variable === "knn");
+    if (!knnSetting) return;
+    if (opts.length > 0 && !opts.includes(knnSetting.setting)) {
+      updateSetting("knn", opts[0]);
+    }
+  });
+
+  // Watch RDataFolder: when set, load saved settings and lock data-processing fields
+  $effect(() => {
+    const rdataSetting = currentMetadata.pipeline_settings.find(s => s.variable === "RDataFolder");
+    const rdataPath = rdataSetting?.setting;
+    if (rdataPath && rdataPath.trim() !== "") {
+      invoke("read_reload_settings", { path: rdataPath })
+        .then((saved) => {
+          for (const [key, val] of Object.entries(saved)) {
+            updateSetting(key, val);
+          }
+          reloadActive = true;
+        })
+        .catch((err) => {
+          console.warn("Could not load reload settings:", err);
+          reloadActive = false;
+        });
+    } else {
+      reloadActive = false;
+    }
+  });
+
   // Build a map of field → [disabled option values] from current package status
   let disabledByField = $derived(
     Object.entries(PACKAGE_REQUIREMENTS).reduce((acc, [pkg, { field, option }]) => {
@@ -41,22 +90,28 @@
 
 <div class="settings-panel">
   {#each SETTING_GROUPS as group}
+    {@const groupHasLocked = reloadActive && group.fields.some(f => FIELD_DEFINITIONS[f]?.lockedOnReload)}
     <fieldset class="settings-group">
       <legend>{group.label}</legend>
+      {#if groupHasLocked}
+        <div class="reload-banner">Settings loaded from previous run (read-only)</div>
+      {/if}
       {#each group.fields as field}
         {@const def = FIELD_DEFINITIONS[field]}
         {@const setting = currentMetadata.pipeline_settings.find(s => s.variable === field)}
         {#if def && setting}
+          {@const dynOpts = def.dynamicOptionsFrom ? (dynamicOptionsMap[def.dynamicOptionsFrom] || []) : null}
           <FieldInput
             type={def.type}
             bind:value={setting.setting}
-            options={def.options || []}
+            options={dynOpts || def.options || []}
             disabledOptions={disabledByField[field] || []}
             label={def.label || field}
-            info={setting.info || ""}
+            info={def.info || setting.info || ""}
             placeholder={def.placeholder || ""}
             min={def.min}
             allowEmpty={def.allowEmpty || false}
+            disabled={reloadActive && !!def.lockedOnReload}
             onchange={(v) => updateSetting(field, v)}
           />
         {/if}
@@ -102,5 +157,14 @@
     color: #2563eb;
     padding: 0 0.5rem;
     letter-spacing: 0.01em;
+  }
+  .reload-banner {
+    font-size: 0.78rem;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    margin-bottom: 0.5rem;
   }
 </style>

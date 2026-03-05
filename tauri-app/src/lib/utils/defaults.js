@@ -5,46 +5,58 @@ export const FIELD_DEFINITIONS = {
     type: "dropdown",
     options: ["MfastPG", "Mphenograph", "Rphenograph", "PARC", "FlowSOM"],
     label: "Clustering Method",
+    lockedOnReload: true,
   },
   markersToClusterBy: {
     type: "dropdown",
     options: ["all", "type", "state"],
     label: "Markers to Cluster By",
+    lockedOnReload: true,
   },
   kValuesIWant: {
     type: "text",
-    label: "k Values",
+    label: "Clustering levels",
+    lockedOnReload: true,
     placeholder: "e.g. 20, 40",
+    info: "Run multiple values to see how cell clustering is affected. Use odd numbers for Rphenograph/MfastPG/PARC, even numbers for FlowSOM. Values between 10\u2013100.",
   },
   knn: {
-    type: "number",
-    label: "kNN",
-    min: 1,
+    type: "dropdown",
+    label: "Cluster level to test",
+    options: [],
+    dynamicOptionsFrom: "kValuesIWant",
+    info: "The clustering level that downstream analysis will focus on. Must be one of the Clustering levels above.",
+    lockedOnReload: true,
   },
   dimRedMethodToUse: {
     type: "dropdown",
     options: ["TSNE", "UMAP", "pacmap"],
     label: "Dim. Reduction Method",
+    lockedOnReload: true,
   },
   markersToDimRedBy: {
     type: "dropdown",
     options: ["all", "type", "state"],
     label: "Markers for Dim. Reduction",
+    lockedOnReload: true,
   },
   runQC: {
     type: "dropdown",
     options: ["FlowAI", "PeacoQC", "None"],
     label: "QC Method",
+    lockedOnReload: true,
   },
   useQC: {
     type: "checkbox",
     label: "Apply QC Filter",
+    lockedOnReload: true,
   },
   downsampleTo: {
     type: "number",
     label: "Downsample To",
     placeholder: "Leave blank = no downsampling",
     allowEmpty: true,
+    lockedOnReload: true,
   },
   gimmePDFs: {
     type: "checkbox",
@@ -57,6 +69,7 @@ export const FIELD_DEFINITIONS = {
   quantileNormaliseAll: {
     type: "checkbox",
     label: "Quantile Normalise",
+    lockedOnReload: true,
   },
   runInParallel: {
     type: "checkbox",
@@ -65,6 +78,7 @@ export const FIELD_DEFINITIONS = {
   runScGate: {
     type: "checkbox",
     label: "Run scGate",
+    lockedOnReload: true,
   },
   nCores: {
     type: "number",

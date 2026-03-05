@@ -119,6 +119,16 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     quarto::quarto_render(input = output_qmd, output_file = basename(output_html))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(fp, "Rplots.pdf"))
+
+    # Copy QMD, HTML, and header into the results folder for a self-contained archive
+    marker_file <- file.path(fp, ".marmot_last_results")
+    if (file.exists(marker_file)) {
+      results_dir <- readLines(marker_file, n = 1)
+      file.copy(output_qmd, results_dir, overwrite = TRUE)
+      file.copy(output_html, results_dir, overwrite = TRUE)
+      file.copy(file.path(fp, "marmot_header.html"), results_dir, overwrite = TRUE)
+      unlink(marker_file)
+    }
   }
   
 }
