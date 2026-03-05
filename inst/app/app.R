@@ -47,6 +47,13 @@ ui <- dashboardPage(
       "Shiny Marmot"
     ),
     tags$li(
+      tags$span(
+        paste0("v", utils::packageVersion("MARMOT")),
+        style = "color: #94a3b8; font-size: 0.78rem; padding: 15px 10px; display: inline-block;"
+      ),
+      class = "dropdown"
+    ),
+    tags$li(
       a(
         href = "mailto:peter.leary@uzh.ch?subject=flow-cytometry-shiny-app-feedback",
         "Request Features/Report Bugs"

@@ -188,13 +188,15 @@ save_da_ds_parquet <- function(pq_dir, daList = NULL, dsList = NULL,
     }
   }
 
-  # DS results
+  # DS results (dsList entries are lists with $res_DS and $tbl_DS, not plain data.frames)
   if (!is.null(dsList) && is.list(dsList)) {
     for (name in names(dsList)) {
       df <- dsList[[name]]
+      safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
       if (is.data.frame(df)) {
-        safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
         arrow::write_parquet(df, file.path(ds_dir, paste0(safe_name, ".parquet")))
+      } else if (is.list(df) && !is.null(df$tbl_DS)) {
+        arrow::write_parquet(as.data.frame(df$tbl_DS), file.path(ds_dir, paste0(safe_name, ".parquet")))
       }
     }
   }

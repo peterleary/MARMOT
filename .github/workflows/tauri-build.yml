@@ -18,7 +18,7 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             asset_name: MARMOT-macos-arm64
-          - platform: macos-15
+          - platform: macos-13
             target: x86_64-apple-darwin
             asset_name: MARMOT-macos-x86_64
           - platform: ubuntu-22.04
@@ -29,6 +29,7 @@ jobs:
             asset_name: marmot-gui-windows-x86_64
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +51,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: tauri-app
-        run: npm install
+        run: npm ci
 
       # macOS: build .app bundle only (no DMG — unsigned DMGs are blocked by Gatekeeper)
       - name: Build Tauri app (macOS)

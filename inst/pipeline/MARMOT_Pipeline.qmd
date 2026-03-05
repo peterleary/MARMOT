@@ -327,16 +327,12 @@ useMarkers <- smd[[colnames(smd)[grep("include|cluster", colnames(smd))]]]
 useMarkers <- useMarkers[!is.na(useMarkers)]
 names(useMarkers) <- gsub("-|\\ |\\/", "_", useMarkers)
 
-if ("Marker Type" %in% colnames(smd)) {
-  markerType <- smd$`Marker Type`[!is.na(smd$`Marker Type`)]
-  if ("type" %in% markerType) {
-    featureType <- "type"
-  } else {
-    featureType <- NULL
-  }
-} else {
-  knitr::knit_exit()
-}
+# Extract marker type vector (used downstream for marker_class and conditional sections)
+# Named vector: names = marker names, values = "type"/"state"
+# Named lookup prevents ifelse recycling when param_df has extra scatter/time channels
+mt_mask <- !is.na(smd$`Marker Type`)
+include_col <- colnames(smd)[grep("include|cluster", colnames(smd))]
+markerType <- setNames(smd$`Marker Type`[mt_mask], smd[[include_col]][mt_mask])
 
 # Define feature type from marker type
 featureType <- if ("Marker Type" %in% names(smd)) {
@@ -470,7 +466,7 @@ panel <- param_df |>
   dplyr::select(fcs_colname = name, marker_name = desc) |>
   dplyr::mutate(
     antigen       = marker_name,
-    marker_class  = ifelse(marker_name %in% useMarkers, markerType, "none"),
+    marker_class  = ifelse(marker_name %in% names(markerType), markerType[marker_name], "none"),
     use_channel   = marker_name %in% useMarkers
   ) |>
   dplyr::filter(!marker_name %in% removeMarkers) |>
@@ -1233,10 +1229,11 @@ daList <- setNames(lapply(seq_along(contrasts), function(i) {
 # ───────────────────────────────────────────────────────
 # 🧬 Differential state analysis (DS)
 message("🧪 Running DS analysis using diffcyt...")
-if (is.null(featureType)) {
-  rowData(sce)$marker_class <- "state"
-}
 sceDS <- sce
+if (!any(rowData(sceDS)$marker_class == "state")) {
+  message("\u26a0\ufe0f No state markers defined \u2014 treating all markers as state for DS analysis.")
+  rowData(sceDS)$marker_class <- "state"
+}
 ds_formula1 <- createFormula(ei, cols_fixed = "conditionToTest", cols_random = "sample_id")
 
 dsList <- setNames(vector("list", length(contrasts)), cTTForPlots)
@@ -1900,30 +1897,30 @@ if (gimmePDFs && exists("markerPairsList")) {
 
 :::::: panel-tabset
 
-```{r, label = "type marker heatmap", results = 'asis', fig.height=ceiling(length(numbersOfClusters)/4), fig.width=ceiling(length(useMarkers)/3.5)}
+```{r, label = "type marker heatmap", results = 'asis', fig.height=max(6, ceiling(length(numbersOfClusters)/2.5)), fig.width=max(8, ceiling(length(useMarkers)/2.5))}
 heatmapsList <- list()
 if("type" %in% markerType && "state" %in% markerType) {
   cat("##### Type Markers Only \n\n")
   pET <- plotExprHeatmap(
-    x = sce, 
-    assay = exprsToUse, 
-    features = "type", 
+    x = sce,
+    assay = exprsToUse,
+    features = "type",
     by = "cluster_id",
-    k = clusteringMethodToUse, 
+    k = clusteringMethodToUse,
     bars = TRUE,
-    perc = TRUE, 
-    col_clust = FALSE, 
+    perc = TRUE,
+    col_clust = FALSE,
     hm_pal = hmPalToUse,
     k_pal = coloursList[[paste0(mergeBy, knn)]]
     )
   heatmapsList[["Type"]] <- pET
-  print(pET)
+  ComplexHeatmap::draw(pET, merge_legend = TRUE)
   pETdf <- pET@matrix[row_order(pET),]
   topLineageTable <- data.frame(
     "Cluster" = paste("Cluster", rownames(pETdf))
   )
   topLineageTable$Top_Lineage_Markers <- NA
-  for (i in seq_along(1:nrow(topLineageTable))) {
+  for (i in seq_len(nrow(topLineageTable))) {
     row_vals <- pETdf[i,]; topLineageTable$Top_Lineage_Markers[i] <- paste(names(head(sort(row_vals[row_vals > 0.4], decreasing = TRUE), n = 2)), collapse = " ")
   }
   topLineageTable <- topLineageTable[mixedorder(topLineageTable$Cluster), ]
@@ -1953,13 +1950,13 @@ if("type" %in% markerType && "state" %in% markerType) {
     k_pal = coloursList[[paste0(mergeBy, knn)]]
     )
   heatmapsList[["State"]] <- pES
-  print(pES)
+  ComplexHeatmap::draw(pES, merge_legend = TRUE)
   pESdf <- pES@matrix[row_order(pES),]
   topStateTable <- data.frame(
     "Cluster" = paste("Cluster", rownames(pESdf))
   )
   topStateTable$Top_State_Markers <- NA
-  for (i in seq_along(1:nrow(topStateTable))) {
+  for (i in seq_len(nrow(topStateTable))) {
     topStateTable$Top_State_Markers[i] <- paste(names(head(sort(pESdf[i,], decreasing = TRUE), n = 3)), collapse = " ")
     topStateTable$Bottom_State_Markers[i] <- paste(names(tail(sort(pESdf[i,], decreasing = TRUE), n = 3)), collapse = " ")
   }
@@ -1983,8 +1980,8 @@ if("type" %in% markerType && "state" %in% markerType) {
 if (gimmePDFs) {
   if (length(heatmapsList) == 2) {
     for (n in names(heatmapsList)) {
-      pdf(file = file.path(pdfDir, paste0(n, "_Marker_Heatmap.pdf")), height = ceiling(length(numbersOfClusters)/4.5), width = ceiling(length(useMarkers)/4))
-      print(heatmapsList[[n]])
+      pdf(file = file.path(pdfDir, paste0(n, "_Marker_Heatmap.pdf")), height = max(6, ceiling(length(numbersOfClusters)/2.5)), width = max(8, ceiling(length(useMarkers)/3)))
+      ComplexHeatmap::draw(heatmapsList[[n]], merge_legend = TRUE)
       dev.off()
     }
   }
@@ -1993,9 +1990,9 @@ if (gimmePDFs) {
 
 ##### All Markers
 
-```{r, label = "plot marker expression cluster", fig.height=ceiling(length(numbersOfClusters)/4), fig.width=if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/2.5))}}
+```{r, label = "plot marker expression cluster", fig.height=max(6, ceiling(length(numbersOfClusters)/2.5)), fig.width=max(10, ceiling(length(useMarkers)/2))}
 exH <- plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]])
-exH
+ComplexHeatmap::draw(exH, merge_legend = TRUE)
 ```
 
 ```{r, label = "top marker table", include = TRUE}
@@ -2017,7 +2014,7 @@ if("type" %in% markerType && "state" %in% markerType) {
     "Cluster" = paste("Cluster", rownames(exTDF))
   )
   topMarkerTable$Top_Markers <- NA
-  for (i in seq_along(1:nrow(topMarkerTable))) {
+  for (i in seq_len(nrow(topMarkerTable))) {
     topMarkerTable$Top_Markers[i] <- paste(names(head(sort(exTDF[i,], decreasing = TRUE), n = 3)), collapse = " ")
   }
   DT::datatable(topMarkerTable, rownames = FALSE, filter = "top", width = 800)
@@ -2030,10 +2027,10 @@ if("type" %in% markerType && "state" %in% markerType) {
 if (gimmePDFs) {
   pdf(
     file = file.path(pdfDir, "marker_per_cluster_heatmap.pdf"),
-    width = if((length(useMarkers)/2) < 10){10}else{(ceiling(length(useMarkers)/3))},
-    height = ceiling(length(numbersOfClusters)/4.5), bg = "transparent"
+    width = max(10, ceiling(length(useMarkers)/2)),
+    height = max(6, ceiling(length(numbersOfClusters)/2.5)), bg = "transparent"
     )
-  print(plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]]))
+  ComplexHeatmap::draw(plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]]), merge_legend = TRUE)
   dev.off()
 }
 ```
@@ -2151,81 +2148,6 @@ lgd_aes$title_gp <- gpar(
 )
 ```
 
-##### Selected Clusters
-
-:::: panel-tabset
-
-```{r, label = "heatmap by clusters", fig.height = 4, fig.width = 8, results = 'asis', message = FALSE}
-heatmapClustersList <- list()
-for (i in seq_along(selectedClustersList)) {
-  if (length(selectedClustersList[[i]]) >= 2) {
-    
-    cat("######", names(selectedClustersList)[i], "\n\n")
-    cl <- selectedClustersList[[i]]
-    x1 <- filterSCE(x, cluster_id %in% cl, k = clusteringMethodToUse)
-    x1$cluster_id <- droplevels(x1$cluster_id)
-    
-    ns <- table(x[[by[1]]])
-    ns2 <- ns[which(names(ns) %in% cl)]
-    fq <- round(ns/sum(ns) * 100, 2)
-    txt <- sprintf("%s%%(%s)", fq, names(fq))
-    txt <- txt[which(gsub(".*\\(|\\).*", "", txt) %in% names(ns2))]
-    foo <- row_anno_text(txt, just = "center", gp = gpar(fontsize = 8), location = unit(0.5, "npc"))
-    right_anno <- rowAnnotation(n_cells = row_anno_barplot(x = as.matrix(ns2), width = unit(2, "cm"), gp = gpar(fill = "grey", col = "white"), border = FALSE, axis = TRUE, bar_width = 0.8), foo = foo)
-    
-    left_anno <- CATALYST:::.anno_clusters(x1, "cluster_id", NULL, coloursList[[names(selectedClustersList)[[i]]]], NULL)
-    
-    z1 <- z[selectedClustersList[[i]], ]
-    h1 <- Heatmap(
-      matrix = z1, 
-      name = paste0("median scaled\nexpression"),
-      col = hmPalToUse,
-      cluster_rows = TRUE,
-      cluster_columns = FALSE,
-      show_row_dend = TRUE,
-      show_column_dend = TRUE,
-      show_row_names = (is.null(left_anno) || isTRUE(by == "sample_id")) && !perc, row_names_side = ifelse(by[1] == "cluster_id" || isFALSE(row_anno) && !row_dend || isFALSE(row_clust), "left", "right"),
-      left_annotation = left_anno,
-      right_annotation = right_anno,
-      rect_gp = gpar(col = "white"),
-      heatmap_legend_param = lgd_aes
-    )
-    print(h1)
-    heatmapClustersList[[i]] <- h1
-    cx <- names(selectedClustersList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
-    sx <- names(selectedClustersList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
-    if (gimmePDFs) {
-      pdf(file = paste0(pdfDir, "/", cx, "_", sx, "_heatmaps.pdf"), width = 10, height = ceiling(length(cl)*0.5)+1)
-      print(h1)
-      dev.off()
-    }
-    cat("\n\n")
-  } else {
-    cat("######", names(selectedClustersList)[i], "\n\n")
-    cat("There is only one (or zero) cluster(s) in this group, and the heatmaps currently do not support a single cluster. Sorry!")
-    cat("\n\n")
-  }
-}
-```
-
-```{r, label = "Prepare Seurat object for heatmap", eval = FALSE}
-#### Per-Cell Heatmap
-scData <- suppressWarnings(Seurat::as.Seurat(x = sce, counts = "exprsTransformed", data = "exprsQuantNorm"))
-scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
-Seurat::Idents(scData) <- "cluster_id"
-Seurat::DoHeatmap(
-  object = scData,
-  assay = "originalexp",
-  slot = "scale.data",
-  features = gsub("_", "-", useMarkers),
-  group.by = "cluster_id",
-  group.colors = coloursList[[paste0(mergeBy, knn)]],
-  size = 4,
-  vjust = 0.1,
-  group.bar = TRUE
-)
-```
-::::
 ::::::
 ::::::::
 
@@ -2506,6 +2428,75 @@ xlab <- textGrob("Condition", gp = gpar(fontface = "bold", fontsize = 16))
 grid.arrange(grobs = markerBoxplotList, ncol = nColsToPlot, left = ylab, bottom = xlab)
 ```
 
+### Markers within Clusters
+
+:::::::: panel-tabset
+
+```{r, label = "markers per cluster boxplot", fig.width=18, fig.height=5, results = 'asis'}
+by <- c("cluster_id", "sample_id")
+ms <- CATALYST:::.agg(sce, by, "median", "exprsQuantNorm")
+
+df <- melt(ms, varnames = c("antigen", by[length(by)]))
+names(df)[ncol(df)] <- "cluster_id"
+i <- match(df$sample_id, sce$sample_id)
+j <- setdiff(names(colData(sce)), c(names(df), "cluster_id"))
+df <- cbind(df, colData(sce)[i, j, drop = FALSE])
+cat("\n\n")
+openxlsx::write.xlsx(as.data.frame(df), file = file.path(excelDir, "Median_Markers_Per_Cluster_Expression.xlsx"))
+individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]), function(i) {
+  cat("#### Cluster", i, "\n\n")
+  df1 <- df[df$cluster_id == as.character(i),]
+  g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
+    scale_y_continuous(limits = c(0, 1), breaks = c(0.25, 0.5, 0.75, 1)) +
+    geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) +
+    geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
+    geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
+    geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
+    scale_fill_manual(values = coloursList$condition) +
+    theme_prism(axis_text_angle = 45) +
+    ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", i))
+  print(g1)
+  cat("\n\n")
+  return("g1" = g1)
+}), levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]))
+```
+
+```{r, label = "save markers per cluster boxplots", include = FALSE}
+if (gimmePDFs) {
+  dir.create(file.path(pdfDir, "Markers_per_cluster_boxplots"))
+  lapply(names(individualClusterMarkerBoxplots), function(x) {
+    pdf(file.path(pdfDir, "Markers_per_cluster_boxplots", paste0(x, ".pdf")), width = 12, height = 5)
+    print(individualClusterMarkerBoxplots[[x]])
+    dev.off()
+  })
+}
+```
+
+```{r, label = "markers_boxplots2", fig.width=18, fig.height=5, results = "asis"}
+for (i in seq_along(selectedClustersList)) {
+  if (length(selectedClustersList[[i]]) > 0) {
+    cat("####", names(selectedClustersList)[[i]], "\n\n")
+    for (j in (selectedClustersList[[i]])) {
+      df1 <- df[df$cluster_id == as.character(j),]
+      g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
+        geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
+        geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
+        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) +
+        geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
+        scale_fill_manual(values = coloursList$condition) +
+        theme_prism(axis_text_angle = 45) +
+        ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", j))
+      print(g1)
+    }
+  } else {
+    cat("No DA clusters to see here...\n")
+  }
+  cat("\n\n")
+}
+```
+
+::::::::
+
 ::::::::::
 
 ```{r, label = "save marker boxplots", include = FALSE}
@@ -2688,11 +2679,6 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
       show_cluster_labels = var
       )
     m1 <- m1 + ggtitle(marker) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
-    med_expr <- median(m1$data[[marker]], na.rm = TRUE)
-    pal <- hcl.colors(64, viridisColour)
-    fill_col <- pal[max(1, round(med_expr * 63) + 1)]
-    text_col <- ifelse(med_expr > 0.5, "white", "black")
-    m1 <- m1 + annotate(geom = "label", x = max(m1$data$x)*0.8, y = max(m1$data$y)*0.95, label = marker, fill = fill_col, color = text_col, size = 6, fontface = "bold", label.padding = unit(0.3, "lines"))
     m1
   }), useMarkers)
   l1[["legend"]] <- cowplot::get_legend(l1[[1]])
@@ -2930,7 +2916,7 @@ htmltools::tagList(DT::datatable(data.frame(x = 1)))
 daResultsList <- setNames(lapply(names(daList), function(cont) {
   cat("\n\n")
   cat("####", cont, "Top 20 \n\n")
-  pDH <- plotDiffHeatmap(sce, daList[[cont]], normalize = TRUE, all = TRUE, top_n = 20)
+  pDH <- plotDiffHeatmap(sce, daList[[cont]], normalize = TRUE, all = TRUE, top_n = 20, col_anno = conditions)
   for (con in conditions) {
     pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
     pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -3025,7 +3011,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
   }
 
   cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse)
+  pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions)
   for (con in conditions) {
     pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
     pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -3094,7 +3080,7 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
   }
   cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE)
+  pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, col_anno = conditions)
   for (con in conditions) {
     pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
     pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
@@ -3127,70 +3113,60 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
 
 ::::::::
 
-### Markers within Clusters
+### Selected Cluster Heatmaps
 
 :::::::: panel-tabset
 
-```{r, label = "markers per cluster boxplot", fig.width=18, fig.height=5, results = 'asis'}
-by <- c("cluster_id", "sample_id")
-ms <- CATALYST:::.agg(sce, by, "median", "exprsQuantNorm")
-
-df <- melt(ms, varnames = c("antigen", by[length(by)]))
-names(df)[ncol(df)] <- "cluster_id"
-i <- match(df$sample_id, sce$sample_id)
-j <- setdiff(names(colData(sce)), c(names(df), "cluster_id"))
-df <- cbind(df, colData(sce)[i, j, drop = FALSE])
-cat("\n\n")
-openxlsx::write.xlsx(as.data.frame(df), file = file.path(excelDir, "Median_Markers_Per_Cluster_Expression.xlsx"))
-individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]), function(i) {
-  cat("#### Cluster", i, "\n\n")
-  df1 <- df[df$cluster_id == as.character(i),]
-  g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
-    scale_y_continuous(limits = c(0, 1), breaks = c(0.25, 0.5, 0.75, 1)) +
-    geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
-    geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
-    geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
-    geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
-    scale_fill_manual(values = coloursList$condition) +
-    theme_prism(axis_text_angle = 45) +
-    ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", i))
-  print(g1)
-  cat("\n\n")
-  return("g1" = g1)
-}), levels(markerBoxplotsMeltDF[[paste0(mergeBy, knn)]]))
-```
-
-```{r, label = "save markers per cluster boxplots", include = FALSE}
-if (gimmePDFs) {
-  dir.create(file.path(pdfDir, "Markers_per_cluster_boxplots"))
-  lapply(names(individualClusterMarkerBoxplots), function(x) {
-    pdf(file.path(pdfDir, "Markers_per_cluster_boxplots", paste0(x, ".pdf")), width = 12, height = 5)
-    print(individualClusterMarkerBoxplots[[x]])
-    dev.off()
-  })
-}
-```
-
-```{r, label = "markers_boxplots2", fig.width=18, fig.height=5, results = "asis"}
+```{r, label = "heatmap by clusters", fig.height = 4, fig.width = 8, results = 'asis', message = FALSE}
+heatmapClustersList <- list()
 for (i in seq_along(selectedClustersList)) {
-  if (length(selectedClustersList[[i]]) > 0) {
-    cat("####", names(selectedClustersList)[[i]], "\n\n")
-    for (j in (selectedClustersList[[i]])) {
-      df1 <- df[df$cluster_id == as.character(j),]
-      g1 <- ggplot(df1, aes(x = antigen, y = value, fill = condition)) +
-        geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
-        geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
-        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) + 
-        geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
-        scale_fill_manual(values = coloursList$condition) +
-        theme_prism(axis_text_angle = 45) +
-        ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", j))
-      print(g1)
+  if (length(selectedClustersList[[i]]) >= 2) {
+
+    cat("####", names(selectedClustersList)[i], "\n\n")
+    cl <- selectedClustersList[[i]]
+    x1 <- filterSCE(x, cluster_id %in% cl, k = clusteringMethodToUse)
+    x1$cluster_id <- droplevels(x1$cluster_id)
+
+    ns <- table(x[[by[1]]])
+    ns2 <- ns[which(names(ns) %in% cl)]
+    fq <- round(ns/sum(ns) * 100, 2)
+    txt <- sprintf("%s%%(%s)", fq, names(fq))
+    txt <- txt[which(gsub(".*\\(|\\).*", "", txt) %in% names(ns2))]
+    foo <- row_anno_text(txt, just = "center", gp = gpar(fontsize = 8), location = unit(0.5, "npc"))
+    right_anno <- rowAnnotation(n_cells = row_anno_barplot(x = as.matrix(ns2), width = unit(2, "cm"), gp = gpar(fill = "grey", col = "white"), border = FALSE, axis = TRUE, bar_width = 0.8), foo = foo)
+
+    left_anno <- CATALYST:::.anno_clusters(x1, "cluster_id", NULL, coloursList[[names(selectedClustersList)[[i]]]], NULL)
+
+    z1 <- z[selectedClustersList[[i]], ]
+    h1 <- Heatmap(
+      matrix = z1,
+      name = paste0("median scaled\nexpression"),
+      col = hmPalToUse,
+      cluster_rows = TRUE,
+      cluster_columns = FALSE,
+      show_row_dend = TRUE,
+      show_column_dend = TRUE,
+      show_row_names = (is.null(left_anno) || isTRUE(by == "sample_id")) && !perc, row_names_side = ifelse(by[1] == "cluster_id" || isFALSE(row_anno) && !row_dend || isFALSE(row_clust), "left", "right"),
+      left_annotation = left_anno,
+      right_annotation = right_anno,
+      rect_gp = gpar(col = "white"),
+      heatmap_legend_param = lgd_aes
+    )
+    print(h1)
+    heatmapClustersList[[i]] <- h1
+    cx <- names(selectedClustersList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
+    sx <- names(selectedClustersList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
+    if (gimmePDFs) {
+      pdf(file = paste0(pdfDir, "/", cx, "_", sx, "_heatmaps.pdf"), width = 10, height = ceiling(length(cl)*0.5)+1)
+      print(h1)
+      dev.off()
     }
+    cat("\n\n")
   } else {
-    cat("No DA clusters to see here...\n")
+    cat("####", names(selectedClustersList)[i], "\n\n")
+    cat("There is only one (or zero) cluster(s) in this group, and the heatmaps currently do not support a single cluster. Sorry!")
+    cat("\n\n")
   }
-  cat("\n\n")
 }
 ```
 

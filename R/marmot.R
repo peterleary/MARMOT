@@ -108,7 +108,6 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     file.copy(header_src, file.path(fp, "marmot_header.html"), overwrite = TRUE)
   }
 
-  Sys.sleep(0.2)
   message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
   if (!render) {
     message("\nYou chose not to render the HTML report. You can either render it yourself in RStudio, or run this function again with `render = TRUE`.\n")

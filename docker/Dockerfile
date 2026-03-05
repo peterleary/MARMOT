@@ -62,7 +62,7 @@ ENV RETICULATE_MINICONDA_PATH="/opt/miniforge"
 RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
 
 # Arrow C++ build: enable Parquet but skip optional network-dependent components
-ENV NOT_CRAN=true
+ARG NOT_CRAN=true
 ENV LIBARROW_MINIMAL=false
 ENV ARROW_PARQUET=ON
 ENV ARROW_WITH_THRIFT=OFF

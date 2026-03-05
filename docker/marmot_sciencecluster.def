@@ -11,7 +11,7 @@
 #   export APPTAINER_DOCKER_PASSWORD=<ghcr-pat>
 
 BootStrap: docker
-From: ghcr.io/peterleary/marmot:dev
+From: ghcr.io/peterleary/marmot:latest
 
 %help
   MARMOT spectral flow cytometry pipeline with RStudio desktop
@@ -21,7 +21,7 @@ From: ghcr.io/peterleary/marmot:dev
 %labels
   ########
   # (Optional) change labels if needed
-  Version 0.4.0
+  Version 1.3.0
   Author Peter Leary <peter.leary@uzh.ch>
   #
   ########

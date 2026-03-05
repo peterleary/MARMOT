@@ -1,6 +1,6 @@
 {
   "productName": "MARMOT",
-  "version": "0.1.0",
+  "version": "1.3.0",
   "identifier": "com.marmot.gui",
   "build": {
     "frontendDist": "../dist",

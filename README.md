@@ -16,7 +16,7 @@ Kirsche L, He J, Müller A, Leary P (2025). MARMOT: A multifaceted R pipeline fo
 
 **And feel free to link MARMOT in your methods:** https://github.com/peterleary/MARMOT
 
-For additional information, guidelines, and tips, please refer to the [Wiki](../../wiki) on this GitHub.
+For additional information, guidelines, and tips, please refer to the [Wiki](https://github.com/peterleary/MARMOT/wiki) on this GitHub.
 
 ---
 
@@ -70,7 +70,7 @@ marmot(
 
 ```r
 # Step 5: Load the shiny app
-shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
+shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2026-03-10_11.19.25/R_files")
 ```
 
 These instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM (default clustering), UMAP, and t-SNE. Alternative clustering methods (Rphenograph, FastPG) are installed separately — `install_marmot_extras()` will attempt them and let you know if any were skipped.
@@ -94,13 +94,13 @@ A pre-built Docker image with R, all packages, Quarto, and the Python environmen
 ### Docker
 
 ```bash
-docker pull ghcr.io/peterleary/marmot:dev
+docker pull ghcr.io/peterleary/marmot:latest
 ```
 
 Mount the folder containing your FCS files and metadata Excel into the container with `-v`. Replace the path before the `:` with your actual data folder:
 
 ```bash
-docker run --rm -it -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:dev
+docker run --rm -it -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:latest
 ```
 
 This opens an interactive R session inside the container. Your data folder is available at `/data`. From here you can verify the setup and run the pipeline:
@@ -120,7 +120,7 @@ marmot(
 Or run the pipeline directly without entering R:
 
 ```bash
-docker run --rm -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:dev \
+docker run --rm -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:latest \
   Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
 ```
 
@@ -130,13 +130,13 @@ Most university clusters don't allow Docker but do support [Apptainer](https://a
 
 ```bash
 # Pull once (creates a ~5 GB .sif file)
-apptainer pull docker://ghcr.io/peterleary/marmot:dev
+apptainer pull docker://ghcr.io/peterleary/marmot:latest
 ```
 
 Mount your data folder with `--bind` and run interactively:
 
 ```bash
-apptainer shell --bind /path/to/data:/data marmot_dev.sif
+apptainer shell --bind /path/to/data:/data marmot_latest.sif
 ```
 
 This opens a shell inside the container. Start R and run the pipeline as above:
@@ -151,7 +151,7 @@ marmot(metadata = "/data/MARMOT_Metadata.xlsx", name = "MyRun", render = TRUE)
 Or run non-interactively:
 
 ```bash
-apptainer run --bind /path/to/data:/data marmot_dev.sif \
+apptainer run --bind /path/to/data:/data marmot_latest.sif \
   Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
 ```
 

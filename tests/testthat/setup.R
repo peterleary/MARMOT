@@ -69,7 +69,8 @@ make_mock_sce <- function(n_cells = 100, n_markers = 5, n_samples = 2) {
 #' @param n_cells Cells per FCS file (default 500)
 #' @param n_markers Number of markers (default 8)
 #' @return Path to the temp directory containing FCS + metadata
-make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list()) {
+make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list(),
+                                    marker_types = NULL) {
   set.seed(123)
   tmp <- tempfile("marmot_inttest_")
   dir.create(tmp, recursive = TRUE)
@@ -158,9 +159,15 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list(
   n_rows <- max(n_markers, 4)  # pad to enough rows
   study_data <- data.frame(
     `Markers to include for clustering` = c(marker_names, rep(NA, n_rows - n_markers)),
-    `Marker Type` = c(rep("type", ceiling(n_markers / 2)),
-                      rep("state", n_markers - ceiling(n_markers / 2)),
-                      rep(NA, n_rows - n_markers)),
+    `Marker Type` = c(
+      if (is.null(marker_types)) {
+        c(rep("type", ceiling(n_markers / 2)),
+          rep("state", n_markers - ceiling(n_markers / 2)))
+      } else {
+        stopifnot(length(marker_types) == n_markers)
+        marker_types
+      },
+      rep(NA, n_rows - n_markers)),
     `Markers to exclude completely` = rep(NA, n_rows),
     `Cofactors for markers to use` = c(rep(150, n_markers), rep(NA, n_rows - n_markers)),
     `Conditions To Test` = c("Treatment over Control", rep(NA, n_rows - 1)),
@@ -265,7 +272,8 @@ make_cell_matching_sce <- function(n_cells = 100, n_markers = 5, n_samples = 2,
 #' @param n_cells Cells per FCS file (default 5000)
 #' @param params Named list of Pipeline Settings overrides
 #' @return Path to the temp directory containing FCS + metadata
-make_realistic_pipeline_data <- function(n_cells = 5000, params = list()) {
+make_realistic_pipeline_data <- function(n_cells = 5000, params = list(),
+                                          marker_types = NULL) {
   set.seed(42)
   tmp <- tempfile("marmot_realistic_")
   dir.create(tmp, recursive = TRUE)
@@ -775,7 +783,12 @@ make_realistic_pipeline_data <- function(n_cells = 5000, params = list()) {
   study_data <- data.frame(
     `Markers to include for clustering` = c(bio_markers, rep(NA, n_rows - length(bio_markers))),
     `Marker Type` = c(
-      ifelse(bio_markers %in% type_markers, "type", "state"),
+      if (is.null(marker_types)) {
+        ifelse(bio_markers %in% type_markers, "type", "state")
+      } else {
+        stopifnot(length(marker_types) == length(bio_markers))
+        marker_types
+      },
       rep(NA, n_rows - length(bio_markers))
     ),
     `Markers to exclude completely` = c(excluded_markers, rep(NA, n_rows - length(excluded_markers))),
@@ -834,9 +847,10 @@ skip_pipeline_deps <- function() {
 #' @param n_markers Number of markers (default 8)
 #' @return A list with test_dir, results_path, pq_dir, params, n_cells, n_markers
 run_pipeline_test <- function(params = list(), test_name = "IntTest",
-                              n_cells = 500, n_markers = 8) {
+                              n_cells = 500, n_markers = 8,
+                              marker_types = NULL) {
   test_dir <- make_test_pipeline_data(n_cells = n_cells, n_markers = n_markers,
-                                       params = params)
+                                       params = params, marker_types = marker_types)
 
   meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
   stopifnot(file.exists(meta_path))
@@ -918,6 +932,115 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
   # HTML report
   html_files <- list.files(dirname(result$results_path), pattern = "\\.html$")
   expect_true(length(html_files) >= 1)
+
+  invisible(sce)
+}
+
+#' Run a realistic pipeline integration test (12 FCS files, 21 markers, 30 channels)
+#'
+#' @param params Named list of Pipeline Settings overrides
+#' @param test_name Name for the pipeline output (default "RealisticTest")
+#' @param n_cells Cells per FCS file (default 300)
+#' @param marker_types Optional vector of 21 marker types
+#' @return A list with test_dir, results_path, pq_dir, params, n_cells, marker_types
+run_realistic_pipeline_test <- function(params = list(), test_name = "RealisticTest",
+                                         n_cells = 300, marker_types = NULL) {
+  test_dir <- make_realistic_pipeline_data(n_cells = n_cells, params = params,
+                                            marker_types = marker_types)
+
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  stopifnot(file.exists(meta_path))
+
+  marmot(metadata = meta_path, name = test_name, render = TRUE)
+
+  # Find the results directory
+  results_dirs <- list.dirs(test_dir, recursive = FALSE)
+  results_dir <- grep("^Results_Files_", basename(results_dirs), value = TRUE)
+  stopifnot(length(results_dir) == 1)
+  results_path <- file.path(test_dir, results_dir)
+
+  pq_dir <- file.path(results_path, "R_files", "parquet")
+
+  list(
+    test_dir = test_dir,
+    results_path = results_path,
+    pq_dir = pq_dir,
+    params = params,
+    n_cells = n_cells,
+    marker_types = marker_types
+  )
+}
+
+#' Validate marker type assignment in pipeline output
+#'
+#' Reconstructs SCE from Parquet and checks marker_class, DA results,
+#' and DS results against expectations.
+#'
+#' @param result Output from run_pipeline_test() or run_realistic_pipeline_test()
+#' @param expected_marker_classes Named vector: marker_name -> expected class ("type"/"state")
+#' @param expected_n_contrasts Expected number of DA/DS contrast entries
+#' @param expect_ds_markers Character vector of markers expected in DS results (NULL to skip)
+#' @param expect_ds_saved Whether DS results should be saved to Parquet (default TRUE)
+validate_marker_type_output <- function(result, expected_marker_classes,
+                                         expected_n_contrasts = NULL,
+                                         expect_ds_markers = NULL,
+                                         expect_ds_saved = TRUE) {
+  pq_dir <- result$pq_dir
+
+  # Reconstruct SCE and check marker_class
+  sce <- reconstruct_sce_from_parquet(pq_dir)
+  rd <- SummarizedExperiment::rowData(sce)
+  actual_classes <- setNames(as.character(rd$marker_class), rownames(rd))
+
+  for (marker in names(expected_marker_classes)) {
+    expect_equal(
+      actual_classes[[marker]], expected_marker_classes[[marker]],
+      info = paste("marker_class for", marker)
+    )
+  }
+
+  # DA results
+  da_dir <- file.path(pq_dir, "da_results")
+  if (!is.null(expected_n_contrasts)) {
+    da_files <- list.files(da_dir, pattern = "\\.parquet$")
+    # Exclude selected_clusters.parquet
+    da_result_files <- da_files[!grepl("selected_clusters", da_files)]
+    expect_equal(length(da_result_files), expected_n_contrasts,
+                 info = "Number of DA contrast result files")
+
+    # Each DA result should have p_adj column
+    for (f in da_result_files) {
+      da_df <- arrow::read_parquet(file.path(da_dir, f))
+      expect_true("p_adj" %in% colnames(da_df), info = paste("p_adj in", f))
+    }
+  }
+
+  # DS results
+  ds_dir <- file.path(pq_dir, "ds_results")
+  if (expect_ds_saved) {
+    ds_files <- list.files(ds_dir, pattern = "\\.parquet$")
+    expect_true(length(ds_files) > 0, info = "DS results saved to Parquet")
+
+    if (!is.null(expect_ds_markers)) {
+      # Check that DS tested the expected markers
+      all_ds_markers <- character(0)
+      for (f in ds_files) {
+        ds_df <- arrow::read_parquet(file.path(ds_dir, f))
+        if ("marker_id" %in% colnames(ds_df)) {
+          all_ds_markers <- union(all_ds_markers, unique(as.character(ds_df$marker_id)))
+        }
+      }
+      for (mk in expect_ds_markers) {
+        expect_true(mk %in% all_ds_markers, info = paste("DS tested marker", mk))
+      }
+    }
+  }
+
+  # Parquet round-trip: marker_class survives
+  sce2 <- reconstruct_sce_from_parquet(pq_dir)
+  rd2 <- SummarizedExperiment::rowData(sce2)
+  expect_equal(as.character(rd2$marker_class), as.character(rd$marker_class),
+               info = "marker_class survives Parquet round-trip")
 
   invisible(sce)
 }

@@ -63,6 +63,7 @@
       {placeholder}
       {min}
       {disabled}
+      oninput={(e) => onchange?.(e.target.value)}
     />
   {:else if type === "folder"}
     <div class="folder-browse">

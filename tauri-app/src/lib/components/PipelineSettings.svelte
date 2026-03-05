@@ -56,10 +56,13 @@
   });
 
   // Watch RDataFolder: when set, load saved settings and lock data-processing fields
+  let lastLoadedPath = "";
   $effect(() => {
     const rdataSetting = currentMetadata.pipeline_settings.find(s => s.variable === "RDataFolder");
     const rdataPath = rdataSetting?.setting;
     if (rdataPath && rdataPath.trim() !== "") {
+      if (rdataPath === lastLoadedPath) return;
+      lastLoadedPath = rdataPath;
       invoke("read_reload_settings", { path: rdataPath })
         .then((saved) => {
           for (const [key, val] of Object.entries(saved)) {
@@ -72,6 +75,7 @@
           reloadActive = false;
         });
     } else {
+      lastLoadedPath = "";
       reloadActive = false;
     }
   });

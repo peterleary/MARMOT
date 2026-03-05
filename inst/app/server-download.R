@@ -114,7 +114,7 @@ output$downloadFCS <- downloadHandler(
 
       flowCore::write.FCS(
         x = flowCore::fr_append_cols(
-          fr = inputDataReactive$Results$framesList$`All Cells`[[fn1]],
+          fr = inputDataReactive$Results$framesList$Untransformed[[fn1]],
           cols = as.matrix(apps)
         ),
         filename = fn2,
