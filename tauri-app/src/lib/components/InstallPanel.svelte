@@ -8,7 +8,7 @@
   let includePython = $state(true);
   let elapsed = $state("0:00");
   let timer = $state(null);
-  let runningCmd = $state(null); // "check" | "install" | null
+  let runningCmd = $state(null); // "check" | "marmot" | "extras" | null
 
   // Auto-scroll log
   $effect(() => {
@@ -70,9 +70,15 @@
     );
   }
 
-  async function handleInstall() {
-    await runCommand("install", () =>
-      invoke("run_install", {
+  async function handleInstallMarmot() {
+    await runCommand("marmot", () =>
+      invoke("run_install_marmot", { rscriptPath: $rscriptPath })
+    );
+  }
+
+  async function handleInstallExtras() {
+    await runCommand("extras", () =>
+      invoke("run_install_extras", {
         rscriptPath: $rscriptPath,
         includeSuggests,
         includePython,
@@ -84,11 +90,6 @@
 </script>
 
 <div class="setup-panel">
-
-  <div class="welcome">
-    <h2>Welcome to MARMOT</h2>
-    <p>Before your first analysis, check that your R environment has everything it needs.</p>
-  </div>
 
   <!-- Primary action: Check Setup -->
   <div class="check-card">
@@ -114,43 +115,75 @@
 
   <!-- Divider -->
   <div class="section-divider">
-    <span>Missing packages? Install them below</span>
+    <span>Install</span>
   </div>
 
-  <!-- Secondary action: Install -->
-  <div class="install-section">
-    <div class="install-options">
+  <!-- Step 1: Install MARMOT -->
+  <div class="install-card">
+    <div class="install-card-header">
+      <span class="install-step">1</span>
+      <div class="install-card-text">
+        <strong>Install MARMOT</strong>
+        <span>Installs the MARMOT R package and all core dependencies from GitHub. This is required before anything else.</span>
+      </div>
+    </div>
+    <div class="install-card-action">
+      <button class="btn-primary" onclick={handleInstallMarmot} disabled={isRunning}>
+        {#if isRunning && runningCmd === "marmot"}
+          Installing MARMOT... ({elapsed})
+        {:else}
+          Install MARMOT
+        {/if}
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Install Extras -->
+  <div class="install-card">
+    <div class="install-card-header">
+      <span class="install-step">2</span>
+      <div class="install-card-text">
+        <strong>Install extras</strong>
+        <span>Optional packages and the Python environment for PARC/PaCMAP. Not everything may install on every system &mdash; that's fine, MARMOT works without them.</span>
+      </div>
+    </div>
+    <div class="install-card-options">
       <label class="option-row">
         <input type="checkbox" bind:checked={includeSuggests} disabled={isRunning} />
         <span>
-          <strong>Include optional packages</strong>
-          <small>Seurat</small>
+          <strong>Optional R packages</strong>
+          <small>Seurat, Rphenograph, etc.</small>
         </span>
       </label>
       <label class="option-row">
         <input type="checkbox" bind:checked={includePython} disabled={isRunning} />
         <span>
-          <strong>Set up Python environment</strong>
-          <small>PARC &amp; PaCMAP — requires conda/miniforge (skipped gracefully if missing)</small>
+          <strong>Python environment</strong>
+          <small>PARC &amp; PaCMAP &mdash; automatic via basilisk, no conda needed</small>
         </span>
       </label>
     </div>
-
-    <div class="install-actions">
-      <button class="btn-install" onclick={handleInstall} disabled={isRunning}>
-        {#if isRunning && runningCmd === "install"}
-          Installing... ({elapsed})
+    <div class="install-card-action">
+      <button class="btn-secondary" onclick={handleInstallExtras} disabled={isRunning}>
+        {#if isRunning && runningCmd === "extras"}
+          Installing extras... ({elapsed})
         {:else}
-          Install Packages
+          Install Extras
         {/if}
       </button>
-      {#if $installState === "done"}
-        <span class="status-badge done">&#10003; Done</span>
-      {:else if $installState === "error"}
-        <span class="status-badge error">&#10007; Error — see log below</span>
-      {/if}
     </div>
   </div>
+
+  <!-- Status badge -->
+  {#if $installState === "done" || $installState === "error"}
+    <div class="status-row">
+      {#if $installState === "done"}
+        <span class="status-badge done">&#10003; Done</span>
+      {:else}
+        <span class="status-badge error">&#10007; Error &mdash; see log below</span>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Log output -->
   {#if $installLines.length > 0}
@@ -168,18 +201,6 @@
     padding: 1.25rem 1.5rem;
     gap: 1rem;
     overflow-y: auto;
-  }
-
-  /* Welcome */
-  .welcome h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin-bottom: 0.2rem;
-  }
-  .welcome p {
-    font-size: 0.82rem;
-    color: #6b7280;
   }
 
   /* Check card */
@@ -252,21 +273,89 @@
     background: #e5e7eb;
   }
 
-  /* Install section */
-  .install-section {
+  /* Install cards */
+  .install-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .install-card-header {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
     gap: 0.75rem;
+    padding: 0.85rem 1rem 0.5rem;
   }
-  .install-options {
+  .install-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    background: #334155;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 50%;
+    margin-top: 0.05rem;
+  }
+  .install-card-text {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.75rem 1rem;
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    gap: 0.15rem;
   }
+  .install-card-text strong {
+    font-size: 0.88rem;
+    color: #1e293b;
+  }
+  .install-card-text span {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.45;
+  }
+  .install-card-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem 0.5rem 3rem;
+  }
+  .install-card-action {
+    padding: 0.5rem 1rem 0.85rem 3rem;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    padding: 0.5rem 1.4rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+
+  .btn-secondary {
+    padding: 0.45rem 1.2rem;
+    background: #fff;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-secondary:hover:not(:disabled) { background: #f3f4f6; }
+  .btn-secondary:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+
+  /* Option rows */
   .option-row {
     display: flex;
     align-items: flex-start;
@@ -291,27 +380,12 @@
     font-size: 0.75rem;
     color: #9ca3af;
   }
-  .install-actions {
+
+  /* Status */
+  .status-row {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
   }
-  .btn-install {
-    padding: 0.4rem 1rem;
-    background: #fff;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 5px;
-    font-size: 0.84rem;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-install:hover:not(:disabled) { background: #f3f4f6; }
-  .btn-install:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
-
-  /* Status badge */
   .status-badge {
     font-size: 0.82rem;
     font-weight: 500;

@@ -11,12 +11,13 @@
   import InstallPanel from "./lib/components/InstallPanel.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
   import SplashScreen from "./lib/components/SplashScreen.svelte";
+  import WelcomePanel from "./lib/components/WelcomePanel.svelte";
   import { metadata } from "./lib/stores/metadata.js";
   import { rscriptPath, rVersion, marmotInstalled, packageStatus, quartoPath, quartoVersion } from "./lib/stores/pipeline.js";
   import { MARMOT_VERSION } from "./lib/stores/constants.js";
 
-  let activeTab = $state("setup");
-  let activeSetupTab = $state("install");
+  let activeTab = $state("welcome");
+  let activeSetupTab = $state("settings");
   let splashVisible = $state(true);
   let splashFading = $state(false);
   let splashStatus = $state("Starting up...");
@@ -104,16 +105,17 @@
   }
 
   const tabs = [
-    { id: "setup",  label: "Setup",   icon: "&#128230;" },
-    { id: "log",    label: "Run/log", icon: "&#9654;" },
-    { id: "shiny",  label: "Shiny",   icon: "&#128202;" },
+    { id: "welcome",  label: "Welcome",        icon: "&#127968;" },
+    { id: "install",  label: "Install",        icon: "&#128230;" },
+    { id: "setup",    label: "Pipeline Setup",  icon: "&#9881;" },
+    { id: "log",      label: "Run/log",        icon: "&#9654;" },
+    { id: "shiny",    label: "Shiny",          icon: "&#128202;" },
   ];
 
   const setupTabs = [
-    { id: "install", label: "Install",      icon: "&#128230;" },
     { id: "settings", label: "Settings",    icon: "&#9881;" },
-    { id: "study",   label: "Study Design", icon: "&#9878;" },
-    { id: "files",   label: "Files",        icon: "&#128194;" },
+    { id: "study",    label: "Study Design", icon: "&#9878;" },
+    { id: "files",    label: "Files",        icon: "&#128194;" },
   ];
 
   function setActiveTab(tab) {
@@ -193,8 +195,6 @@
     </div>
   </header>
 
-  <Toolbar onActiveTab={setActiveTab} />
-
   <div class="tab-bar">
     {#each tabs as tab}
       <button
@@ -209,7 +209,12 @@
   </div>
 
   <main class="tab-content">
-    {#if activeTab === "setup"}
+    {#if activeTab === "welcome"}
+      <WelcomePanel />
+    {:else if activeTab === "install"}
+      <InstallPanel />
+    {:else if activeTab === "setup"}
+      <Toolbar onActiveTab={setActiveTab} />
       <div class="setup-layout">
         <nav class="setup-subnav">
           {#each setupTabs as st}
@@ -224,9 +229,7 @@
           {/each}
         </nav>
         <div class="setup-content">
-          {#if activeSetupTab === "install"}
-            <InstallPanel />
-          {:else if activeSetupTab === "settings"}
+          {#if activeSetupTab === "settings"}
             <PipelineSettings />
           {:else if activeSetupTab === "study"}
             <StudyData />

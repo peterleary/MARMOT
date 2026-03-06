@@ -929,8 +929,8 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
   xlsx_files <- list.files(excel_dir, pattern = "\\.xlsx$")
   expect_true(length(xlsx_files) >= 1)
 
-  # HTML report
-  html_files <- list.files(dirname(result$results_path), pattern = "\\.html$")
+  # HTML report (lives inside results dir)
+  html_files <- list.files(result$results_path, pattern = "\\.html$")
   expect_true(length(html_files) >= 1)
 
   invisible(sce)

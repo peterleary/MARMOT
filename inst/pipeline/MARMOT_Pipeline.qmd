@@ -102,9 +102,6 @@ options(bitmapType = "cairo", kableExtra_view_html = FALSE)
 ## 🔧 File paths
 fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/"      # Folder with all FCS files
 md_fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
-condaDir <- "/Users/peterleary/miniforge3/bin/mamba"      # Where conda/mamba lives (for PARC/PaCMAP)
-parcScriptDir <- "~/Desktop/FGCZ/MARMOT/" # Folder with f_pacmap.py and f_parc.py
-
 ## 🧪 Preprocessing
 downsampleTo <- NULL  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
 
@@ -141,6 +138,9 @@ viridisColour <- "lisbon"   # Palette: "lisbon", "berlin", "vik", "cork", "batlo
 ## 🌉 scGate (optional)
 runScGate <- FALSE    # Set TRUE to run scGate marker-pair gating (requires scGate, UCell, Seurat)
 
+## 📁 Results directory (set by marmot(); leave NULL for manual runs)
+resultsDir <- NULL
+
 ## Done editing? Knit away!
 ```
 
@@ -176,27 +176,6 @@ if (length(missing_vars)) {
     ".\nPlease define them in the 'input settings' chunk.",
     call. = FALSE
   )
-}
-```
-
-```{r resolve_paths, include = FALSE}
-
-# Auto-detect PARC/PaCMAP paths when not explicitly set in the metadata
-if (is.null(parcScriptDir) || !nzchar(trimws(parcScriptDir))) {
-  parcScriptDir <- system.file("python", package = "MARMOT")
-  if (nzchar(parcScriptDir)) {
-    message("🔧 Auto-detected PARC/PaCMAP scripts: ", parcScriptDir)
-  }
-}
-
-if (is.null(condaDir) || !nzchar(trimws(condaDir))) {
-  condaDir <- tryCatch(
-    reticulate::conda_binary(),
-    error = function(e) NULL
-  )
-  if (!is.null(condaDir)) {
-    message("🔧 Auto-detected conda binary: ", condaDir)
-  }
 }
 ```
 
@@ -399,8 +378,12 @@ allConditionLevels <- unlist(lapply(conditions, \(x) levels(factor(md[[x]]))), u
 palettePool <- c(
   RColorBrewer::brewer.pal(9, "Set1"),
   RColorBrewer::brewer.pal(8, "Dark2"),
-  RColorBrewer::brewer.pal(12, "Paired")
+  RColorBrewer::brewer.pal(12, "Paired"),
+  RColorBrewer::brewer.pal(8, "Set3")
 )
+if (length(allConditionLevels) > length(palettePool)) {
+  palettePool <- colorRampPalette(palettePool)(length(allConditionLevels))
+}
 
 allConditionLevelColours <- setNames(palettePool[seq_along(allConditionLevels)], allConditionLevels)
 
@@ -950,6 +933,9 @@ if (!is.null(featureType) && markersToDimRedBy == "type") {
 
 message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
 
+# Fix seed so DR is identical regardless of which clustering method ran before this
+set.seed(2)
+
 # Select features for DR
 if (!is.null(featureType) && markersToDimRedBy == "type") {
   featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
@@ -1121,6 +1107,7 @@ names(umapDFList) <- valid_methods
 
 # Optionally downsample per condition
 if (!is.null(drCellPerCondition)) {
+  set.seed(2)
   for (method in valid_methods) {
     df <- umapDFList[[method]]
     down_df <- df |>
@@ -1364,8 +1351,11 @@ if (!is.null(pq_dir) && dir.exists(pq_dir)) {
 
 # Create Results root directory if not resuming from saved RData
 if (is.null(RDataFolder)) {
-  resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
-  dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
+  if (is.null(resultsDir)) {
+    # Manual run (RStudio) — create results dir with timestamp
+    resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
+    dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
+  }
 
   rFilesDir <- file.path(resultsDir, "R_files")
   dir.create(rFilesDir, showWarnings = FALSE)
@@ -1437,10 +1427,7 @@ jsonlite::write_json(settings_list, file.path(rFilesDir, "pipeline_settings.json
 message("Saved: pipeline_settings.json")
 
 # Copy metadata Excel into results folder for self-contained archive
-file.copy(file.path(fp, md_fp), resultsDir, overwrite = TRUE)
-
-# Marker file so marmot.R can copy QMD/HTML into results folder after render
-writeLines(resultsDir, file.path(fp, ".marmot_last_results"))
+file.copy(md_fp, resultsDir, overwrite = TRUE)
 ```
 
 ```{r nice_umap_function}
@@ -1798,6 +1785,7 @@ if (runMarkerPairPlots) {
   cat("### Marker-Pair Scatterplots \n\n")
   es <- as.data.frame(t(assay(sce, "exprsTransformed")))
   es[[mergeBy]] <- sce[[paste0(mergeBy, knn)]]
+  set.seed(2)
   if (!is.null(downsampleTo)) {
     if (nrow(es) > downsampleTo) {
       es <- es[sample(rownames(es), downsampleTo),]
@@ -3113,7 +3101,7 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
 
 ::::::::
 
-### Selected Cluster Heatmaps
+### Heatmaps of DA Clusters
 
 :::::::: panel-tabset
 
@@ -3172,7 +3160,7 @@ for (i in seq_along(selectedClustersList)) {
 
 ::::::::
 
-### DR of Selected Clusters
+### `r paste(dimRedMethodToUse)` of DA Clusters
 
 :::::::: panel-tabset
 

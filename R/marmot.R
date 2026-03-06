@@ -24,8 +24,13 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   metadata <- make_absolute_path(metadata)
   
   # Get the directory name
-  fp <- dirname(metadata)
-  md_fp <- basename(metadata)
+  fp <- normalizePath(dirname(metadata), mustWork = TRUE)
+  md_fp <- file.path(fp, basename(metadata))
+
+  # Create results directory early so QMD + header + HTML all live there
+  timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
+  resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
+  dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
   
   # Read Metadata Excel file
   if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = TRUE))) {
@@ -72,6 +77,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   }
   params_list[["fp"]] <- fp
   params_list[["md_fp"]] <- md_fp
+  params_list[["resultsDir"]] <- resultsDir
   
   # Import the template marmot file
   rmd_content <- readLines(system.file("pipeline", "MARMOT_Pipeline.qmd", package = "MARMOT"))
@@ -99,13 +105,13 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     rmd_content <- gsub(pattern, replacement, rmd_content)
   }
   
-  output_qmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".qmd")
+  output_qmd <- file.path(resultsDir, paste0("MARMOT_Pipeline_", name, ".qmd"))
   writeLines(rmd_content, output_qmd)
 
   # Copy companion files needed by the QMD
   header_src <- system.file("pipeline", "marmot_header.html", package = "MARMOT")
   if (nzchar(header_src)) {
-    file.copy(header_src, file.path(fp, "marmot_header.html"), overwrite = TRUE)
+    file.copy(header_src, file.path(resultsDir, "marmot_header.html"), overwrite = TRUE)
   }
 
   message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
@@ -114,20 +120,10 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   }
   if (render) {
     message("Now rendering the HTML report. This can take some time...")
-    output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
-    quarto::quarto_render(input = output_qmd, output_file = basename(output_html))
+    quarto::quarto_render(input = output_qmd,
+                          output_file = paste0("MARMOT_Pipeline_", name, ".html"))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
-    unlink(file.path(fp, "Rplots.pdf"))
-
-    # Copy QMD, HTML, and header into the results folder for a self-contained archive
-    marker_file <- file.path(fp, ".marmot_last_results")
-    if (file.exists(marker_file)) {
-      results_dir <- readLines(marker_file, n = 1)
-      file.copy(output_qmd, results_dir, overwrite = TRUE)
-      file.copy(output_html, results_dir, overwrite = TRUE)
-      file.copy(file.path(fp, "marmot_header.html"), results_dir, overwrite = TRUE)
-      unlink(marker_file)
-    }
+    unlink(file.path(resultsDir, "Rplots.pdf"))
   }
   
 }

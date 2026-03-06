@@ -44,20 +44,6 @@ RUN QUARTO_VER="1.6.43" && \
     dpkg -i /tmp/quarto.deb && \
     rm /tmp/quarto.deb
 
-# ── Miniforge (conda for Python env) ────────────────────────────────
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-      MF_ARCH="aarch64"; \
-    else \
-      MF_ARCH="x86_64"; \
-    fi && \
-    curl -fsSL -o /tmp/miniforge.sh \
-      "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${MF_ARCH}.sh" && \
-    bash /tmp/miniforge.sh -b -p /opt/miniforge && \
-    rm /tmp/miniforge.sh
-
-ENV PATH="/opt/miniforge/bin:${PATH}"
-ENV RETICULATE_MINICONDA_PATH="/opt/miniforge"
-
 # ── R packages: pak → MARMOT + all dependencies ─────────────────────
 RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
 
@@ -73,13 +59,10 @@ ENV ARROW_GCS=OFF
 ARG CACHEBUST=1
 RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}')"
 
-RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE)"
+RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE, include_python = TRUE)"
 
 # Reinstall qs2 from source so it links against libtbb (pak may use a binary without TBB)
 RUN Rscript -e 'install.packages("qs2", type = "source", repos = "https://cloud.r-project.org")'
-
-# ── Python environment (PARC / PaCMAP) ──────────────────────────────
-RUN Rscript -e 'MARMOT::setup_python(conda = "/opt/miniforge/bin/conda")'
 
 # ── Verify everything is installed ───────────────────────────────────
 RUN Rscript -e "MARMOT::check_setup()"

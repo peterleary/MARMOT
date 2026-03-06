@@ -873,7 +873,10 @@ if (is.null(RDataFolder)) {
 
 if (is.null(RDataFolder)) {
   message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
-  
+
+  # Fix seed so DR is identical regardless of which clustering method ran before this
+  set.seed(2)
+
   # Select features for DR
   if (!is.null(featureType) && markersToDimRedBy == "type") {
     featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
@@ -1023,6 +1026,7 @@ if (is.null(RDataFolder)) {
   
   # Optionally downsample per condition
   if (!is.null(drCellPerCondition)) {
+    set.seed(2)
     for (method in valid_methods) {
       df <- umapDFList[[method]]
       down_df <- df %>%
@@ -1603,6 +1607,7 @@ if (runMarkerPairPlots) {
   cat("### Marker-Pair Scatterplots {.tabset} \n\n")
   es <- as.data.frame(t(assay(sce, "exprsTransformed")))
   es[[mergeBy]] <- sce[[paste0(mergeBy, knn)]]
+  set.seed(2)
   if (!is.null(downsampleTo)) {
     if (nrow(es) > downsampleTo) {
       es <- es[sample(rownames(es), downsampleTo),]

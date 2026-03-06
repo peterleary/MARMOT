@@ -24,6 +24,24 @@ pub fn write_excel(metadata: MetadataFile, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn save_template_to(app: tauri::AppHandle, dest_path: String) -> Result<(), String> {
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Resource dir not found: {}", e))?
+        .join("MARMOT_Metadata.xlsx");
+
+    if !resource_path.exists() {
+        return Err("Bundled template not found".into());
+    }
+
+    std::fs::copy(&resource_path, &dest_path)
+        .map_err(|e| format!("Failed to copy template: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn create_new_metadata() -> MetadataFile {
     use crate::excel::types::{PipelineSetting, SheetData};
 
@@ -47,8 +65,6 @@ pub fn create_new_metadata() -> MetadataFile {
         ("themeToUse", "prism", "ggplot2 theme: prism, classic, bw, minimal, void, light, dark"),
         ("viridisColour", "lisbon", "Colour palette: lisbon, berlin, vik, cork, batlow, lapaz, magma, inferno, plasma, viridis, mako, rocket, turbo"),
         ("RDataFolder", "", "Path to previous R_files folder to reload (leave blank for fresh run)"),
-        ("condaDir", "", "Path to conda/mamba binary"),
-        ("parcScriptDir", "", "Path to folder containing f_parc.py and f_pacmap.py"),
     ];
 
     let pipeline_settings: Vec<PipelineSetting> = default_settings

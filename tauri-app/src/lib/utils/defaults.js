@@ -108,16 +108,6 @@ export const FIELD_DEFINITIONS = {
     label: "R Data Folder (reload)",
     placeholder: "Select previous R_files folder to reload...",
   },
-  condaDir: {
-    type: "folder",
-    label: "Conda Directory",
-    placeholder: "Path to conda/mamba binary...",
-  },
-  parcScriptDir: {
-    type: "folder",
-    label: "PARC Script Directory",
-    placeholder: "Path to folder containing f_parc.py and f_pacmap.py...",
-  },
 };
 
 // Maps optional package/feature name → { field, option } it gates.
@@ -155,9 +145,5 @@ export const SETTING_GROUPS = [
   {
     label: "Output & Aesthetics",
     fields: ["gimmePDFs", "greyscalePlots", "themeToUse", "viridisColour"],
-  },
-  {
-    label: "Python / PARC",
-    fields: ["condaDir", "parcScriptDir"],
   },
 ];

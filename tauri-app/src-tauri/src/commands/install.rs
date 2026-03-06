@@ -78,20 +78,28 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
     );
 }
 
-/// Install MARMOT dependencies.
-/// If MARMOT is not yet installed, bootstraps it via pak first.
+/// Install the MARMOT R package from GitHub (dev branch).
 #[tauri::command]
-pub fn run_install(
+pub fn run_install_marmot(app: AppHandle, rscript_path: String) -> Result<(), String> {
+    let r_expr = "options(repos=c(CRAN='https://cloud.r-project.org')); \
+if (!requireNamespace('pak',quietly=TRUE)) install.packages('pak'); \
+pak::pkg_install('peterleary/MARMOT@dev',ask=FALSE); \
+cat('\\nMARMOT installed successfully.\\n')".to_string();
+    spawn_r_expr(app, rscript_path, r_expr);
+    Ok(())
+}
+
+/// Install extras on top of MARMOT (optional R packages + Python env).
+#[tauri::command]
+pub fn run_install_extras(
     app: AppHandle,
     rscript_path: String,
     include_suggests: bool,
     include_python: bool,
 ) -> Result<(), String> {
     let r_expr = format!(
-        "options(repos=c(CRAN='https://cloud.r-project.org')); \
-if (!requireNamespace('MARMOT',quietly=TRUE)) {{ \
-  if (!requireNamespace('pak',quietly=TRUE)) install.packages('pak'); \
-  pak::pkg_install('peterleary/MARMOT',ask=FALSE) \
+        "if (!requireNamespace('MARMOT',quietly=TRUE)) {{ \
+  stop('MARMOT is not installed yet. Click \"Install MARMOT\" first.') \
 }}; \
 MARMOT::install_marmot_extras(include_suggests={suggests},include_python={python})",
         suggests = if include_suggests { "TRUE" } else { "FALSE" },
@@ -104,7 +112,8 @@ MARMOT::install_marmot_extras(include_suggests={suggests},include_python={python
 /// Run MARMOT::check_setup() and stream its output to the install log.
 #[tauri::command]
 pub fn run_check_setup(app: AppHandle, rscript_path: String) -> Result<(), String> {
-    spawn_r_expr(app, rscript_path, "MARMOT::check_setup()".to_string());
+    spawn_r_expr(app, rscript_path,
+        "if (!requireNamespace('MARMOT', quietly=TRUE)) { cat('MARMOT is not installed yet.\\nClick \"Install Packages\" below to install it.\\n') } else { MARMOT::check_setup() }".to_string());
     Ok(())
 }
 
@@ -117,21 +126,22 @@ pub fn query_installed_packages(rscript_path: String) -> serde_json::Value {
         "PARC": false, "pacmap": false
     });
 
-    // Use reticulate::use_condaenv() to load the conda Python in-process, then
-    // test imports via py_run_string(). Loading in-process avoids macOS SIP
-    // stripping DYLD_LIBRARY_PATH in subprocesses, which breaks llvmlite/numba.
+    // Check if basilisk env exists (fast path check) then verify imports.
+    // obtainEnvironmentPath returns the path without triggering env creation,
+    // so this won't block for minutes if the user hasn't run install_marmot_extras yet.
     let r_expr = r#"
 rphenograph <- requireNamespace('Rphenograph', quietly=TRUE)
 peacoqc <- requireNamespace('PeacoQC', quietly=TRUE)
 flow_ai <- requireNamespace('flowAI', quietly=TRUE)
 py <- tryCatch({
-  cnd  <- reticulate::conda_binary()
-  envs <- reticulate::conda_list(conda = cnd)
-  if (!('p4r' %in% envs$name)) stop('p4r env not found')
-  reticulate::use_condaenv('p4r', conda = cnd, required = FALSE)
-  parc_ok <- tryCatch({ reticulate::py_run_string('import parc',   convert=FALSE); TRUE }, error=function(e) FALSE)
-  pcm_ok  <- tryCatch({ reticulate::py_run_string('import pacmap', convert=FALSE); TRUE }, error=function(e) FALSE)
-  list(PARC = parc_ok, pacmap = pcm_ok)
+  p4r <- suppressWarnings(getFromNamespace('p4r_env', 'MARMOT'))
+  env_path <- basilisk::obtainEnvironmentPath(p4r)
+  if (!dir.exists(env_path)) stop('env not created yet')
+  basilisk::basiliskRun(env = p4r, fun = function() {
+    parc_ok <- tryCatch({ reticulate::py_run_string('import parc',   convert=FALSE); TRUE }, error=function(e) FALSE)
+    pcm_ok  <- tryCatch({ reticulate::py_run_string('import pacmap', convert=FALSE); TRUE }, error=function(e) FALSE)
+    list(PARC = parc_ok, pacmap = pcm_ok)
+  })
 }, error = function(e) list(PARC = FALSE, pacmap = FALSE))
 pairs <- c(
   paste0('"Rphenograph":', tolower(rphenograph)),

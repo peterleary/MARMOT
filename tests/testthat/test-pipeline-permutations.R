@@ -318,9 +318,12 @@ test_that("pipeline: RDataFolder reload", {
   results_dirs <- grep("^Results_Files_", basename(results_dirs), value = TRUE)
   expect_true(length(results_dirs) >= 1)
 
-  # The reload should produce a new HTML
-  html_files <- list.files(baseline$test_dir, pattern = "Reload_Rerun\\.html$")
-  expect_true(length(html_files) >= 1)
+  # The reload should produce a new HTML inside one of the results dirs
+  html_found <- any(vapply(results_dirs, function(d) {
+    length(list.files(file.path(baseline$test_dir, d),
+                      pattern = "Reload_Rerun\\.html$")) > 0
+  }, logical(1)))
+  expect_true(html_found)
 
   # pipeline_settings.parquet from baseline should still exist
   expect_true(file.exists(file.path(baseline$pq_dir, "pipeline_settings.parquet")))

@@ -1,17 +1,28 @@
 #' Install optional MARMOT extras
 #'
 #' Installs additional packages and sets up the Python environment on top of
-#' the base MARMOT install. CRAN and Bioconductor packages are installed as a
-#' batch (reliable). GitHub packages (Rphenograph, fireworks) are
-#' installed individually with error handling — a single failure won't block
-#' the rest. The Python environment for PARC/PaCMAP is set up automatically
-#' if conda/mamba is available.
+#' the base MARMOT install.
+#'
+#' MARMOT has a two-tier install:
+#' \describe{
+#'   \item{Tier 1 (base)}{
+#'     \code{BiocManager::install("peterleary/MARMOT")} — installs FlowSOM,
+#'     CATALYST, diffcyt, UMAP, TSNE, and everything R-based. Works immediately.
+#'   }
+#'   \item{Tier 2 (extras)}{
+#'     \code{install_marmot_extras()} — installs optional R packages (PeacoQC,
+#'     flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates an
+#'     isolated Python environment for PARC clustering and PaCMAP dimensionality
+#'     reduction via \pkg{basilisk}. No conda or miniforge installation needed.
+#'   }
+#' }
 #'
 #' @param include_suggests If \code{TRUE} (the default), also install optional
 #'   CRAN packages such as Seurat.
-#' @param include_python If \code{TRUE} (the default), also set up the Python
-#'   environment for PARC/PaCMAP via \code{\link{setup_python}}.
-#'   Requires conda/mamba. Fails gracefully if not available.
+#' @param include_python If \code{TRUE} (the default), also create the
+#'   \pkg{basilisk}-managed Python environment for PARC and PaCMAP.
+#'   No external conda/miniforge installation is required — basilisk handles
+#'   everything automatically. Fails gracefully if setup encounters errors.
 #'
 #' @return Invisibly returns a character vector of package names that failed
 #'   or were skipped.
@@ -156,17 +167,20 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
   # =========================================================================
   if (include_python) {
     message("\n-- Python environment (PARC/PaCMAP) --")
-    tryCatch(
-      setup_python(),
-      error = function(e) {
-        warning(
-          "Python setup failed: ", conditionMessage(e),
-          "\nPARC and PaCMAP will not be available.",
-          call. = FALSE
-        )
-        skipped <<- c(skipped, "Python (PARC/PaCMAP)")
-      }
-    )
+    message("Setting up Python via basilisk (no conda needed)...")
+    tryCatch({
+      basilisk::basiliskRun(env = MARMOT:::p4r_env, fun = function() {
+        reticulate::py_run_string("import parc; import pacmap")
+        message("Done! PARC and PaCMAP are available.")
+      })
+    }, error = function(e) {
+      warning(
+        "Python setup failed: ", conditionMessage(e),
+        "\nPARC and PaCMAP will not be available.",
+        call. = FALSE
+      )
+      skipped <<- c(skipped, "Python (PARC/PaCMAP)")
+    })
   }
 
   # =========================================================================

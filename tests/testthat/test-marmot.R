@@ -29,7 +29,12 @@ test_that("marmot with render=FALSE generates qmd file", {
     "Generated a modified copy"
   )
 
-  output_qmd <- file.path(tmp, "MARMOT_Pipeline_TestRun.qmd")
+  # QMD now lives inside Results_Files_* subdirectory
+  results_dirs <- list.dirs(tmp, recursive = FALSE, full.names = TRUE)
+  results_dir <- grep("Results_Files_", results_dirs, value = TRUE)
+  expect_length(results_dir, 1)
+
+  output_qmd <- file.path(results_dir, "MARMOT_Pipeline_TestRun.qmd")
   expect_true(file.exists(output_qmd))
 
   content <- readLines(output_qmd)

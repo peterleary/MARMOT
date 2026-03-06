@@ -10,9 +10,10 @@ install_marmot_extras(include_suggests = TRUE, include_python = TRUE)
 \item{include_suggests}{If \code{TRUE} (the default), also install optional
 CRAN packages such as Seurat.}
 
-\item{include_python}{If \code{TRUE} (the default), also set up the Python
-environment for PARC/PaCMAP via \code{\link{setup_python}}.
-Requires conda/mamba. Fails gracefully if not available.}
+\item{include_python}{If \code{TRUE} (the default), also create the
+\pkg{basilisk}-managed Python environment for PARC and PaCMAP.
+No external conda/miniforge installation is required — basilisk handles
+everything automatically. Fails gracefully if setup encounters errors.}
 }
 \value{
 Invisibly returns a character vector of package names that failed
@@ -20,9 +21,20 @@ Invisibly returns a character vector of package names that failed
 }
 \description{
 Installs additional packages and sets up the Python environment on top of
-the base MARMOT install. CRAN and Bioconductor packages are installed as a
-batch (reliable). GitHub packages (Rphenograph, fireworks) are
-installed individually with error handling — a single failure won't block
-the rest. The Python environment for PARC/PaCMAP is set up automatically
-if conda/mamba is available.
+the base MARMOT install.
+}
+\details{
+MARMOT has a two-tier install:
+\describe{
+  \item{Tier 1 (base)}{
+    \code{BiocManager::install("peterleary/MARMOT")} — installs FlowSOM,
+    CATALYST, diffcyt, UMAP, TSNE, and everything R-based. Works immediately.
+  }
+  \item{Tier 2 (extras)}{
+    \code{install_marmot_extras()} — installs optional R packages (PeacoQC,
+    flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates an
+    isolated Python environment for PARC clustering and PaCMAP dimensionality
+    reduction via \pkg{basilisk}. No conda or miniforge installation needed.
+  }
+}
 }

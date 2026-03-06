@@ -107,39 +107,22 @@ check_setup <- function() {
     cat("  \u274c Quarto not found \u2014 install from https://quarto.org/docs/get-started/\n")
   }
 
-  # Python environment
+  # Python environment (basilisk-managed)
+  # Check if env directory exists first to avoid triggering env creation.
   cat("\n-- Python (PARC/PaCMAP) --\n")
-  if (requireNamespace("reticulate", quietly = TRUE)) {
-    conda <- tryCatch(reticulate::conda_binary(), error = function(e) NULL)
-    if (!is.null(conda)) {
-      cat("  \u2705 conda found:", conda, "\n")
-      envs <- tryCatch(reticulate::conda_list(conda = conda), error = function(e) NULL)
-      if (!is.null(envs) && "p4r" %in% envs$name) {
-        cat("  \u2705 p4r environment found\n")
-        # Load in-process - avoids SIP stripping DYLD in subprocesses
-        parc_ok <- tryCatch({
-          reticulate::use_condaenv("p4r", conda = conda, required = FALSE)
-          reticulate::py_run_string("import parc",   convert = FALSE)
-          TRUE
-        }, error = function(e) FALSE)
-        pcm_ok <- tryCatch({
-          reticulate::py_run_string("import pacmap", convert = FALSE)
-          TRUE
-        }, error = function(e) FALSE)
-        cat(sprintf("  %s PARC: %s\n",
-                    if (parc_ok) "\u2705" else "\u274c",
-                    if (parc_ok) "importable" else "not importable \u2014 run MARMOT::setup_python()"))
-        cat(sprintf("  %s PaCMAP: %s\n",
-                    if (pcm_ok) "\u2705" else "\u274c",
-                    if (pcm_ok) "importable" else "not importable \u2014 run MARMOT::setup_python()"))
-      } else {
-        cat("  \u274c p4r environment not found \u2014 run MARMOT::setup_python()\n")
-      }
-    } else {
-      cat("  \u274c conda not found \u2014 install miniforge from https://github.com/conda-forge/miniforge\n")
-    }
+  py_ok <- tryCatch({
+    env_path <- basilisk::obtainEnvironmentPath(p4r_env)
+    if (!dir.exists(env_path)) stop("env not created yet")
+    basilisk::basiliskRun(env = p4r_env, fun = function() {
+      reticulate::py_run_string("import parc; import pacmap")
+      TRUE
+    })
+  }, error = function(e) FALSE)
+  if (py_ok) {
+    cat("  \u2705 PARC and PaCMAP available\n")
   } else {
-    cat("  \u274c reticulate not installed\n")
+    cat("  \u274c PARC/PaCMAP not set up yet\n")
+    cat("     Run: MARMOT::install_marmot_extras(include_python = TRUE)\n")
   }
 
   cat("\n")
