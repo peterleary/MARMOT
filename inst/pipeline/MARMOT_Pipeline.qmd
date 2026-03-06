@@ -1,6 +1,6 @@
 ---
 title: "{{PIPELINE_NAME}}"
-author: "MARMOT Pipeline"
+author: "MARMOT Pipeline (Kirsche et al., 2025)"
 date: today
 
 format:
@@ -490,6 +490,38 @@ framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), fun
 }) |> setNames(names(framesList$Untransformed))
 ```
 
+```{r check_qc_viability, include = FALSE, eval = is.null(RDataFolder)}
+if (runQC %in% c("FlowAI", "PeacoQC")) {
+  sample_sizes <- sapply(framesList$Transformed, nrow)
+  min_events <- min(sample_sizes)
+  small_sample <- names(which.min(sample_sizes))
+
+  if (min_events < 2000) {
+    warning("Sample '", small_sample, "' has only ", min_events,
+            " events. Skipping QC.")
+    qc_skip_reason <- paste0(
+      "Sample **", small_sample, "** has only **", min_events,
+      "** events — too few for any automated QC tool (minimum ~2,000). ",
+      "QC has been **skipped** for this run. ",
+      "With so few events, automated QC is tenuous at best — ",
+      "consider acquiring more events or excluding very small samples.")
+    runQC <- "None"
+
+  } else if (runQC == "PeacoQC" && min_events < 5000) {
+    warning("Sample '", small_sample, "' has only ", min_events,
+            " events. Skipping PeacoQC.")
+    qc_skip_reason <- paste0(
+      "Sample **", small_sample, "** has only **", min_events,
+      "** events — PeacoQC requires ~5,000+ events per sample for its ",
+      "MAD outlier detection. QC has been **skipped** for this run. ",
+      "With so few events, automated QC is tenuous at best. ",
+      "To run QC on this dataset, try **FlowAI** (works with ~2,000+ events), ",
+      "or set `runQC` to `None` to skip QC entirely.")
+    runQC <- "None"
+  }
+}
+```
+
 ```{r run_flow_auto_qc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
 
 if (runQC == "FlowAI") {
@@ -593,8 +625,7 @@ if (runQC == "PeacoQC") {
         output_directory = qc_dir, 
         name_directory = fcs_name, 
         report = TRUE, 
-        determine_good_cells = "all", 
-        time_channel_parameter = "Time"
+        determine_good_cells = "all"
       )
       keep <- qc_result$GoodCells
       ff[keep, ]
@@ -1548,22 +1579,18 @@ plotUMAPNice <- function(
 
 Started on `r paste(timeRun)`
 
-::: {.callout-tip appearance="simple" collapse="true" title="Colour Key"}
-
-- **Green / tip** — results summaries, key findings, cluster descriptions
-- **Blue / note** — methodological details, parameter explanations
-- **Amber / warning** — QC notes, filtering statistics, caveats
-- **Red / important** — critical results, significant DA/DS findings
-:::
-
-
 ::::::::::::: panel-tabset
 ## QC
 
 :::::::::: panel-tabset
 
 ```{r, label = "print QC", results = 'asis'}
-if (runQC %in% c("FlowAI", "PeacoQC") && exists("QCmini")) {
+if (exists("qc_skip_reason")) {
+  cat("### QC Cell Filtering \n\n")
+  cat("::: {.callout-warning title='QC Skipped'}\n\n")
+  cat(qc_skip_reason)
+  cat("\n\n:::\n\n")
+} else if (runQC %in% c("FlowAI", "PeacoQC") && exists("QCmini")) {
   cat("### QC Cell Filtering \n\n")
   if(runQC %in% c("FlowAI", "PeacoQC") && !useQC) {
     cat("\n\n")
@@ -1696,14 +1723,17 @@ if (!is.null(downsampleTo) && exists("framesList") && "Untransformed" %in% names
 ```
 ### Pseudo-bulk MDS Plots
 
-:::::::: panel-tabset
-
-```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
+```{r, label = "build mds plots", include = FALSE}
 mdsList <- setNames(lapply(conditions, function(x) {
   mds1 <- CATALYST::pbMDS(x = sce, color_by = x, size_by = TRUE, features = featureType)
   mds1 <- mds1 + scale_colour_manual(values = coloursList[[x]]) + theme_prism(base_size = 16) + theme(panel.grid = element_blank())
   mds1
 }), conditions)
+```
+
+:::::::: {.panel-tabset}
+
+```{r, label = "plot mds by condition", fig.height=5, fig.width=7, results = 'asis'}
 invisible(lapply(names(mdsList), function(x) {
   cat("####", x, "\n")
   print(mdsList[[x]])
@@ -2770,115 +2800,124 @@ if (gimmePDFs) {
 }
 ```
 
-```{r, label = "gated_dr_plots", results = 'asis', fig.height=6, fig.width=18}
-if (runScGate && "Gated_Cells" %in% colnames(colData(sce))) {
-  cat("### scGate Gating \n\n")
-  cat(":::::::: {.panel-tabset}\n\n")
-  cat("\n\n#### All \n\n")
-
+```{r, label = "scgate_setup", include = FALSE}
+show_scgate <- runScGate && "Gated_Cells" %in% colnames(colData(sce))
+if (show_scgate) {
   mp <- parse_marker_pairs(smd)
-  models <- if (!is.null(mp)) mp$models else list()
-
-  print(
-    plotUMAPNice(
-      df = umapDFList$Downsampled,
-      colour_by = "Gated_Cells",
-      show_density = FALSE,
-      alpha = 1,
-      facet_by = "condition",
-      show_cluster_labels = TRUE,
-      cluster_labels = "Gated_Cells"
-    )
-  )
-
-  cat("\n\n")
-  lapply(names(models), function(mpt) {
-    cat("####", mpt, "\n\n")
-    y <- gsub("[ -]", "", mpt)
-    m1 <- models[[mpt]][[1]]
-    m2 <- models[[mpt]][[2]]
-    if (!m1 %in% rownames(sce)) {
-      hit <- agrep(m1, rownames(sce), value = TRUE)
-      if (length(hit) == 0) return(invisible(NULL))
-      m1 <- hit[[1]]
-    }
-    if (!m2 %in% rownames(sce)) {
-      hit <- agrep(m2, rownames(sce), value = TRUE)
-      if (length(hit) == 0) return(invisible(NULL))
-      m2 <- hit[[1]]
-    }
-
-    # Panel 1: DimPlot — is this cell type?
-    p1 <- plotUMAPNice(
-      df = umapDFList$Downsampled,
-      colour_by = paste0("is_", y),
-      show_density = FALSE,
-      alpha = 1
-    ) + ggtitle(paste0("Are ", mpt, "?")) +
-      theme(legend.position = "none")
-
-    # Panel 2: FeaturePlot — UCell score
-    ucell_col <- paste0(mpt, "_UCell")
-    p2 <- ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
-      geom_point(size = dr_point_size, shape = 16) +
-      scale_colour_gradientn(colours = hcl.colors(64, "mako")) +
-      labs(
-        x = paste(dimRedMethodToUse, "dim 1"),
-        y = paste(dimRedMethodToUse, "dim 2"),
-        title = paste0(mpt, " UCell Score")
-      ) +
-      theme_prism() +
-      theme(
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        axis.line = element_blank(),
-        legend.position = "none",
-        panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
-      )
-
-    # Panel 3: Joint density — ks::kde weighted scatter (same as Shiny app)
-    dr_theme <- theme_prism() + theme(
-      axis.text = element_blank(), axis.ticks = element_blank(),
-      axis.line = element_blank(), legend.position = "none",
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
-    )
-    df_joint <- umapDFList$Downsampled
-    emb_mat <- as.matrix(df_joint[, c("x", "y")])
-
-    # Sum expression weights across both markers
-    w_joint <- rep(0, nrow(df_joint))
-    for (mk in c(m1, m2)) {
-      if (mk %in% colnames(df_joint)) {
-        v <- as.numeric(df_joint[[mk]])
-        v[is.na(v)] <- 0
-        w_joint <- w_joint + v
-      }
-    }
-
-    if (sum(w_joint) > 0) {
-      w_norm <- w_joint / sum(w_joint) * length(w_joint)
-      dens <- ks::kde(emb_mat, w = w_norm, eval.points = emb_mat)
-      df_joint$density <- dens$estimate
-    } else {
-      df_joint$density <- 0
-    }
-    df_joint <- df_joint[order(df_joint$density), ]
-
-    p3 <- ggplot(df_joint, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["density"]])) +
-      geom_point(size = dr_point_size, alpha = 0.7, shape = 16) +
-      scale_colour_gradientn(colours = hcl.colors(64, viridisColour)) +
-      ggtitle(paste0(m1, " + ", m2, " density")) +
-      coord_fixed() + dr_theme +
-      labs(x = paste(dimRedMethodToUse, "dim 1"),
-           y = paste(dimRedMethodToUse, "dim 2"),
-           colour = "Density")
-
-    print(cowplot::plot_grid(p1, p2, p3, align = "hv", ncol = 3))
-    cat("\n\n")
-  })
-  cat("::::::::\n\n")
+  scgate_models <- if (!is.null(mp)) mp$models else list()
 }
 ```
+
+```{r, label = "scgate_header", results = 'asis', eval = show_scgate}
+cat("### scGate Gating \n\n")
+```
+
+:::::::: {.panel-tabset}
+
+#### All
+
+```{r, label = "scgate_all_plot", fig.height=6, fig.width=18, eval = show_scgate}
+print(
+  plotUMAPNice(
+    df = umapDFList$Downsampled,
+    colour_by = "Gated_Cells",
+    show_density = FALSE,
+    alpha = 1,
+    facet_by = "condition",
+    show_cluster_labels = TRUE,
+    cluster_labels = "Gated_Cells"
+  )
+)
+```
+
+```{r, label = "scgate_model_plots", results = 'asis', fig.height=6, fig.width=18, eval = show_scgate}
+invisible(lapply(names(scgate_models), function(mpt) {
+  cat("####", mpt, "\n\n")
+  y <- gsub("[ -]", "", mpt)
+  m1 <- scgate_models[[mpt]][[1]]
+  m2 <- scgate_models[[mpt]][[2]]
+  if (!m1 %in% rownames(sce)) {
+    hit <- agrep(m1, rownames(sce), value = TRUE)
+    if (length(hit) == 0) return(invisible(NULL))
+    m1 <- hit[[1]]
+  }
+  if (!m2 %in% rownames(sce)) {
+    hit <- agrep(m2, rownames(sce), value = TRUE)
+    if (length(hit) == 0) return(invisible(NULL))
+    m2 <- hit[[1]]
+  }
+
+  # Panel 1: DimPlot — is this cell type?
+  p1 <- plotUMAPNice(
+    df = umapDFList$Downsampled,
+    colour_by = paste0("is_", y),
+    show_density = FALSE,
+    alpha = 1
+  ) + ggtitle(paste0("Are ", mpt, "?")) +
+    theme(legend.position = "none")
+
+  # Panel 2: FeaturePlot — UCell score
+  ucell_col <- paste0(mpt, "_UCell")
+  p2 <- ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
+    geom_point(size = dr_point_size, shape = 16) +
+    scale_colour_gradientn(colours = hcl.colors(64, "mako")) +
+    labs(
+      x = paste(dimRedMethodToUse, "dim 1"),
+      y = paste(dimRedMethodToUse, "dim 2"),
+      title = paste0(mpt, " UCell Score")
+    ) +
+    theme_prism() +
+    theme(
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      legend.position = "none",
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+    )
+
+  # Panel 3: Joint density — ks::kde weighted scatter (same as Shiny app)
+  dr_theme <- theme_prism() + theme(
+    axis.text = element_blank(), axis.ticks = element_blank(),
+    axis.line = element_blank(), legend.position = "none",
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+  )
+  df_joint <- umapDFList$Downsampled
+  emb_mat <- as.matrix(df_joint[, c("x", "y")])
+
+  # Sum expression weights across both markers
+  w_joint <- rep(0, nrow(df_joint))
+  for (mk in c(m1, m2)) {
+    if (mk %in% colnames(df_joint)) {
+      v <- as.numeric(df_joint[[mk]])
+      v[is.na(v)] <- 0
+      w_joint <- w_joint + v
+    }
+  }
+
+  if (sum(w_joint) > 0) {
+    w_norm <- w_joint / sum(w_joint) * length(w_joint)
+    dens <- ks::kde(emb_mat, w = w_norm, eval.points = emb_mat)
+    df_joint$density <- dens$estimate
+  } else {
+    df_joint$density <- 0
+  }
+  df_joint <- df_joint[order(df_joint$density), ]
+
+  p3 <- ggplot(df_joint, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["density"]])) +
+    geom_point(size = dr_point_size, alpha = 0.7, shape = 16) +
+    scale_colour_gradientn(colours = hcl.colors(64, viridisColour)) +
+    ggtitle(paste0(m1, " + ", m2, " density")) +
+    coord_fixed() + dr_theme +
+    labs(x = paste(dimRedMethodToUse, "dim 1"),
+         y = paste(dimRedMethodToUse, "dim 2"),
+         colour = "Density")
+
+  print(cowplot::plot_grid(p1, p2, p3, align = "hv", ncol = 3))
+  cat("\n\n")
+}))
+```
+
+::::::::
 
 ::::::::::
 

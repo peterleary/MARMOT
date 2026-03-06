@@ -106,16 +106,16 @@ test_that("pipeline: PeacoQC run only (useQC=FALSE)", {
   skip_pipeline_deps()
   skip_if_not_installed("PeacoQC")
 
-  # QC engines need more events for spline fitting — use 2000 cells per FCS
+  # PeacoQC needs ≥5000 events per sample to pass the QC viability guard
   result <- run_pipeline_test(
     params = list(runQC = "PeacoQC", useQC = "FALSE"),
     test_name = "PeacoQC_NoUse",
-    n_cells = 2000
+    n_cells = 5000
   )
   on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
 
-  # QC ran but wasn't used — full cell count (2000 × 4 samples)
-  sce <- validate_pipeline_output(result, expected_cells = 8000)
+  # QC ran but wasn't used — full cell count (5000 × 4 samples)
+  sce <- validate_pipeline_output(result, expected_cells = 20000)
 
   # PeacoQC results directory created
   qc_dir <- file.path(result$test_dir, "resultsQC_peacoQC")
@@ -130,16 +130,17 @@ test_that("pipeline: PeacoQC + useQC=TRUE", {
   skip_pipeline_deps()
   skip_if_not_installed("PeacoQC")
 
+  # PeacoQC needs ≥5000 events per sample to pass the QC viability guard
   result <- run_pipeline_test(
     params = list(runQC = "PeacoQC", useQC = "TRUE"),
     test_name = "PeacoQC_Use",
-    n_cells = 2000
+    n_cells = 5000
   )
   on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
 
-  # QC filtered some cells — count <= full (2000 × 4)
+  # QC filtered some cells — count <= full (5000 × 4)
   cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
-  expect_true(nrow(cell_meta) <= 8000)
+  expect_true(nrow(cell_meta) <= 20000)
   # But shouldn't be zero
   expect_true(nrow(cell_meta) > 0)
 
@@ -174,6 +175,67 @@ test_that("pipeline: FlowAI + useQC=TRUE", {
   expect_true(dir.exists(qc_dir))
   highq_files <- list.files(qc_dir, pattern = "_QC_highQ\\.fcs$")
   expect_true(length(highq_files) >= 1)
+})
+
+test_that("pipeline: PeacoQC skipped on small samples (<2000 events)", {
+  skip_pipeline_deps()
+  skip_if_not_installed("PeacoQC")
+
+  # 200 cells per FCS × 4 samples = 800 total — well below 2000 threshold
+
+  result <- run_pipeline_test(
+    params = list(runQC = "PeacoQC", useQC = "TRUE"),
+    test_name = "PeacoQC_TooSmall",
+    n_cells = 200
+  )
+  on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
+
+  # Pipeline should complete (QC skipped, not crashed)
+  validate_pipeline_output(result, expected_cells = 800)
+
+  # No PeacoQC results directory — QC was skipped entirely
+  qc_dir <- file.path(result$test_dir, "resultsQC_peacoQC")
+  expect_false(dir.exists(qc_dir))
+})
+
+test_that("pipeline: PeacoQC skipped on medium samples (2000-5000 events)", {
+  skip_pipeline_deps()
+  skip_if_not_installed("PeacoQC")
+
+  # 500 cells per FCS × 4 samples = 2000 total — above 2000 but below 5000
+  result <- run_pipeline_test(
+    params = list(runQC = "PeacoQC", useQC = "TRUE"),
+    test_name = "PeacoQC_MedSmall",
+    n_cells = 500
+  )
+  on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
+
+  # Pipeline should complete (PeacoQC skipped, falls back to None)
+  validate_pipeline_output(result, expected_cells = 2000)
+
+  # No PeacoQC results directory — PeacoQC was skipped
+  qc_dir <- file.path(result$test_dir, "resultsQC_peacoQC")
+  expect_false(dir.exists(qc_dir))
+})
+
+test_that("pipeline: FlowAI skipped on tiny samples (<2000 events)", {
+  skip_pipeline_deps()
+  skip_if_not_installed("flowAI")
+
+  # 200 cells per FCS × 4 samples = 800 — below 2000 threshold
+  result <- run_pipeline_test(
+    params = list(runQC = "FlowAI", useQC = "TRUE"),
+    test_name = "FlowAI_TooSmall",
+    n_cells = 200
+  )
+  on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
+
+  # Pipeline should complete (QC skipped entirely)
+  validate_pipeline_output(result, expected_cells = 800)
+
+  # No FlowAI results directory
+  qc_dir <- file.path(result$test_dir, "resultsQC_flowAI")
+  expect_false(dir.exists(qc_dir))
 })
 
 # ── Data Processing Options ──────────────────────────────────────────────────────

@@ -56,3 +56,6 @@ inst/reports
 
 # R plot artifacts
 Rplots.pdf
+
+# Claude Code
+CLAUDE.md
