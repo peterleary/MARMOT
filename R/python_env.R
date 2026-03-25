@@ -28,13 +28,15 @@ marmot_python_status <- function() {
   result <- list(available = FALSE, python_path = NA_character_,
                  conda_path = NA_character_)
 
-  # Find conda binary
-  conda_bin <- tryCatch(reticulate::conda_binary(), error = function(e) NULL)
-  if (is.null(conda_bin)) {
-    conda_bin <- Sys.which("mamba")
-    if (!nzchar(conda_bin)) conda_bin <- Sys.which("conda")
-    if (!nzchar(conda_bin)) return(result)
+
+  # Find conda binary (prefer conda over mamba — reticulate::conda_list()
+
+  # returns garbled results when called with the mamba binary)
+  conda_bin <- Sys.which("conda")
+  if (!nzchar(conda_bin)) {
+    conda_bin <- tryCatch(reticulate::conda_binary(), error = function(e) NULL)
   }
+  if (is.null(conda_bin) || !nzchar(conda_bin)) return(result)
   result$conda_path <- conda_bin
 
 
@@ -89,9 +91,12 @@ use_marmot_python <- function() {
     return(FALSE)
   }
 
-  # Try to bind p4r
+  # Try to bind p4r (pass conda= explicitly — reticulate's auto-detection
+  # returns garbled results when it finds mamba instead of conda)
+  conda_bin <- Sys.which("conda")
+  if (!nzchar(conda_bin)) conda_bin <- "auto"
   ok <- tryCatch({
-    reticulate::use_condaenv("p4r", required = TRUE)
+    reticulate::use_condaenv("p4r", conda = conda_bin, required = TRUE)
     reticulate::py_run_string("import parc; import pacmap", convert = FALSE)
     TRUE
   }, error = function(e) FALSE)
@@ -174,7 +179,8 @@ install_marmot_python <- function(force = FALSE) {
   message("This may take a few minutes...")
   tryCatch({
     reticulate::conda_create(envname = "p4r", environment = env_yml,
-                             conda = conda_bin)
+                             conda = conda_bin,
+                             additional_create_args = "--yes")
     message("Done! PARC and PaCMAP are now available.")
     message("The pipeline will auto-detect this environment.")
     invisible(TRUE)

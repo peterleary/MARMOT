@@ -33,7 +33,7 @@ Nonetheless, it is still **highly** recommended to run the couple of lines of R 
 
 ## Prerequisites
 
-You need **R** (version 4.3+) installed from [cloud.r-project.org](https://cloud.r-project.org/). You'll also need a C/C++ compiler so that R packages can be built from source:
+You need **R** (version 4.3+) installed from [cloud.r-project.org](https://cloud.r-project.org/) and **Quarto** from [quarto.org](https://quarto.org/docs/get-started/) (required to render the HTML report). You'll also need a C/C++ compiler so that R packages can be built from source:
 
 - **macOS**: Install Xcode Command Line Tools (open Terminal, run `xcode-select --install`) and [Homebrew](https://brew.sh) (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`). These provide the C compiler and system libraries that many R packages need. Homebrew's installer will also install Xcode CLT if you don't have it yet.
 - **Windows**: Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) — download the version matching your R (e.g. Rtools44 for R 4.4.x, Rtools45 for R 4.5.x).

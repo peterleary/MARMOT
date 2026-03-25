@@ -8,7 +8,7 @@
 #   docker run --rm -v /path/to/data:/data marmot-prod \
 #     Rscript -e 'MARMOT::marmot("/data/metadata.xlsx", render=TRUE)'
 
-FROM rocker/r-ver:4.4.2
+FROM rocker/r-ver:4.5.2
 
 ARG TARGETARCH
 ARG MARMOT_REF=main
@@ -63,10 +63,15 @@ ENV PATH="/opt/miniforge/bin:$PATH"
 ARG CACHEBUST=1
 RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}')"
 
-RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE, include_python = TRUE)"
+RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE, include_python = FALSE)"
 
 # Reinstall qs2 from source so it links against libtbb (pak may use a binary without TBB)
 RUN Rscript -e 'install.packages("qs2", type = "source", repos = "https://cloud.r-project.org")'
+
+# ── Python: create p4r conda env directly (reticulate::conda_create
+#    has a verification bug in non-interactive Docker builds) ─────────
+RUN conda env create --name p4r --yes \
+      -f "$(Rscript -e 'cat(system.file("python/environment.yml", package="MARMOT"))')"
 
 # ── Verify everything is installed ───────────────────────────────────
 RUN Rscript -e "MARMOT::check_setup()"

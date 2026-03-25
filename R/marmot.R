@@ -122,6 +122,17 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     message("\nYou chose not to render the HTML report. You can either render it yourself in RStudio, or run this function again with `render = TRUE`.\n")
   }
   if (render) {
+    quarto_bin <- Sys.which("quarto")
+    if (!nzchar(quarto_bin)) {
+      stop(
+        "Quarto is required to render the HTML report but was not found on your system.\n",
+        "Install it from: https://quarto.org/docs/get-started/\n",
+        "Then restart R and try again. You can verify with MARMOT::check_setup().\n",
+        "Your pipeline script has been saved to:\n  ", output_qmd, "\n",
+        "You can render it manually once Quarto is installed.",
+        call. = FALSE
+      )
+    }
     message("Now rendering the HTML report. This can take some time...")
     quarto::quarto_render(input = output_qmd,
                           output_file = paste0("MARMOT_Pipeline_", name, ".html"))
