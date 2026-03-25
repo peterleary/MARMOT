@@ -1,0 +1,49 @@
+.skin-yellow .main-header .logo {
+	background-color: #F39C12;
+}
+
+.skin-yellow .main-header .logo:hover {
+	background-color: #E08E0B;
+}
+
+.rightAlign{
+	float:right;
+}
+
+.leftAlign{
+	float:left;
+}
+
+#home_get_started{background-color:#ECF0F5}
+
+
+/* Fancy plot */
+.pos-relative {
+	position: relative;
+}
+                      
+.panel .btn-group .btn {
+	min-width: 20px;
+}
+
+.plot-btn-group {
+	top: -1px;
+	right: -1px;
+}
+
+.panel-body {
+	overflow: auto;
+}
+
+.panel-body-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 10px;
+	z-index: 3;
+	padding: 25px;
+	padding-top: 10px;
+	background-color: rgba(255, 255, 255, 0.95);
+}
+

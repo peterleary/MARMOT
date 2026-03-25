@@ -24,11 +24,20 @@ For additional information, guidelines, and tips, please refer to the [Wiki](htt
 
 Good news! A new standalone desktop app that can prepare and run the entire MARMOT pipeline — no code required - is here! Download the latest release for your platform from the [GitHub Releases page](https://github.com/peterleary/MARMOT/releases).
 
-- **macOS**: Download the `.zip`, unzip, and open MARMOT.app. On first launch, right-click → Open (to bypass Gatekeeper).
-- **Windows**: Download and run the `.msi` installer. [Untested!]
-- **Linux**: Download and extract the `.tar.gz`. [Untested!]
+- **macOS**: Download the `.zip`, unzip, and open MARMOT.app.
+  > **Important — macOS Gatekeeper:** Because the app is not signed with an Apple Developer certificate, macOS will block it on first launch ("MARMOT.app is damaged" or "can't be verified"). To open it: **right-click** (or Control-click) the app → click **Open** → click **Open** again in the dialog. You only need to do this once. Alternatively, run `xattr -cr MARMOT.app` in Terminal.
+- **Windows**: Download and run the `.msi` installer. If SmartScreen warns "Windows protected your PC", click **More info** → **Run anyway**.
+- **Linux**: Download and extract the `.tar.gz`. Requires WebKit GTK: `sudo apt install libwebkit2gtk-4.1-0` (Ubuntu/Debian) or equivalent for your distro. Without it the app will not start.
 
-Nonetheless, it is still **highly** recommended to run the couple of lines of R code required to install and run the pipeline in R! 
+Nonetheless, it is still **highly** recommended to run the couple of lines of R code required to install and run the pipeline in R!
+
+## Prerequisites
+
+You need **R** (version 4.3+) installed from [cloud.r-project.org](https://cloud.r-project.org/). You'll also need a C/C++ compiler so that R packages can be built from source:
+
+- **macOS**: Install Xcode Command Line Tools (open Terminal, run `xcode-select --install`) and [Homebrew](https://brew.sh) (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`). These provide the C compiler and system libraries that many R packages need. Homebrew's installer will also install Xcode CLT if you don't have it yet.
+- **Windows**: Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) — download the version matching your R (e.g. Rtools44 for R 4.4.x, Rtools45 for R 4.5.x).
+- **Linux**: Install build tools and development headers: `sudo apt install build-essential libcurl4-openssl-dev libssl-dev libxml2-dev` (Ubuntu/Debian) or equivalent for your distro.
 
 ## Quick Install + Run
 
@@ -161,12 +170,6 @@ apptainer run --bind /path/to/data:/data marmot_latest.sif \
 
 Follow these extra instructions if you want to unleash the full potential of the marmots. **It's totally optional!**
 
-### Step 1: Install conda/mamba
-
-If you don't already have conda or mamba, install [miniforge](https://github.com/conda-forge/miniforge) for your platform. This is required for the PARC clustering algorithm and PaCMAP dimensionality reduction.
-
-### Step 2: Install MARMOT and all dependencies
-
 ```r
 install.packages("pak")
 pak::pkg_install("peterleary/MARMOT")
@@ -180,4 +183,4 @@ MARMOT::install_marmot_extras()
 MARMOT::check_setup()
 ```
 
-`install_marmot_extras()` handles everything in one go. If conda is not available, the Python setup will be skipped with a warning — you can always run it later with `MARMOT::setup_python()` after installing conda. Similarly, if a GitHub package like Rphenograph fails to compile, the rest of the install continues normally.
+`install_marmot_extras()` handles everything in one go. The Python environment for PARC and PaCMAP requires conda or mamba — install [miniforge](https://github.com/conda-forge/miniforge) if you don't have it. If a GitHub package like Rphenograph fails to compile, the rest of the install continues normally.

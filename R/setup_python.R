@@ -13,6 +13,12 @@
 #' @export
 setup_python <- function(conda = NULL, force = FALSE) {
 
+  .Deprecated("install_marmot_python",
+    msg = paste0(
+      "'setup_python()' is deprecated. Use MARMOT::install_marmot_python() instead.\n",
+      "Requires conda/mamba (e.g. miniforge: https://github.com/conda-forge/miniforge)."
+    ))
+
   if (!requireNamespace("reticulate", quietly = TRUE)) {
     stop("The 'reticulate' package is required. Install it with install.packages('reticulate').")
   }

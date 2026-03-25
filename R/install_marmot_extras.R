@@ -11,18 +11,19 @@
 #'   }
 #'   \item{Tier 2 (extras)}{
 #'     \code{install_marmot_extras()} — installs optional R packages (PeacoQC,
-#'     flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates an
-#'     isolated Python environment for PARC clustering and PaCMAP dimensionality
-#'     reduction via \pkg{basilisk}. No conda or miniforge installation needed.
+#'     flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates a
+#'     \code{p4r} conda environment for PARC clustering and PaCMAP
+#'     dimensionality reduction. Requires conda or mamba (e.g. miniforge).
 #'   }
 #' }
 #'
 #' @param include_suggests If \code{TRUE} (the default), also install optional
 #'   CRAN packages such as Seurat.
 #' @param include_python If \code{TRUE} (the default), also create the
-#'   \pkg{basilisk}-managed Python environment for PARC and PaCMAP.
-#'   No external conda/miniforge installation is required — basilisk handles
-#'   everything automatically. Fails gracefully if setup encounters errors.
+#'   \code{p4r} conda environment for PARC and PaCMAP.
+#'   Requires conda or mamba (install miniforge from
+#'   \url{https://github.com/conda-forge/miniforge}).
+#'   Fails gracefully if conda is not found.
 #'
 #' @return Invisibly returns a character vector of package names that failed
 #'   or were skipped.
@@ -83,10 +84,10 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
     "ggpubr", "ggprism", "RColorBrewer", "gridExtra", "kableExtra", "DT",
     "clustree", "rstatix", "colorspace", "viridis", "scales", "circlize",
     "htmltools", "knitr", "MASS", "rlang",
-    "openxlsx", "writexl", "data.table", "ragg", "arrow", "jsonlite",
+    "openxlsx", "writexl", "data.table", "ragg", "anndataR", "jsonlite",
     "qs2", "pacman", "scattermore", "scico", "ggnewscale", "pals",
     "patchwork", "ggridges", "zip",
-    "basilisk", "reticulate", "BiocManager",
+    "reticulate", "BiocManager",
     "shiny", "shinydashboard", "shinyBS", "shinyalert", "shinycssloaders",
     "shinyjs", "shinyWidgets", "colourpicker", "sortable", "waiter",
     "fresh", "chameleon", "later"
@@ -167,16 +168,18 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
   # =========================================================================
   if (include_python) {
     message("\n-- Python environment (PARC/PaCMAP) --")
-    message("Setting up Python via basilisk (no conda needed)...")
+    message("  Requires conda or mamba (e.g. miniforge).")
     tryCatch({
-      basilisk::basiliskRun(env = MARMOT:::p4r_env, fun = function() {
-        reticulate::py_run_string("import parc; import pacmap")
-        message("Done! PARC and PaCMAP are available.")
-      })
+      ok <- install_marmot_python()
+      if (!isTRUE(ok)) {
+        skipped <- c(skipped, "Python (PARC/PaCMAP)")
+      }
     }, error = function(e) {
       warning(
         "Python setup failed: ", conditionMessage(e),
         "\nPARC and PaCMAP will not be available.",
+        "\nThis does NOT affect the rest of MARMOT -- FlowSOM, MfastPG, and UMAP all work without Python.",
+        "\nTo retry later: MARMOT::install_marmot_python()",
         call. = FALSE
       )
       skipped <<- c(skipped, "Python (PARC/PaCMAP)")

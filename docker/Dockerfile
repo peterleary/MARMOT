@@ -47,13 +47,17 @@ RUN QUARTO_VER="1.6.43" && \
 # ── R packages: pak → MARMOT + all dependencies ─────────────────────
 RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
 
-# Arrow C++ build: enable Parquet but skip optional network-dependent components
-ARG NOT_CRAN=true
-ENV LIBARROW_MINIMAL=false
-ENV ARROW_PARQUET=ON
-ENV ARROW_WITH_THRIFT=OFF
-ENV ARROW_S3=OFF
-ENV ARROW_GCS=OFF
+# ── Miniforge (conda for PARC/PaCMAP) ────────────────────────────────
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      MF_ARCH="aarch64"; \
+    else \
+      MF_ARCH="x86_64"; \
+    fi && \
+    curl -fsSL -o /tmp/miniforge.sh \
+      "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${MF_ARCH}.sh" && \
+    bash /tmp/miniforge.sh -b -p /opt/miniforge && \
+    rm /tmp/miniforge.sh
+ENV PATH="/opt/miniforge/bin:$PATH"
 
 # Change CACHEBUST value to force re-pull of MARMOT from GitHub
 ARG CACHEBUST=1

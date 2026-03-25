@@ -11,9 +11,10 @@ install_marmot_extras(include_suggests = TRUE, include_python = TRUE)
 CRAN packages such as Seurat.}
 
 \item{include_python}{If \code{TRUE} (the default), also create the
-\pkg{basilisk}-managed Python environment for PARC and PaCMAP.
-No external conda/miniforge installation is required — basilisk handles
-everything automatically. Fails gracefully if setup encounters errors.}
+\code{p4r} conda environment for PARC and PaCMAP.
+Requires conda or mamba (install miniforge from
+\url{https://github.com/conda-forge/miniforge}).
+Fails gracefully if conda is not found.}
 }
 \value{
 Invisibly returns a character vector of package names that failed
@@ -32,9 +33,9 @@ MARMOT has a two-tier install:
   }
   \item{Tier 2 (extras)}{
     \code{install_marmot_extras()} — installs optional R packages (PeacoQC,
-    flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates an
-    isolated Python environment for PARC clustering and PaCMAP dimensionality
-    reduction via \pkg{basilisk}. No conda or miniforge installation needed.
+    flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates a
+    \code{p4r} conda environment for PARC clustering and PaCMAP
+    dimensionality reduction. Requires conda or mamba (e.g. miniforge).
   }
 }
 }

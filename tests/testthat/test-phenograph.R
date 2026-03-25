@@ -358,18 +358,29 @@ test_that("real data: every cell gets identical assignment vs C++ at k=5,25,45,6
   skip_on_cran()
   skip_if_not_installed("Rphenograph")
 
-  pq_path <- file.path("data", "Results_Files_2026-03-02_10.36.48",
-                        "R_files", "parquet", "expression", "exprsQuantNorm.parquet")
-  # Traverse upward from tests/testthat/ to package root
-  root_path <- file.path("..", "..", pq_path)
-  if (!file.exists(root_path)) {
-    # Try absolute path
-    root_path <- file.path("/Users/peterleary/Desktop/marmot", pq_path)
+  # Try h5ad first, fall back to parquet
+  h5ad_rel <- file.path("data", "Results_Files_2026-03-02_10.36.48",
+                         "R_files", "marmot_results.h5ad")
+  h5ad_path <- file.path("..", "..", h5ad_rel)
+  if (!file.exists(h5ad_path)) {
+    h5ad_path <- file.path("/Users/peterleary/Desktop/marmot", h5ad_rel)
   }
-  skip_if(!file.exists(root_path), "Org19 parquet data not found")
 
-  expr <- arrow::read_parquet(root_path)
-  data <- as.matrix(expr[, sapply(expr, is.numeric)])
+  if (file.exists(h5ad_path)) {
+    sce_real <- reconstruct_sce_from_h5ad(h5ad_path)
+    data <- t(as.matrix(SummarizedExperiment::assay(sce_real, "exprsQuantNorm")))
+  } else {
+    # Legacy parquet fallback
+    pq_path <- file.path("data", "Results_Files_2026-03-02_10.36.48",
+                          "R_files", "parquet", "expression", "exprsQuantNorm.parquet")
+    root_path <- file.path("..", "..", pq_path)
+    if (!file.exists(root_path)) {
+      root_path <- file.path("/Users/peterleary/Desktop/marmot", pq_path)
+    }
+    skip_if(!file.exists(root_path), "Org19 data not found (h5ad or parquet)")
+    expr <- arrow::read_parquet(root_path)
+    data <- as.matrix(expr[, sapply(expr, is.numeric)])
+  }
   cat("\n  Real data:", nrow(data), "cells x", ncol(data), "markers\n")
 
   k_values <- c(5, 25, 45, 65, 85)

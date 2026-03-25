@@ -59,3 +59,9 @@ Rplots.pdf
 
 # Claude Code
 CLAUDE.md
+.claude/
+
+# Dev-only artifacts
+dev-to-main-plan.md
+scratch.R
+parc_pacmap_r/

@@ -584,13 +584,19 @@ test_that("removeMarkers excludes specified markers", {
 })
 
 
-# ── A10: DS Parquet save fix ─────────────────────────────────────────────────
+# ── A10: DS h5ad save fix ─────────────────────────────────────────────────
 
-test_that("save_da_ds_parquet handles nested dsList entries", {
-  skip_if_not_installed("arrow")
+test_that("save_da_ds_h5ad handles nested dsList entries", {
+  skip_if_not_installed("anndataR")
 
-  tmp <- tempfile()
-  dir.create(tmp, recursive = TRUE)
+  # Create a minimal h5ad to update
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
   # Mock DA list (plain data.frames)
   daList <- list(
@@ -607,46 +613,38 @@ test_that("save_da_ds_parquet handles nested dsList entries", {
     "contrast1" = list(res_DS = "placeholder", tbl_DS = mock_tbl_DS)
   )
 
-  save_da_ds_parquet(
-    daList = daList,
-    dsList = dsList,
-    pq_dir = tmp
-  )
+  save_da_ds_h5ad(h5ad_path, daList = daList, dsList = dsList)
 
-  # DA result saved
-  da_dir <- file.path(tmp, "da_results")
-  expect_true(file.exists(file.path(da_dir, "contrast1.parquet")))
+  # Read back and check
+  ad <- anndataR::read_h5ad(h5ad_path)
+  expect_true(!is.null(ad$uns$da_results$contrast1))
+  expect_true(!is.null(ad$uns$ds_results$contrast1))
 
-  # DS result saved (previously failed because is.data.frame returned FALSE)
-  ds_dir <- file.path(tmp, "ds_results")
-  ds_file <- file.path(ds_dir, "contrast1.parquet")
-  expect_true(file.exists(ds_file), info = "DS result file was saved")
-
-  ds_read <- arrow::read_parquet(ds_file)
+  ds_read <- as.data.frame(ad$uns$ds_results$contrast1)
   expect_equal(nrow(ds_read), 3)
   expect_true("marker_id" %in% colnames(ds_read))
   expect_equal(ds_read$marker_id, c("CD4", "KLRG1", "CD44"))
-
-  unlink(tmp, recursive = TRUE)
 })
 
-test_that("save_da_ds_parquet still handles plain data.frame dsList entries", {
-  skip_if_not_installed("arrow")
+test_that("save_da_ds_h5ad still handles plain data.frame dsList entries", {
+  skip_if_not_installed("anndataR")
 
-  tmp <- tempfile()
-  dir.create(tmp, recursive = TRUE)
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
-  # If someone already has a plain data.frame DS list (legacy), it should still work
   dsList <- list(
     "contrast1" = data.frame(marker_id = "CD4", p_adj = 0.01)
   )
 
-  save_da_ds_parquet(daList = list(), dsList = dsList, pq_dir = tmp)
+  save_da_ds_h5ad(h5ad_path, daList = list(), dsList = dsList)
 
-  ds_dir <- file.path(tmp, "ds_results")
-  expect_true(file.exists(file.path(ds_dir, "contrast1.parquet")))
-
-  unlink(tmp, recursive = TRUE)
+  ad <- anndataR::read_h5ad(h5ad_path)
+  expect_true(!is.null(ad$uns$ds_results$contrast1))
 })
 
 
@@ -821,13 +819,13 @@ test_that("integration: Parquet round-trip preserves marker_class", {
 
   result <- run_realistic_pipeline_test(
     n_cells = 300,
-    test_name = "MarkerTypeParquetRT"
+    test_name = "MarkerTypeH5adRT"
   )
 
-  pq_dir <- result$pq_dir
+  h5ad_path <- result$h5ad_path
 
-  # Load SCE from Parquet
-  sce <- reconstruct_sce_from_parquet(pq_dir)
+  # Load SCE from h5ad
+  sce <- reconstruct_sce_from_h5ad(h5ad_path)
   rd <- SummarizedExperiment::rowData(sce)
 
   # marker_class preserved
@@ -839,13 +837,10 @@ test_that("integration: Parquet round-trip preserves marker_class", {
   expect_equal(classes[["KLRG1"]], "state")
 
   # DA results present
-  da_dir <- file.path(pq_dir, "da_results")
-  da_files <- list.files(da_dir, pattern = "\\.parquet$")
-  da_result_files <- da_files[!grepl("selected_clusters", da_files)]
-  expect_equal(length(da_result_files), 3)
+  ad <- anndataR::read_h5ad(h5ad_path)
+  expect_equal(length(ad$uns$da_results), 3)
 
   # DS results present (now saved thanks to the fix)
-  ds_dir <- file.path(pq_dir, "ds_results")
-  ds_files <- list.files(ds_dir, pattern = "\\.parquet$")
-  expect_true(length(ds_files) > 0, info = "DS results saved after fix")
+  expect_true(!is.null(ad$uns$ds_results) && length(ad$uns$ds_results) > 0,
+              info = "DS results saved after fix")
 })

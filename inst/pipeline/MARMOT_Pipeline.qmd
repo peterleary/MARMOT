@@ -91,7 +91,7 @@ knitr::opts_chunk$set(
   comment = "",
   fig.width = 8,
   fig.height = 8,
-  dev = "ragg_png"
+  dev = if (requireNamespace("ragg", quietly = TRUE)) "ragg_png" else "png"
 )
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
 options(bitmapType = "cairo", kableExtra_view_html = FALSE)
@@ -106,13 +106,13 @@ md_fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/MARMOT_Metadata.xlsx"      # Full pat
 downsampleTo <- NULL  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
 
 ## 🔍 Clustering
-clusteringMethodToUse <- "FlowSOM"   # One of: "MfastPG", "Mphenograph", "Rphenograph", "PARC", "FlowSOM"
+clusteringMethodToUse <- "FlowSOM"   # One of: "MfastPG", "Mphenograph", "Mparc", "Rphenograph", "PARC", "FlowSOM"
 markersToClusterBy <- "all"       # One of: "all", "type", "state"
 kValuesIWant <- c(20, 40)
 knn <- 20          # Must be in kValuesIWant
 
 ## 📉 Dimension Reduction
-dimRedMethodToUse <- "UMAP"   # One of: "TSNE", "UMAP", "pacmap"
+dimRedMethodToUse <- "UMAP"   # One of: "TSNE", "UMAP", "Mpacmap", "pacmap"
 markersToDimRedBy <- "all"   # One of: "all", "type", "state"
 
 ## 🧼 QC
@@ -133,7 +133,7 @@ ramPerCore <- 6
 
 ## 🎨 Aesthetics
 themeToUse <- "prism"    # ggplot2 theme
-viridisColour <- "lisbon"   # Palette: "lisbon", "berlin", "vik", "cork", "batlow", "lapaz", "magma", "inferno", "plasma", "viridis", "mako", "rocket", "turbo"
+viridisColour <- "lisbon"   # Viridis, Scico, RColorBrewer Diverging, or Fun (Marmot, Swiss, Lucky)
 
 ## 🌉 scGate (optional)
 runScGate <- FALSE    # Set TRUE to run scGate marker-pair gating (requires scGate, UCell, Seurat)
@@ -176,6 +176,30 @@ if (length(missing_vars)) {
     ".\nPlease define them in the 'input settings' chunk.",
     call. = FALSE
   )
+}
+```
+
+```{r palette_helper, include = FALSE}
+viridis_palettes <- c("magma", "inferno", "plasma", "viridis", "cividis", "rocket", "mako", "turbo")
+scico_palettes   <- c("bam", "berlin", "brocO", "corkO", "lapaz", "lisbon", "romaO", "vikO")
+fun_palettes <- list(
+  Marmot = c("#4a3728", "#6b5344", "#8c7a6b", "#a89888", "#bfb5a8", "#d4ccc4", "#9e9e9e", "#787878"),
+  Swiss  = c("#ffffff", "#ffe5e5", "#ffb3b3", "#ff6666", "#ff1a1a", "#cc0000", "#990000")
+)
+
+get_palette_colours <- function(palette, n = 64) {
+  if (palette %in% viridis_palettes) {
+    viridis::viridis(n, option = palette)
+  } else if (palette %in% scico_palettes) {
+    scico::scico(n, palette = palette)
+  } else if (palette == "Lucky") {
+    colorRampPalette(sample(grDevices::colors(distinct = TRUE), 3))(n)
+  } else if (palette %in% names(fun_palettes)) {
+    colorRampPalette(fun_palettes[[palette]])(n)
+  } else {
+    # Diverging (RColorBrewer)
+    colorRampPalette(RColorBrewer::brewer.pal(11, palette))(n)
+  }
 }
 ```
 
@@ -242,19 +266,20 @@ setup_scgate_colours <- function(gated_cells, model_names, palette) {
 
 if (!is.null(RDataFolder)) {
   # Auto-resolve: if user pointed to the top-level Results_Files dir, descend into R_files/
-  if (!file.exists(file.path(RDataFolder, "parquet", "_manifest.json")) &&
-       file.exists(file.path(RDataFolder, "R_files", "parquet", "_manifest.json"))) {
+  h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
+  if (!file.exists(h5ad_path) &&
+       file.exists(file.path(RDataFolder, "R_files", "marmot_results.h5ad"))) {
     RDataFolder <- file.path(RDataFolder, "R_files")
+    h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
     message("ℹ️ Auto-resolved RDataFolder to: ", RDataFolder)
   }
-  pq_manifest <- file.path(RDataFolder, "parquet", "_manifest.json")
-  if (!file.exists(pq_manifest)) {
-    stop("No Parquet data found in ", RDataFolder,
-         "/parquet/. Please re-run the pipeline to generate Parquet output.")
+  if (!file.exists(h5ad_path)) {
+    stop("No h5ad data found in ", RDataFolder,
+         ". Please re-run the pipeline to generate h5ad output.")
   }
-  message(glue::glue("🔁 Loading results from Parquet: {RDataFolder}/parquet/"))
-  MARMOT::load_parquet_to_env(file.path(RDataFolder, "parquet"), envir = .GlobalEnv)
-  # Also load FCS frame objects (stored as qs2 — not decomposable to Parquet)
+  message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
+  MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
+  # Also load FCS frame objects (stored as qs2 — not decomposable to h5ad)
   for (qs_obj in c("framesList", "frames")) {
     qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs2"))
     if (file.exists(qs_path)) {
@@ -266,7 +291,7 @@ if (!is.null(RDataFolder)) {
 # Pick the merge method depending on clustering backend
 mergeBy <- dplyr::case_when(
   clusteringMethodToUse %in% c("Rphenograph", "Mphenograph", "MfastPG") ~ "k",
-  clusteringMethodToUse == "PARC" ~ "p",
+  clusteringMethodToUse %in% c("PARC", "Mparc") ~ "p",
   clusteringMethodToUse == "FlowSOM" ~ "meta",
   TRUE ~ NA_character_  # temp placeholder
 )
@@ -877,24 +902,52 @@ if (clusteringMethodToUse %in% c("MfastPG", "Mphenograph", "Rphenograph")) {
 ```{r parc_clustering, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
 
 if (clusteringMethodToUse == "PARC") {
-  message("🐍 Running PARC clustering via basilisk...")
+  if (!MARMOT:::use_marmot_python()) {
+    message("Python PARC unavailable -- falling back to Mparc (R).")
+    clusteringMethodToUse <- "Mparc"
+  } else {
+  message("🐍 Running PARC clustering...")
 
   set.seed(2)
   esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
 
-  parcClustList <- basilisk::basiliskRun(env = MARMOT:::p4r_env,
-    fun = function(data, k_values, n_threads) {
-      reticulate::source_python(system.file("python", "f_parc.py", package = "MARMOT"))
-      setNames(lapply(k_values, function(k) {
-        as.integer(unlist(parc_clust(data, knn = as.integer(k),
-                                     num_threads = as.integer(n_threads))))
-      }), paste0("p", k_values))
-    },
-    data = esPARC, k_values = kValuesIWant, n_threads = nCores
-  )
+  reticulate::source_python(system.file("python", "f_parc.py", package = "MARMOT"))
+  parcClustList <- setNames(lapply(kValuesIWant, function(k) {
+    as.integer(unlist(parc_clust(esPARC, knn = as.integer(k),
+                                 num_threads = as.integer(nCores))))
+  }), paste0("p", kValuesIWant))
 
   for (k in kValuesIWant) {
     cluster_labels <- factor(as.character(parcClustList[[paste0("p", k)]] + 1))
+    cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
+    sce[[paste0("p", k)]] <- cluster_labels
+  }
+
+  chosen_k <- paste0("p", knn)
+  sce$cluster_id <- sce[[chosen_k]]
+  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
+    "data.frame(", clusteringMethodToUse, " = factor(levels(sce[[chosen_k]])))"
+  )))
+  kids <- sce[[paste0("p", knn)]]
+  numbersOfClusters <- gtools::mixedsort(levels(kids))
+  }
+}
+```
+
+```{r mparc_clustering, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+
+if (clusteringMethodToUse == "Mparc") {
+  message("Running Mparc clustering (R)...")
+
+  set.seed(2)
+  esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
+
+  parcClustList <- setNames(lapply(kValuesIWant, function(k) {
+    Mparc(esPARC, k = as.integer(k), num_threads = as.integer(nCores))
+  }), paste0("p", kValuesIWant))
+
+  for (k in kValuesIWant) {
+    cluster_labels <- factor(as.character(parcClustList[[paste0("p", k)]]))
     cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
     sce[[paste0("p", k)]] <- cluster_labels
   }
@@ -979,23 +1032,34 @@ if (!is.null(featureType) && markersToDimRedBy == "type") {
 # Always run PCA first (needed for pacmap, helpful for others)
 sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
 
-# PaCMAP (via basilisk)
+# PaCMAP (via conda p4r env) — falls back to Mpacmap if Python unavailable
 if (dimRedMethodToUse == "pacmap") {
-  es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-  embedding <- tryCatch(
-    basilisk::basiliskRun(env = MARMOT:::p4r_env, fun = function(data) {
-      reticulate::source_python(system.file("python", "f_pacmap.py", package = "MARMOT"))
-      pacmap_fit(data, verbose = TRUE, apply_pca = FALSE)
-    }, data = es),
-    error = function(e) { message("PaCMAP failed: ", e$message); NULL }
-  )
-  if (is.null(embedding)) {
-    message("⚠️ PaCMAP unavailable → skipping.")
-    dimRedMethodToUse <- "UMAP"
+  if (!MARMOT:::use_marmot_python()) {
+    message("Python PaCMAP unavailable -- falling back to Mpacmap (R).")
+    dimRedMethodToUse <- "Mpacmap"
   } else {
-    colnames(embedding) <- c("x", "y")
-    reducedDim(sce, dimRedMethodToUse) <- embedding
+    es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+    embedding <- tryCatch({
+      reticulate::source_python(system.file("python", "f_pacmap.py", package = "MARMOT"))
+      pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
+    }, error = function(e) { message("PaCMAP failed: ", e$message); NULL })
+    if (is.null(embedding)) {
+      message("PaCMAP failed -- falling back to Mpacmap (R).")
+      dimRedMethodToUse <- "Mpacmap"
+    } else {
+      colnames(embedding) <- c("x", "y")
+      reducedDim(sce, dimRedMethodToUse) <- embedding
+    }
   }
+}
+
+# Mpacmap (pure R) — also used as fallback when Python PaCMAP is unavailable
+if (dimRedMethodToUse == "Mpacmap") {
+  message("Running Mpacmap (R)...")
+  es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+  embedding <- Mpacmap(as.matrix(es), apply_pca = FALSE, verbose = TRUE)
+  colnames(embedding) <- c("x", "y")
+  reducedDim(sce, "Mpacmap") <- embedding
 }
 
 # Native DRs
@@ -1365,16 +1429,19 @@ names(clustersToMapList) <- names(selectedClustersList)
 
 message("✅ DA and DS analysis complete.")
 
-# Save DA/DS results to Parquet (runs even during reload since DA/DS always re-runs)
-pq_dir <- if (!is.null(RDataFolder)) {
-  file.path(RDataFolder, "parquet")
+# Save DA/DS results to h5ad (runs even during reload since DA/DS always re-runs)
+h5ad_save_dir <- if (!is.null(RDataFolder)) {
+  RDataFolder
 } else if (exists("rFilesDir")) {
-  file.path(rFilesDir, "parquet")
+  rFilesDir
 } else NULL
 
-if (!is.null(pq_dir) && dir.exists(pq_dir)) {
-  message("💾 Saving updated DA/DS results to Parquet...")
-  MARMOT::save_da_ds_parquet(pq_dir, daList, dsList, selectedClustersList, daPValToUse)
+if (!is.null(h5ad_save_dir)) {
+  h5ad_path <- file.path(h5ad_save_dir, "marmot_results.h5ad")
+  if (file.exists(h5ad_path)) {
+    message("💾 Saving updated DA/DS results to h5ad...")
+    MARMOT::save_da_ds_h5ad(h5ad_path, daList, dsList, selectedClustersList, daPValToUse)
+  }
 }
 ```
 
@@ -1428,9 +1495,9 @@ for (qs_obj in c("framesList", "frames")) {
   }
 }
 
-# Save Parquet — main data store for Shiny app and reproducibility
-message("💾 Saving Parquet format...")
-MARMOT::save_parquet_data(rFilesDir, envir = .GlobalEnv)
+# Save h5ad — main data store for Shiny app and reproducibility
+message("💾 Saving h5ad format...")
+MARMOT::save_h5ad_data(rFilesDir, envir = .GlobalEnv)
 
 # Write pipeline_settings.json sidecar so Tauri GUI can reload & lock fields
 settings_list <- list(
@@ -1561,8 +1628,8 @@ plotUMAPNice <- function(
 
   # Gradient or manual colour scale
   if (colour_by %in% useMarkers) {
-    gp <- gp + scale_colour_gradientn(name, colours = hcl.colors(64, viridisColour))
-    gp <- gp + scale_fill_gradientn(name, colours = hcl.colors(64, viridisColour))
+    gp <- gp + scale_colour_gradientn(name, colours = get_palette_colours(viridisColour))
+    gp <- gp + scale_fill_gradientn(name, colours = get_palette_colours(viridisColour))
   } else {
     gp <- gp + scale_colour_manual(values = coloursList[[colour_by]])
     gp <- gp + scale_fill_manual(values = coloursList[[colour_by]])
@@ -2905,7 +2972,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
 
   p3 <- ggplot(df_joint, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["density"]])) +
     geom_point(size = dr_point_size, alpha = 0.7, shape = 16) +
-    scale_colour_gradientn(colours = hcl.colors(64, viridisColour)) +
+    scale_colour_gradientn(colours = get_palette_colours(viridisColour)) +
     ggtitle(paste0(m1, " + ", m2, " density")) +
     coord_fixed() + dr_theme +
     labs(x = paste(dimRedMethodToUse, "dim 1"),

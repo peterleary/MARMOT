@@ -121,9 +121,9 @@
 
   <div class="tip-box">
     <strong>Tip:</strong> Marker classes matter. Every marker should be either <b>type</b> or <b>state</b>.
-    <b>Type</b> markers (e.g. lineage markers) are used for clustering.
-    <b>State</b> markers (e.g. activation markers) are used for differential state analysis.
-    To exclude markers entirely, use the <b>excludeTheseMarkers</b> column in the metadata file.
+    <b>Type</b> markers are typically lineage markers; <b>state</b> markers are typically activation markers.
+    Clustering and dimensionality reduction can use type, state, or all markers (your choice in the settings).
+    Differential state analysis uses state markers. To exclude markers entirely, use the <b>excludeTheseMarkers</b> column in the metadata file.
   </div>
 
   <div class="footer-note">

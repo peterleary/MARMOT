@@ -11,8 +11,7 @@ RoxygenNote: 7.3.3
 Depends:
   R (>= 4.3)
 Imports:
-  arrow,
-  basilisk,
+  anndataR,
   BiocGenerics,
   BiocManager,
   CATALYST,
@@ -61,7 +60,6 @@ Imports:
   plotly,
   purrr,
   quarto,
-  ragg,
   RANN,
   RColorBrewer,
   RcppHNSW,
@@ -91,12 +89,12 @@ Imports:
   viridis,
   waiter,
   writexl,
-  zip
+  zip,
+  qs2
 Suggests:
+  ragg,
   pak,
-  qs2,
   remotes,
-  basilisk.utils,
   flowAI,
   knitr,
   ks,

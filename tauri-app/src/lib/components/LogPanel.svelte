@@ -102,6 +102,12 @@
       {/if}
     </div>
   </div>
+  {#if $pipelineState === "error"}
+    <div class="error-banner">
+      <span class="error-x">&#10007;</span>
+      <span class="error-title">Pipeline failed — check the log below for details</span>
+    </div>
+  {/if}
   {#if $pipelineState === "done" && $pipelineOutputDir}
     <div class="post-run-banner">
       <div class="banner-header">
@@ -265,7 +271,35 @@
     color: #fff;
   }
   .card-folder:hover { background: #d97706; }
-.log-output {
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.5rem;
+  }
+  .error-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border-radius: 50%;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .error-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #991b1b;
+  }
+  .log-output {
     flex: 1;
     background: #1e1e1e;
     color: #d4d4d4;

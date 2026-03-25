@@ -2,22 +2,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { metadata, isDirty, fcsFolder, runName } from "../stores/metadata.js";
-  import { pipelineState, logLines, startTime, clearLog, addLogLine, rscriptPath,
-           pipelineOutputDir, pipelineHtmlPath, quartoPath } from "../stores/pipeline.js";
+  import { pipelineState, rscriptPath, quartoPath, launchPipeline,
+           pipelineOutputDir, pipelineHtmlPath } from "../stores/pipeline.js";
   import { validateSettings, validateFileData } from "../utils/validation.js";
-  import { listen } from "@tauri-apps/api/event";
-  import { onDestroy } from "svelte";
 
   let { onActiveTab = () => {} } = $props();
-
-  // Track active listeners so re-runs clean up properly
-  let activeUnlistenLog = null;
-  let activeUnlistenDone = null;
-
-  onDestroy(() => {
-    if (activeUnlistenLog) { activeUnlistenLog(); activeUnlistenLog = null; }
-    if (activeUnlistenDone) { activeUnlistenDone(); activeUnlistenDone = null; }
-  });
 
   async function handleOpen() {
     const selected = await open({
@@ -121,52 +110,17 @@
     pipelineOutputDir.set(null);
     pipelineHtmlPath.set(null);
 
-    // Clean up any lingering listeners from a previous run
-    if (activeUnlistenLog) { activeUnlistenLog(); activeUnlistenLog = null; }
-    if (activeUnlistenDone) { activeUnlistenDone(); activeUnlistenDone = null; }
-
-    // Set up event listeners
-    const unlistenLog = await listen("pipeline-log", (event) => {
-      addLogLine(event.payload);
-    });
-    const unlistenDone = await listen("pipeline-done", async (event) => {
-      const result = event.payload;
-      pipelineState.set(result.success ? "done" : "error");
-      if (result.success) {
-        try {
-          const resultsDir = await invoke("find_latest_results_dir", { fcsFolder: folder });
-          pipelineOutputDir.set(resultsDir);
-          pipelineHtmlPath.set(`${folder}/MARMOT_Pipeline_${name}.html`);
-        } catch (e) {
-          console.warn("Could not locate output directory:", e);
-        }
-      }
-      unlistenLog();
-      unlistenDone();
-      activeUnlistenLog = null;
-      activeUnlistenDone = null;
-    });
-    activeUnlistenLog = unlistenLog;
-    activeUnlistenDone = unlistenDone;
-
-    // Start pipeline
-    clearLog();
-    pipelineState.set("running");
-    startTime.set(Date.now());
+    // Switch to log tab BEFORE launching (listeners live in the store, not here)
     onActiveTab("log");
 
-    try {
-      await invoke("run_pipeline", {
-        rscriptPath: $rscriptPath,
-        metadataPath,
-        runName: name,
-      });
-    } catch (e) {
-      addLogLine("ERROR: " + e);
-      pipelineState.set("error");
-      unlistenLog();
-      unlistenDone();
-    }
+    // Launch pipeline — event listeners are managed in the store module
+    // so they survive this component being unmounted by the tab switch.
+    await launchPipeline({
+      rscriptPath: $rscriptPath,
+      metadataPath,
+      runName: name,
+      fcsFolder: folder,
+    });
   }
 </script>
 

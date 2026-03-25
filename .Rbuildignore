@@ -22,3 +22,7 @@
 ^synthetic_v5e_test$
 ^inst/testdata$
 ^MARMOT_Pipeline_.*\.html$
+^R/scratch\.R$
+^dev-to-main-plan\.md$
+^parc_pacmap_r$
+^inst/app_legacy$

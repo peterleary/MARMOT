@@ -110,11 +110,11 @@ test_that("Parquet round-trip preserves scGate colData columns", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env_save)
+  save_h5ad_data(tmp, envir = env_save)
 
   # Load and verify
-  pq_dir <- file.path(tmp, "parquet")
-  sce2 <- reconstruct_sce_from_parquet(pq_dir)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+  sce2 <- reconstruct_sce_from_h5ad(h5ad_path)
 
   expect_true("Gated_Cells" %in% colnames(SummarizedExperiment::colData(sce2)))
   expect_true("is_Th" %in% colnames(SummarizedExperiment::colData(sce2)))
@@ -145,9 +145,9 @@ test_that("Parquet round-trip preserves scGate colour entries", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env_save)
+  save_h5ad_data(tmp, envir = env_save)
 
-  loaded <- load_parquet_for_shiny(file.path(tmp, "parquet"))
+  loaded <- load_h5ad_for_shiny(file.path(tmp, "marmot_results.h5ad"))
 
   expect_true("Gated_Cells" %in% names(loaded$coloursList))
   expect_equal(loaded$coloursList$Gated_Cells, colours$Gated_Cells)

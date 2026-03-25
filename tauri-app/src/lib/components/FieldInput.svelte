@@ -41,7 +41,17 @@
     {/if}
   </label>
 
-  {#if type === "dropdown"}
+  {#if type === "grouped-dropdown"}
+    <select id={fieldId} bind:value class="field-control" {disabled}>
+      {#each Object.entries(options) as [group, opts]}
+        <optgroup label={group}>
+          {#each opts as opt}
+            <option value={opt}>{opt}</option>
+          {/each}
+        </optgroup>
+      {/each}
+    </select>
+  {:else if type === "dropdown"}
     <select id={fieldId} bind:value class="field-control" {disabled}>
       {#each options as opt}
         {@const unavailable = disabledOptions.includes(opt)}

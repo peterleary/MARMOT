@@ -21,16 +21,17 @@ test_that("pipeline: Rphenograph + UMAP", {
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
   # Rphenograph uses "k" prefix columns
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("k10" %in% colnames(cell_meta))
   expect_true(is.character(cell_meta$cluster_id) || is.factor(cell_meta$cluster_id))
 })
 
 test_that("pipeline: PARC + UMAP", {
   skip_pipeline_deps()
-  # PARC needs basilisk + Python env
-  skip_if_not_installed("basilisk")
+  # PARC needs p4r conda env with parc/pacmap
   skip_if_not_installed("reticulate")
+  py_status <- MARMOT::marmot_python_status()
+  skip_if(!py_status$available, "No Python with parc/pacmap available")
 
   result <- run_pipeline_test(
     params = list(clusteringMethodToUse = "PARC"),
@@ -41,7 +42,7 @@ test_that("pipeline: PARC + UMAP", {
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
   # PARC uses "p" prefix columns
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("p10" %in% colnames(cell_meta))
   # Ensure no zero-indexed clusters (PARC Python is 0-based, pipeline adds +1)
   cluster_vals <- as.integer(as.character(cell_meta$cluster_id))
@@ -60,7 +61,7 @@ test_that("pipeline: MfastPG + UMAP", {
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
   # MfastPG uses "k" prefix columns (same as Rphenograph/Mphenograph)
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("k10" %in% colnames(cell_meta))
 })
 
@@ -78,14 +79,16 @@ test_that("pipeline: FlowSOM + TSNE", {
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
   # TSNE reduction should exist; pipeline always runs UMAP too
-  expect_true(file.exists(file.path(result$pq_dir, "reductions", "TSNE.parquet")))
-  expect_true(file.exists(file.path(result$pq_dir, "reductions", "UMAP.parquet")))
+  sce_tsne <- reconstruct_sce_from_h5ad(result$h5ad_path)
+  expect_true("TSNE" %in% SingleCellExperiment::reducedDimNames(sce_tsne))
+  expect_true("UMAP" %in% SingleCellExperiment::reducedDimNames(sce_tsne))
 })
 
 test_that("pipeline: FlowSOM + PaCMAP", {
   skip_pipeline_deps()
-  skip_if_not_installed("basilisk")
   skip_if_not_installed("reticulate")
+  py_status <- MARMOT::marmot_python_status()
+  skip_if(!py_status$available, "No Python with parc/pacmap available")
 
   result <- run_pipeline_test(
     params = list(dimRedMethodToUse = "pacmap"),
@@ -96,8 +99,9 @@ test_that("pipeline: FlowSOM + PaCMAP", {
   sce <- validate_pipeline_output(result, expected_cells = 2000)
 
   # PaCMAP reduction should exist
-  red_files <- list.files(file.path(result$pq_dir, "reductions"), pattern = "\\.parquet$")
-  expect_true(any(grepl("pacmap|PaCMAP|UMAP", red_files, ignore.case = TRUE)))
+  sce_pm <- reconstruct_sce_from_h5ad(result$h5ad_path)
+  rd_names <- SingleCellExperiment::reducedDimNames(sce_pm)
+  expect_true(any(grepl("pacmap|PaCMAP|UMAP", rd_names, ignore.case = TRUE)))
 })
 
 # ── QC Paths ─────────────────────────────────────────────────────────────────────
@@ -139,7 +143,7 @@ test_that("pipeline: PeacoQC + useQC=TRUE", {
   on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
 
   # QC filtered some cells — count <= full (5000 × 4)
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true(nrow(cell_meta) <= 20000)
   # But shouldn't be zero
   expect_true(nrow(cell_meta) > 0)
@@ -147,9 +151,9 @@ test_that("pipeline: PeacoQC + useQC=TRUE", {
   # Structural validation (skip cell count — already checked above)
   validate_pipeline_output(result, expected_cells = NULL)
 
-  # QC summary in parquet dir
-  qc_summary_path <- file.path(result$pq_dir, "qc", "qc_summary.parquet")
-  expect_true(file.exists(qc_summary_path))
+  # QC summary in h5ad
+  ad <- anndataR::read_h5ad(result$h5ad_path)
+  expect_true(!is.null(ad$uns$qc$qc_summary))
 })
 
 test_that("pipeline: FlowAI + useQC=TRUE", {
@@ -164,7 +168,7 @@ test_that("pipeline: FlowAI + useQC=TRUE", {
   on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
 
   # FlowAI filtered some cells — count <= full (2000 × 4)
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true(nrow(cell_meta) <= 8000)
   expect_true(nrow(cell_meta) > 0)
 
@@ -265,13 +269,10 @@ test_that("pipeline: quantile normalise", {
   validate_pipeline_output(result, expected_cells = 2000)
 
   # Quantile-normalised expression should exist and values in [0, 1]
-  qnorm_path <- file.path(result$pq_dir, "expression", "exprsQuantNorm.parquet")
-  expect_true(file.exists(qnorm_path))
-  qnorm_data <- arrow::read_parquet(qnorm_path)
-  # Exclude cell_id column if present
-  numeric_cols <- sapply(qnorm_data, is.numeric)
-  vals <- unlist(qnorm_data[, numeric_cols, drop = FALSE])
-  expect_true(all(vals >= -0.01 & vals <= 1.01, na.rm = TRUE))
+  sce_qn <- reconstruct_sce_from_h5ad(result$h5ad_path)
+  expect_true("exprsQuantNorm" %in% SummarizedExperiment::assayNames(sce_qn))
+  qnorm_mat <- as.matrix(SummarizedExperiment::assay(sce_qn, "exprsQuantNorm"))
+  expect_true(all(qnorm_mat >= -0.01 & qnorm_mat <= 1.01, na.rm = TRUE))
 })
 
 test_that("pipeline: multiple k values", {
@@ -286,7 +287,7 @@ test_that("pipeline: multiple k values", {
   validate_pipeline_output(result, expected_cells = 2000)
 
   # FlowSOM uses "meta" prefix — both meta10 and meta20 columns
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("meta10" %in% colnames(cell_meta))
   expect_true("meta20" %in% colnames(cell_meta))
 })
@@ -351,9 +352,9 @@ test_that("pipeline: RDataFolder reload", {
 
   validate_pipeline_output(baseline, expected_cells = 2000)
 
-  # Record parquet timestamps before reload
+  # Record h5ad timestamps before reload
   r_files_dir <- file.path(baseline$results_path, "R_files")
-  pq_manifest_mtime <- file.mtime(file.path(baseline$pq_dir, "_manifest.json"))
+  h5ad_mtime <- file.mtime(baseline$h5ad_path)
 
   # Re-run with RDataFolder pointing to R_files.
   # Use loadWorkbook to modify in-place (preserves column names with spaces).
@@ -387,8 +388,8 @@ test_that("pipeline: RDataFolder reload", {
   }, logical(1)))
   expect_true(html_found)
 
-  # pipeline_settings.parquet from baseline should still exist
-  expect_true(file.exists(file.path(baseline$pq_dir, "pipeline_settings.parquet")))
+  # h5ad from baseline should still exist
+  expect_true(file.exists(baseline$h5ad_path))
 })
 
 # ── Combined ─────────────────────────────────────────────────────────────────────
@@ -413,10 +414,11 @@ test_that("pipeline: kitchen sink (TSNE + quantile + downsample + multi-k + PDFs
   validate_pipeline_output(result, expected_cells = 1200)
 
   # TSNE reduction
-  expect_true(file.exists(file.path(result$pq_dir, "reductions", "TSNE.parquet")))
+  sce_ks <- reconstruct_sce_from_h5ad(result$h5ad_path)
+  expect_true("TSNE" %in% SingleCellExperiment::reducedDimNames(sce_ks))
 
   # Both meta10 and meta20
-  cell_meta <- arrow::read_parquet(file.path(result$pq_dir, "cell_metadata.parquet"))
+  cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("meta10" %in% colnames(cell_meta))
   expect_true("meta20" %in% colnames(cell_meta))
 

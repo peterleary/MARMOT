@@ -3,7 +3,7 @@
 export const FIELD_DEFINITIONS = {
   clusteringMethodToUse: {
     type: "dropdown",
-    options: ["MfastPG", "Mphenograph", "Rphenograph", "PARC", "FlowSOM"],
+    options: ["FlowSOM", "MfastPG", "Mphenograph", "Mparc", "Rphenograph", "PARC"],
     label: "Clustering Method",
     lockedOnReload: true,
   },
@@ -30,7 +30,7 @@ export const FIELD_DEFINITIONS = {
   },
   dimRedMethodToUse: {
     type: "dropdown",
-    options: ["TSNE", "UMAP", "pacmap"],
+    options: ["UMAP", "TSNE", "Mpacmap", "pacmap"],
     label: "Dim. Reduction Method",
     lockedOnReload: true,
   },
@@ -96,11 +96,13 @@ export const FIELD_DEFINITIONS = {
     label: "Plot Theme",
   },
   viridisColour: {
-    type: "dropdown",
-    options: [
-      "lisbon", "berlin", "vik", "cork", "batlow", "lapaz",
-      "magma", "inferno", "plasma", "viridis", "mako", "rocket", "turbo",
-    ],
+    type: "grouped-dropdown",
+    options: {
+      "Viridis": ["magma", "inferno", "plasma", "viridis", "cividis", "rocket", "mako", "turbo"],
+      "Scico": ["bam", "berlin", "brocO", "corkO", "lapaz", "lisbon", "romaO", "vikO"],
+      "Diverging": ["BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral"],
+      "Fun": ["Marmot", "Swiss", "Lucky"],
+    },
     label: "Colour Palette",
   },
   RDataFolder: {

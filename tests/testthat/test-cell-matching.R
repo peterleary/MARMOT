@@ -360,36 +360,35 @@ test_that("extract_dr_df: nrow equals ncol(sce)", {
 })
 
 
-# ── Section 9: Parquet round-trip ──
-test_that("Parquet round-trip: colnames preserved", {
-  skip_if_not_installed("arrow")
+# ── Section 9: h5ad round-trip ──
+test_that("h5ad round-trip: colnames preserved", {
+  skip_if_not_installed("anndataR")
   sce_orig <- make_cell_matching_sce()
-  tmp <- tempfile("pq_test_")
+  tmp <- tempfile("h5ad_test_")
   dir.create(tmp)
 
-  # Set up environment with required variables
   env <- new.env(parent = emptyenv())
   env$sce <- sce_orig
 
-  save_parquet_data(tmp, envir = env)
-  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+  save_h5ad_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
 
   expect_equal(colnames(sce_loaded), colnames(sce_orig))
 
   unlink(tmp, recursive = TRUE)
 })
 
-test_that("Parquet round-trip: cluster_id and sample_id match cell-by-cell", {
-  skip_if_not_installed("arrow")
+test_that("h5ad round-trip: cluster_id and sample_id match cell-by-cell", {
+  skip_if_not_installed("anndataR")
   sce_orig <- make_cell_matching_sce()
-  tmp <- tempfile("pq_test_")
+  tmp <- tempfile("h5ad_test_")
   dir.create(tmp)
 
   env <- new.env(parent = emptyenv())
   env$sce <- sce_orig
 
-  save_parquet_data(tmp, envir = env)
-  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+  save_h5ad_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
 
   expect_equal(
     as.character(sce_loaded$cluster_id),
@@ -403,17 +402,17 @@ test_that("Parquet round-trip: cluster_id and sample_id match cell-by-cell", {
   unlink(tmp, recursive = TRUE)
 })
 
-test_that("Parquet round-trip: reducedDim coordinates match cell-by-cell", {
-  skip_if_not_installed("arrow")
+test_that("h5ad round-trip: reducedDim coordinates match cell-by-cell", {
+  skip_if_not_installed("anndataR")
   sce_orig <- make_cell_matching_sce()
-  tmp <- tempfile("pq_test_")
+  tmp <- tempfile("h5ad_test_")
   dir.create(tmp)
 
   env <- new.env(parent = emptyenv())
   env$sce <- sce_orig
 
-  save_parquet_data(tmp, envir = env)
-  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+  save_h5ad_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
 
   umap_orig <- SingleCellExperiment::reducedDim(sce_orig, "UMAP")
   umap_loaded <- SingleCellExperiment::reducedDim(sce_loaded, "UMAP")
@@ -426,22 +425,20 @@ test_that("Parquet round-trip: reducedDim coordinates match cell-by-cell", {
   unlink(tmp, recursive = TRUE)
 })
 
-test_that("Parquet round-trip: DR df sce_idx valid against reloaded SCE", {
-  skip_if_not_installed("arrow")
+test_that("h5ad round-trip: DR df sce_idx valid against reloaded SCE", {
+  skip_if_not_installed("anndataR")
   sce_orig <- make_cell_matching_sce()
-  tmp <- tempfile("pq_test_")
+  tmp <- tempfile("h5ad_test_")
   dir.create(tmp)
 
-  # Build a DR df and save it as umapDFList
   df_orig <- build_dr_df_test(sce_orig, "UMAP")
   env <- new.env(parent = emptyenv())
   env$sce <- sce_orig
   env$umapDFList <- list(UMAP = df_orig)
 
-  save_parquet_data(tmp, envir = env)
-  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+  save_h5ad_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
 
-  # sce_idx from original df should still be valid pointers into reloaded SCE
   expect_true(all(df_orig$sce_idx %in% seq_len(ncol(sce_loaded))))
   expect_equal(
     as.character(df_orig$cluster_id),
@@ -451,17 +448,17 @@ test_that("Parquet round-trip: DR df sce_idx valid against reloaded SCE", {
   unlink(tmp, recursive = TRUE)
 })
 
-test_that("Parquet round-trip: cluster_codes preserved in SCE metadata", {
-  skip_if_not_installed("arrow")
+test_that("h5ad round-trip: cluster_codes preserved in SCE metadata", {
+  skip_if_not_installed("anndataR")
   sce_orig <- make_cell_matching_sce()
-  tmp <- tempfile("pq_test_")
+  tmp <- tempfile("h5ad_test_")
   dir.create(tmp)
 
   env <- new.env(parent = emptyenv())
   env$sce <- sce_orig
 
-  save_parquet_data(tmp, envir = env)
-  sce_loaded <- reconstruct_sce_from_parquet(file.path(tmp, "parquet"))
+  save_h5ad_data(tmp, envir = env)
+  sce_loaded <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
 
   cc_orig <- S4Vectors::metadata(sce_orig)$cluster_codes
   cc_loaded <- S4Vectors::metadata(sce_loaded)$cluster_codes

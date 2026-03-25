@@ -1,25 +1,23 @@
 # Tests for inst/app/helpers/data_helpers.R
 
-test_that("detect_data_format identifies parquet", {
+test_that("detect_data_format identifies h5ad", {
   tmp <- withr::local_tempdir()
-  pq_dir <- file.path(tmp, "parquet")
-  dir.create(pq_dir)
-  writeLines("{}", file.path(pq_dir, "_manifest.json"))
+  file.create(file.path(tmp, "marmot_results.h5ad"))
 
-  expect_equal(detect_data_format(tmp), "parquet")
+  expect_equal(detect_data_format(tmp), "h5ad")
 })
 
 test_that("detect_data_format errors when only qs files present", {
   tmp <- withr::local_tempdir()
   file.create(file.path(tmp, "sce.qs"))
 
-  expect_error(detect_data_format(tmp), "No Parquet data found")
+  expect_error(detect_data_format(tmp), "No MARMOT data found")
 })
 
 test_that("detect_data_format errors on empty directory", {
   tmp <- withr::local_tempdir()
 
-  expect_error(detect_data_format(tmp), "No Parquet data found")
+  expect_error(detect_data_format(tmp), "No MARMOT data found")
 })
 
 test_that("extract_marker_data returns correct columns", {

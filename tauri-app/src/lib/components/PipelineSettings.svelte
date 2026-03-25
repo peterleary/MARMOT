@@ -9,7 +9,8 @@
 
   let currentMetadata = $derived($metadata);
   let groupedFields = $derived(SETTING_GROUPS.flatMap(g => g.fields));
-  let ungrouped = $derived(currentMetadata.pipeline_settings.filter(s => !groupedFields.includes(s.variable)));
+  const LEGACY_FIELDS = new Set(["condaDir", "parcScriptDir"]);
+  let ungrouped = $derived(currentMetadata.pipeline_settings.filter(s => !groupedFields.includes(s.variable) && !LEGACY_FIELDS.has(s.variable)));
 
   // Auto-inject missing defined fields so they always appear in the UI,
   // even when loaded metadata doesn't include them.

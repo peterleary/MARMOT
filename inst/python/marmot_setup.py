@@ -1,5 +1,5 @@
 """
-One-time environment setup for MARMOT's basilisk Python environment.
+One-time environment setup for MARMOT's Python environment.
 Imported by f_parc.py and f_pacmap.py before any heavy package imports.
 All functions are idempotent (safe to call multiple times).
 """
@@ -13,8 +13,9 @@ def fix_rpath_libs():
     which prevents llvmlite from resolving its @rpath-linked system dylibs
     (libz.1.dylib, libc++.1.dylib) when loaded inside R via reticulate.
 
-    Fix: create symlinks to the real library files in the pyenv Python 3.9
-    lib directory — the first @rpath location libllvmlite.dylib searches.
+    Fix: create symlinks to the real library files in the current Python
+    env's lib directory — the first @rpath location libllvmlite.dylib searches.
+    Works for conda envs (sys.prefix points to the env root).
     Must run BEFORE any import that transitively loads llvmlite (numba,
     umap-learn, parc, pacmap).
     """
@@ -22,9 +23,10 @@ def fix_rpath_libs():
         return
     import glob
 
-    pyenv_libs = glob.glob(os.path.expanduser("~/.pyenv/versions/3.9.*/lib"))
-    if not pyenv_libs:
+    python_lib = os.path.join(sys.prefix, "lib")
+    if not os.path.isdir(python_lib):
         return
+    lib_dirs = [python_lib]
 
     candidates = {
         "libz.1.dylib": (
@@ -38,7 +40,7 @@ def fix_rpath_libs():
         ),
     }
 
-    for lib_dir in pyenv_libs:
+    for lib_dir in lib_dirs:
         for name, sources in candidates.items():
             dest = os.path.join(lib_dir, name)
             if os.path.exists(dest) or os.path.islink(dest):

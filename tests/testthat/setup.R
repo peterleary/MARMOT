@@ -832,7 +832,7 @@ skip_pipeline_deps <- function() {
   skip_if_not(nzchar(Sys.which("quarto")), "Quarto not installed")
   skip_if_not_installed("flowCore")
   skip_if_not_installed("FlowSOM")
-  skip_if_not_installed("arrow")
+  skip_if_not_installed("anndataR")
   skip_if_not_installed("pacman")
 }
 
@@ -845,7 +845,7 @@ skip_pipeline_deps <- function() {
 #' @param test_name Name for the pipeline output (default "IntTest")
 #' @param n_cells Cells per FCS file (default 500)
 #' @param n_markers Number of markers (default 8)
-#' @return A list with test_dir, results_path, pq_dir, params, n_cells, n_markers
+#' @return A list with test_dir, results_path, h5ad_path, params, n_cells, n_markers
 run_pipeline_test <- function(params = list(), test_name = "IntTest",
                               n_cells = 500, n_markers = 8,
                               marker_types = NULL) {
@@ -863,12 +863,12 @@ run_pipeline_test <- function(params = list(), test_name = "IntTest",
   stopifnot(length(results_dir) == 1)
   results_path <- file.path(test_dir, results_dir)
 
-  pq_dir <- file.path(results_path, "R_files", "parquet")
+  h5ad_path <- file.path(results_path, "R_files", "marmot_results.h5ad")
 
   list(
     test_dir = test_dir,
     results_path = results_path,
-    pq_dir = pq_dir,
+    h5ad_path = h5ad_path,
     params = params,
     n_cells = n_cells,
     n_markers = n_markers
@@ -882,45 +882,28 @@ run_pipeline_test <- function(params = list(), test_name = "IntTest",
 #' @param result Output from run_pipeline_test()
 #' @param expected_cells Expected total cell count, or NULL to skip the check
 validate_pipeline_output <- function(result, expected_cells = NULL) {
-  pq_dir <- result$pq_dir
+  h5ad_path <- result$h5ad_path
 
-  # Parquet directory exists
-  expect_true(dir.exists(pq_dir))
+  # h5ad file exists
+  expect_true(file.exists(h5ad_path))
 
-  # Manifest
-  manifest_path <- file.path(pq_dir, "_manifest.json")
-  expect_true(file.exists(manifest_path))
-  manifest <- jsonlite::fromJSON(manifest_path)
-  expect_equal(manifest$format, "marmot-parquet-v1")
+  # Read and check manifest
+  ad <- anndataR::read_h5ad(h5ad_path)
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
 
-  # Cell metadata
-  cell_meta_path <- file.path(pq_dir, "cell_metadata.parquet")
-  expect_true(file.exists(cell_meta_path))
+  # Cell count
   if (!is.null(expected_cells)) {
-    cell_meta <- arrow::read_parquet(cell_meta_path)
-    expect_equal(nrow(cell_meta), expected_cells)
+    expect_equal(ad$n_obs(), expected_cells)
   }
 
-  # Expression assays (>=1)
-  expr_dir <- file.path(pq_dir, "expression")
-  expect_true(dir.exists(expr_dir))
-  expr_files <- list.files(expr_dir, pattern = "\\.parquet$")
-  expect_true(length(expr_files) >= 1)
+  # Assays (layers + X)
+  expect_true(length(ad$layers_keys()) >= 1)
 
-  # DR reductions (>=1)
-  red_dir <- file.path(pq_dir, "reductions")
-  expect_true(dir.exists(red_dir))
-  red_files <- list.files(red_dir, pattern = "\\.parquet$")
-  expect_true(length(red_files) >= 1)
-
-  # DR data frames (>=1)
-  dr_dir <- file.path(pq_dir, "dr_dataframes")
-  expect_true(dir.exists(dr_dir))
-  dr_files <- list.files(dr_dir, pattern = "\\.parquet$")
-  expect_true(length(dr_files) >= 1)
+  # Reduced dimensions
+  expect_true(length(ad$obsm_keys()) >= 1)
 
   # SCE reconstructs
-  sce <- reconstruct_sce_from_parquet(pq_dir)
+  sce <- reconstruct_sce_from_h5ad(h5ad_path)
   expect_s4_class(sce, "SingleCellExperiment")
 
   # Excel output
@@ -942,7 +925,7 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
 #' @param test_name Name for the pipeline output (default "RealisticTest")
 #' @param n_cells Cells per FCS file (default 300)
 #' @param marker_types Optional vector of 21 marker types
-#' @return A list with test_dir, results_path, pq_dir, params, n_cells, marker_types
+#' @return A list with test_dir, results_path, h5ad_path, params, n_cells, marker_types
 run_realistic_pipeline_test <- function(params = list(), test_name = "RealisticTest",
                                          n_cells = 300, marker_types = NULL) {
   test_dir <- make_realistic_pipeline_data(n_cells = n_cells, params = params,
@@ -959,12 +942,12 @@ run_realistic_pipeline_test <- function(params = list(), test_name = "RealisticT
   stopifnot(length(results_dir) == 1)
   results_path <- file.path(test_dir, results_dir)
 
-  pq_dir <- file.path(results_path, "R_files", "parquet")
+  h5ad_path <- file.path(results_path, "R_files", "marmot_results.h5ad")
 
   list(
     test_dir = test_dir,
     results_path = results_path,
-    pq_dir = pq_dir,
+    h5ad_path = h5ad_path,
     params = params,
     n_cells = n_cells,
     marker_types = marker_types
@@ -973,22 +956,22 @@ run_realistic_pipeline_test <- function(params = list(), test_name = "RealisticT
 
 #' Validate marker type assignment in pipeline output
 #'
-#' Reconstructs SCE from Parquet and checks marker_class, DA results,
+#' Reconstructs SCE from h5ad and checks marker_class, DA results,
 #' and DS results against expectations.
 #'
 #' @param result Output from run_pipeline_test() or run_realistic_pipeline_test()
 #' @param expected_marker_classes Named vector: marker_name -> expected class ("type"/"state")
 #' @param expected_n_contrasts Expected number of DA/DS contrast entries
 #' @param expect_ds_markers Character vector of markers expected in DS results (NULL to skip)
-#' @param expect_ds_saved Whether DS results should be saved to Parquet (default TRUE)
+#' @param expect_ds_saved Whether DS results should be saved to h5ad (default TRUE)
 validate_marker_type_output <- function(result, expected_marker_classes,
                                          expected_n_contrasts = NULL,
                                          expect_ds_markers = NULL,
                                          expect_ds_saved = TRUE) {
-  pq_dir <- result$pq_dir
+  h5ad_path <- result$h5ad_path
 
   # Reconstruct SCE and check marker_class
-  sce <- reconstruct_sce_from_parquet(pq_dir)
+  sce <- reconstruct_sce_from_h5ad(h5ad_path)
   rd <- SummarizedExperiment::rowData(sce)
   actual_classes <- setNames(as.character(rd$marker_class), rownames(rd))
 
@@ -999,33 +982,30 @@ validate_marker_type_output <- function(result, expected_marker_classes,
     )
   }
 
-  # DA results
-  da_dir <- file.path(pq_dir, "da_results")
+  # DA results (stored in uns)
+  ad <- anndataR::read_h5ad(h5ad_path)
   if (!is.null(expected_n_contrasts)) {
-    da_files <- list.files(da_dir, pattern = "\\.parquet$")
-    # Exclude selected_clusters.parquet
-    da_result_files <- da_files[!grepl("selected_clusters", da_files)]
-    expect_equal(length(da_result_files), expected_n_contrasts,
-                 info = "Number of DA contrast result files")
+    da_results <- ad$uns$da_results
+    expect_equal(length(da_results), expected_n_contrasts,
+                 info = "Number of DA contrast result entries")
 
     # Each DA result should have p_adj column
-    for (f in da_result_files) {
-      da_df <- arrow::read_parquet(file.path(da_dir, f))
-      expect_true("p_adj" %in% colnames(da_df), info = paste("p_adj in", f))
+    for (name in names(da_results)) {
+      da_df <- as.data.frame(da_results[[name]])
+      expect_true("p_adj" %in% colnames(da_df), info = paste("p_adj in", name))
     }
   }
 
   # DS results
-  ds_dir <- file.path(pq_dir, "ds_results")
   if (expect_ds_saved) {
-    ds_files <- list.files(ds_dir, pattern = "\\.parquet$")
-    expect_true(length(ds_files) > 0, info = "DS results saved to Parquet")
+    ds_results <- ad$uns$ds_results
+    expect_true(!is.null(ds_results) && length(ds_results) > 0,
+                info = "DS results saved to h5ad")
 
     if (!is.null(expect_ds_markers)) {
-      # Check that DS tested the expected markers
       all_ds_markers <- character(0)
-      for (f in ds_files) {
-        ds_df <- arrow::read_parquet(file.path(ds_dir, f))
+      for (name in names(ds_results)) {
+        ds_df <- as.data.frame(ds_results[[name]])
         if ("marker_id" %in% colnames(ds_df)) {
           all_ds_markers <- union(all_ds_markers, unique(as.character(ds_df$marker_id)))
         }
@@ -1036,11 +1016,11 @@ validate_marker_type_output <- function(result, expected_marker_classes,
     }
   }
 
-  # Parquet round-trip: marker_class survives
-  sce2 <- reconstruct_sce_from_parquet(pq_dir)
+  # h5ad round-trip: marker_class survives
+  sce2 <- reconstruct_sce_from_h5ad(h5ad_path)
   rd2 <- SummarizedExperiment::rowData(sce2)
   expect_equal(as.character(rd2$marker_class), as.character(rd$marker_class),
-               info = "marker_class survives Parquet round-trip")
+               info = "marker_class survives h5ad round-trip")
 
   invisible(sce)
 }

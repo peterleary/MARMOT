@@ -1,32 +1,6 @@
 # Data Helpers
 # Data extraction, aggregation, and format detection for MARMOT Shiny app
 
-#' Check whether a data directory contains Parquet output
-#' @param data_dir Path to the R_files directory
-#' @return Invisibly TRUE; stops with an informative error if Parquet is absent
-detect_data_format <- function(data_dir) {
-  pq <- file.path(data_dir, "parquet", "_manifest.json")
-  if (file.exists(pq)) return(invisible("parquet"))
-  stop("No Parquet data found in: ", data_dir,
-       "/parquet/. Please re-run the MARMOT pipeline to generate Parquet output.")
-}
-
-#' Extract expression data from umapDFList for a set of markers
-#' @param umap_df A data.frame from umapDFList
-#' @param markers Character vector of marker names
-#' @param metadata_cols Character vector of metadata column names to include
-#' @return A data.frame with cell coords, expression, and metadata
-extract_marker_data <- function(umap_df, markers, metadata_cols = NULL) {
-  available <- intersect(markers, colnames(umap_df))
-  if (length(available) == 0) return(NULL)
-
-  cols <- c("x", "y", available)
-  if (!is.null(metadata_cols)) {
-    cols <- c(cols, intersect(metadata_cols, colnames(umap_df)))
-  }
-  umap_df[, cols, drop = FALSE]
-}
-
 #' Compute median coordinates per group for label placement
 #' @param df Data frame with x, y, and a grouping column
 #' @param group_col Name of the grouping column
@@ -128,13 +102,11 @@ aggregate_expression <- function(expr_df, markers, group_col) {
                     dimnames = list(groups, markers))
   pct_mat <- avg_mat
 
-  for (g in groups) {
-    idx <- expr_df[[group_col]] == g
-    for (m in markers) {
-      vals <- expr_df[[m]][idx]
-      avg_mat[g, m] <- mean(vals, na.rm = TRUE)
-      pct_mat[g, m] <- mean(vals > 0, na.rm = TRUE) * 100
-    }
+  group_factor <- factor(expr_df[[group_col]], levels = groups)
+  for (m in markers) {
+    vals <- expr_df[[m]]
+    avg_mat[, m] <- tapply(vals, group_factor, mean, na.rm = TRUE)
+    pct_mat[, m] <- 100 * tapply(vals > 0, group_factor, mean, na.rm = TRUE)
   }
 
   list(avg_expr = avg_mat, pct_expr = pct_mat)
@@ -146,16 +118,22 @@ aggregate_expression <- function(expr_df, markers, group_col) {
 #' Uses data.table::chmatch for O(n) string lookup instead of base match().
 #'
 #' @param sce A SingleCellExperiment object
-#' @param umapDFList Named list of data.frames (each with cluster_id column)
+#' @param umapDFList Named list of data.frames (each with source_column column)
 #' @param coloursList Named list of named colour vectors
-#' @param cluster_table data.frame with rownames = original cluster_id,
+#' @param cluster_table data.frame with rownames = original cluster values,
 #'   columns: relabelled_clusters, colours
+#' @param source_column Name of the colData/umapDF column being relabelled
+#'   (default "cluster_id" for backwards compatibility)
 #' @return list(sce, umapDFList, coloursList) with relabelled_clusters added
-apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table) {
-  # Map cluster_id → relabelled_clusters for every cell in the SCE
+apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table,
+                                   source_column = "cluster_id") {
+  # Map source_column → relabelled_clusters for every cell in the SCE
   # data.table::chmatch is O(n) hash-based string matching (faster than base match)
   relabelled <- cluster_table$relabelled_clusters[
-    data.table::chmatch(as.character(sce$cluster_id), rownames(cluster_table))
+    data.table::chmatch(
+      as.character(SummarizedExperiment::colData(sce)[[source_column]]),
+      rownames(cluster_table)
+    )
   ]
   relabelled <- factor(relabelled, levels = unique(gtools::mixedsort(relabelled)))
   sce$relabelled_clusters <- relabelled
@@ -168,8 +146,12 @@ apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table) 
 
   # Update each DR data frame (chmatch for O(n) lookup per frame)
   for (tab in names(umapDFList)) {
+    if (!source_column %in% colnames(umapDFList[[tab]])) next
     umapDFList[[tab]]$relabelled_clusters <- cluster_table$relabelled_clusters[
-      data.table::chmatch(as.character(umapDFList[[tab]]$cluster_id), rownames(cluster_table))
+      data.table::chmatch(
+        as.character(umapDFList[[tab]][[source_column]]),
+        rownames(cluster_table)
+      )
     ]
     umapDFList[[tab]]$relabelled_clusters <- factor(
       x = umapDFList[[tab]]$relabelled_clusters,

@@ -3,12 +3,43 @@ use std::io::{BufRead, BufReader};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
+/// Strip ANSI escape codes (colours, bold, etc.) so log output is readable
+/// in the GUI's plain-text log panel.
+pub fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // CSI sequence: ESC [ ... final_byte
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                // consume until a letter (the final byte of the CSI sequence)
+                while let Some(&ch) = chars.peek() {
+                    chars.next();
+                    if ch.is_ascii_alphabetic() { break; }
+                }
+            }
+            // else: bare ESC, skip it
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Cross-platform home directory: HOME on Unix, USERPROFILE on Windows.
+pub(crate) fn home_dir() -> String {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string())
+}
+
 /// Build an enriched PATH that includes common tool locations.
 /// macOS GUI apps inherit a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin),
 /// missing Homebrew, Quarto, conda, user-local bins, etc.
 pub(crate) fn enrich_path() -> String {
     let current = std::env::var("PATH").unwrap_or_default();
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = home_dir();
 
     let extra_dirs: Vec<String> = vec![
         // Quarto
@@ -81,30 +112,42 @@ pub fn kill_shiny(process: &SharedShinyProcess) {
 }
 
 pub fn find_quarto() -> Option<String> {
-    let candidates = if cfg!(target_os = "macos") {
+    let candidates: Vec<String> = if cfg!(target_os = "macos") {
         vec![
-            "/Applications/quarto/bin/quarto",
-            "/opt/homebrew/bin/quarto",
-            "/usr/local/bin/quarto",
+            "/Applications/quarto/bin/quarto".to_string(),
+            "/opt/homebrew/bin/quarto".to_string(),
+            "/usr/local/bin/quarto".to_string(),
         ]
     } else if cfg!(target_os = "windows") {
         vec![
-            r"C:\Program Files\Quarto\bin\quarto.exe",
+            r"C:\Program Files\Quarto\bin\quarto.exe".to_string(),
         ]
     } else {
-        vec!["/usr/bin/quarto", "/usr/local/bin/quarto"]
+        // Linux: include ~/.local/bin where our auto-installer puts Quarto
+        let home = home_dir();
+        vec![
+            "/usr/bin/quarto".to_string(),
+            "/usr/local/bin/quarto".to_string(),
+            format!("{}/.local/bin/quarto", home),
+        ]
     };
 
     for path in &candidates {
-        if std::path::Path::new(path).exists() {
+        if std::path::Path::new(path.as_str()).exists() {
             return Some(path.to_string());
         }
     }
 
+    // Use enriched PATH for the fallback so ~/.local/bin etc. are searched
     let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Ok(output) = Command::new(cmd).arg("quarto").output() {
+    if let Ok(output) = Command::new(cmd)
+        .arg("quarto")
+        .env("PATH", enrich_path())
+        .output()
+    {
         if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines().next().unwrap_or("").trim().to_string();
             if !path.is_empty() {
                 return Some(path);
             }
@@ -129,7 +172,7 @@ pub fn get_quarto_version(quarto_path: &str) -> Result<String, String> {
 }
 
 fn quarto_cache_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = home_dir();
     std::path::Path::new(&home)
         .join(".config").join("marmot").join("quarto_path.txt")
 }
@@ -150,18 +193,18 @@ pub fn find_rscript() -> Option<String> {
     // Platform-specific known paths
     let candidates = if cfg!(target_os = "macos") {
         vec![
-            "/opt/homebrew/bin/Rscript",
-            "/usr/local/bin/Rscript",
-            "/Library/Frameworks/R.framework/Versions/Current/Resources/bin/Rscript",
+            "/opt/homebrew/bin/Rscript".to_string(),
+            "/usr/local/bin/Rscript".to_string(),
+            "/Library/Frameworks/R.framework/Versions/Current/Resources/bin/Rscript".to_string(),
         ]
     } else if cfg!(target_os = "windows") {
-        vec![
-            r"C:\Program Files\R\R-4.4.1\bin\Rscript.exe",
-            r"C:\Program Files\R\R-4.4.0\bin\Rscript.exe",
-            r"C:\Program Files\R\R-4.3.3\bin\Rscript.exe",
-        ]
+        // Dynamically scan C:\Program Files\R\ for any R-* directories (newest first)
+        scan_windows_r_dirs()
     } else {
-        vec!["/usr/bin/Rscript", "/usr/local/bin/Rscript"]
+        vec![
+            "/usr/bin/Rscript".to_string(),
+            "/usr/local/bin/Rscript".to_string(),
+        ]
     };
 
     for path in &candidates {
@@ -170,11 +213,16 @@ pub fn find_rscript() -> Option<String> {
         }
     }
 
-    // Try which/where
+    // Try which/where (use enriched PATH so user-local installs are found)
     let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Ok(output) = Command::new(cmd).arg("Rscript").output() {
+    if let Ok(output) = Command::new(cmd)
+        .arg("Rscript")
+        .env("PATH", enrich_path())
+        .output()
+    {
         if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines().next().unwrap_or("").trim().to_string();
             if !path.is_empty() {
                 return Some(path);
             }
@@ -182,6 +230,27 @@ pub fn find_rscript() -> Option<String> {
     }
 
     None
+}
+
+/// Scan `C:\Program Files\R\` for R-* directories, return Rscript.exe paths
+/// sorted newest-version-first so the latest R is found first.
+fn scan_windows_r_dirs() -> Vec<String> {
+    let r_base = std::path::Path::new(r"C:\Program Files\R");
+    let mut dirs: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(r_base) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("R-") && entry.path().is_dir() {
+                dirs.push(name_str.to_string());
+            }
+        }
+    }
+    // Sort descending so newest version comes first (e.g. R-4.5.0 before R-4.4.1)
+    dirs.sort_by(|a, b| b.cmp(a));
+    dirs.iter()
+        .map(|d| format!(r"C:\Program Files\R\{}\bin\Rscript.exe", d))
+        .collect()
 }
 
 /// Single R subprocess returning version string + MARMOT install status.
@@ -212,7 +281,7 @@ pub fn get_r_info(rscript_path: &str) -> Result<(String, bool), String> {
 }
 
 fn rscript_cache_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = home_dir();
     std::path::Path::new(&home)
         .join(".config").join("marmot").join("rscript_path.txt")
 }
@@ -282,34 +351,42 @@ pub fn spawn_pipeline(
 
         let _ = app.emit("pipeline-log", format!("Started pipeline (PID: {})", pid));
 
-        // Stream stdout
-        if let Some(stdout) = child.stdout.take() {
+        // Stream stdout — hold the JoinHandle so we can wait for it
+        let stdout_handle = child.stdout.take().map(|stdout| {
             let app_clone = app.clone();
             let reader = BufReader::new(stdout);
             std::thread::spawn(move || {
                 for line in reader.lines() {
                     if let Ok(line) = line {
-                        let _ = app_clone.emit("pipeline-log", line);
+                        let _ = app_clone.emit("pipeline-log", strip_ansi(&line));
                     }
                 }
-            });
-        }
+            })
+        });
 
-        // Stream stderr
-        if let Some(stderr) = child.stderr.take() {
+        // Stream stderr — hold the JoinHandle so we can wait for it
+        let stderr_handle = child.stderr.take().map(|stderr| {
             let app_clone = app.clone();
             let reader = BufReader::new(stderr);
             std::thread::spawn(move || {
                 for line in reader.lines() {
                     if let Ok(line) = line {
-                        let _ = app_clone.emit("pipeline-log", line);
+                        let _ = app_clone.emit("pipeline-log", strip_ansi(&line));
                     }
                 }
-            });
-        }
+            })
+        });
 
         // Wait for completion
-        match child.wait() {
+        let result = child.wait();
+
+        // Wait for reader threads to finish draining all output BEFORE
+        // emitting pipeline-done (otherwise the frontend unregisters the
+        // log listener and the tail of the output is lost).
+        if let Some(h) = stdout_handle { let _ = h.join(); }
+        if let Some(h) = stderr_handle { let _ = h.join(); }
+
+        match result {
             Ok(status) => {
                 let success = status.success();
                 let _ = app.emit("pipeline-log",

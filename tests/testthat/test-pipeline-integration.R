@@ -20,7 +20,7 @@ test_that("pipeline integration: FlowSOM + UMAP end-to-end", {
   expect_equal(ncol(sce), 2000)      # 4 samples × 500 cells
 
   # UMAP reduction shape
-  umap_data <- arrow::read_parquet(file.path(result$pq_dir, "reductions", "UMAP.parquet"))
-  expect_equal(ncol(umap_data), 3)   # cell_id + 2 UMAP dims
+  umap_data <- SingleCellExperiment::reducedDim(sce, "UMAP")
+  expect_equal(ncol(umap_data), 2)   # 2 UMAP dims
   expect_equal(nrow(umap_data), 2000)
 })

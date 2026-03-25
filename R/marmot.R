@@ -111,6 +111,9 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     rmd_content <- gsub("- marmot_header.html", paste0("- ", header_src), rmd_content, fixed = TRUE)
   }
 
+  # Copy metadata into the results folder for reproducibility
+  file.copy(md_fp, file.path(resultsDir, basename(md_fp)), overwrite = TRUE)
+
   output_qmd <- file.path(resultsDir, paste0("MARMOT_Pipeline_", name, ".qmd"))
   writeLines(rmd_content, output_qmd)
 

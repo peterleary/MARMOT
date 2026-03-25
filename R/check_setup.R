@@ -31,14 +31,14 @@ check_setup <- function() {
     "htmltools", "knitr", "MASS", "rlang",
     "reticulate", "future", "pacman",
     "plotly", "qs2", "shiny", "shinydashboard",
-    "data.table", "arrow", "jsonlite", "patchwork", "ragg"
+    "data.table", "anndataR", "jsonlite", "patchwork"
   )
 
   # -- GitHub packages (fragile, known compilation issues) --
   github_pkgs <- c("Rphenograph", "fireworks")
 
   # -- Optional (gated behind include_suggests) --
-  optional_pkgs <- c("Seurat")
+  optional_pkgs <- c("Seurat", "ragg")
 
   all_pkgs <- c(core_pkgs, github_pkgs, optional_pkgs)
   types <- c(
@@ -107,22 +107,22 @@ check_setup <- function() {
     cat("  \u274c Quarto not found \u2014 install from https://quarto.org/docs/get-started/\n")
   }
 
-  # Python environment (basilisk-managed)
-  # Check if env directory exists first to avoid triggering env creation.
+  # Python environment (conda p4r)
   cat("\n-- Python (PARC/PaCMAP) --\n")
-  py_ok <- tryCatch({
-    env_path <- basilisk::obtainEnvironmentPath(p4r_env)
-    if (!dir.exists(env_path)) stop("env not created yet")
-    basilisk::basiliskRun(env = p4r_env, fun = function() {
-      reticulate::py_run_string("import parc; import pacmap")
-      TRUE
-    })
-  }, error = function(e) FALSE)
-  if (py_ok) {
-    cat("  \u2705 PARC and PaCMAP available\n")
+  py_status <- tryCatch(marmot_python_status(), error = function(e) {
+    list(available = FALSE, python_path = NA_character_, conda_path = NA_character_)
+  })
+  if (py_status$available) {
+    cat(sprintf("  \u2705 PARC and PaCMAP available (%s)\n", py_status$python_path))
+  } else if (!is.na(py_status$conda_path)) {
+    cat("  \u26a0\ufe0f p4r environment not found (conda detected)\n")
+    cat("     Run: MARMOT::install_marmot_python()\n")
+    cat("     Mparc and Mpacmap (R fallbacks) are always available\n")
   } else {
-    cat("  \u274c PARC/PaCMAP not set up yet\n")
-    cat("     Run: MARMOT::install_marmot_extras(include_python = TRUE)\n")
+    cat("  \u26a0\ufe0f No conda/mamba found\n")
+    cat("     Install miniforge: https://github.com/conda-forge/miniforge\n")
+    cat("     Then run: MARMOT::install_marmot_python()\n")
+    cat("     Mparc and Mpacmap (R fallbacks) are always available\n")
   }
 
   cat("\n")

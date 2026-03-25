@@ -5,13 +5,14 @@ channels:
 dependencies:
   - python=3.9
   - numpy=1.22.3
-  - scikit-learn
-  - python-annoy
-  - numba
-  - python-igraph
-  - leidenalg
-  - hnswlib
+  - scikit-learn=1.0.2
+  - python-annoy=1.17.3
+  - numba=0.60.0
+  - llvmlite=0.43.0
+  - python-igraph=0.11.6
+  - leidenalg=0.10.2
+  - hnswlib=0.8.0
   - pip
   - pip:
-      - pacmap
-      - parc
+      - pacmap==0.8.0
+      - parc==0.40

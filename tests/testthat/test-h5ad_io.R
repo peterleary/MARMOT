@@ -1,8 +1,7 @@
-# Tests for R/parquet_io.R — Parquet round-trip
-# Suppress tibble row names deprecation warnings from arrow::read_parquet
-withr::local_options(list(lifecycle_verbosity = "quiet"), .local_envir = teardown_env())
+# Tests for R/h5ad_io.R — h5ad round-trip
 
-test_that("save_parquet_data creates expected directory structure", {
+test_that("save_h5ad_data creates expected file", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
   colours <- make_mock_colours(sce)
@@ -15,21 +14,18 @@ test_that("save_parquet_data creates expected directory structure", {
   env$umapDFList <- list(All = umap_df)
   env$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env)
+  save_h5ad_data(tmp, envir = env)
 
-  pq_dir <- file.path(tmp, "parquet")
-  expect_true(dir.exists(pq_dir))
-  expect_true(file.exists(file.path(pq_dir, "_manifest.json")))
-  expect_true(dir.exists(file.path(pq_dir, "expression")))
-  expect_true(dir.exists(file.path(pq_dir, "reductions")))
-  expect_true(dir.exists(file.path(pq_dir, "dr_dataframes")))
-  expect_true(dir.exists(file.path(pq_dir, "colours")))
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+  expect_true(file.exists(h5ad_path))
 
-  manifest <- jsonlite::fromJSON(file.path(pq_dir, "_manifest.json"))
-  expect_equal(manifest$format, "marmot-parquet-v1")
+  # Check manifest via uns
+  ad <- anndataR::read_h5ad(h5ad_path)
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
 })
 
 test_that("round-trip: metadata survives save/load", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
   colours <- make_mock_colours(sce)
@@ -42,11 +38,11 @@ test_that("round-trip: metadata survives save/load", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env_save)
-  pq_dir <- file.path(tmp, "parquet")
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
   env_load <- new.env(parent = emptyenv())
-  load_parquet_to_env(pq_dir, envir = env_load)
+  load_h5ad_to_env(h5ad_path, envir = env_load)
 
   expect_true(exists("md", envir = env_load))
   loaded_md <- get("md", envir = env_load)
@@ -55,6 +51,7 @@ test_that("round-trip: metadata survives save/load", {
 })
 
 test_that("round-trip: SCE dimensions and assays survive", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
 
@@ -65,10 +62,10 @@ test_that("round-trip: SCE dimensions and assays survive", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- make_mock_colours(sce)
 
-  save_parquet_data(tmp, envir = env_save)
-  pq_dir <- file.path(tmp, "parquet")
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
-  sce2 <- reconstruct_sce_from_parquet(pq_dir)
+  sce2 <- reconstruct_sce_from_h5ad(h5ad_path)
   expect_s4_class(sce2, "SingleCellExperiment")
   expect_equal(ncol(sce2), ncol(sce))
   expect_equal(nrow(sce2), nrow(sce))
@@ -80,12 +77,12 @@ test_that("round-trip: SCE dimensions and assays survive", {
   # Expression values match within tolerance
   orig <- as.matrix(SummarizedExperiment::assay(sce, "exprsTransformed"))
   loaded <- as.matrix(SummarizedExperiment::assay(sce2, "exprsTransformed"))
-  # Align by cell_id (column names)
   common_cells <- intersect(colnames(orig), colnames(loaded))
   expect_equal(orig[, common_cells], loaded[, common_cells], tolerance = 1e-6)
 })
 
 test_that("round-trip: umapDFList names and dimensions survive", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
 
@@ -96,11 +93,11 @@ test_that("round-trip: umapDFList names and dimensions survive", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- make_mock_colours(sce)
 
-  save_parquet_data(tmp, envir = env_save)
-  pq_dir <- file.path(tmp, "parquet")
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
   env_load <- new.env(parent = emptyenv())
-  load_parquet_to_env(pq_dir, envir = env_load)
+  load_h5ad_to_env(h5ad_path, envir = env_load)
 
   loaded_list <- get("umapDFList", envir = env_load)
   expect_true("All" %in% names(loaded_list))
@@ -109,6 +106,7 @@ test_that("round-trip: umapDFList names and dimensions survive", {
 })
 
 test_that("round-trip: coloursList values survive", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
   colours <- make_mock_colours(sce)
@@ -120,23 +118,20 @@ test_that("round-trip: coloursList values survive", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env_save)
-  pq_dir <- file.path(tmp, "parquet")
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
   env_load <- new.env(parent = emptyenv())
-  load_parquet_to_env(pq_dir, envir = env_load)
+  load_h5ad_to_env(h5ad_path, envir = env_load)
 
   loaded_colours <- get("coloursList", envir = env_load)
-  expect_true("cluster.id" %in% names(loaded_colours) || "cluster_id" %in% names(loaded_colours))
-
-  # Get the cluster colours regardless of dot/underscore naming
-  cluster_key <- intersect(c("cluster_id", "cluster.id"), names(loaded_colours))
-  expect_length(cluster_key, 1)
-  expect_equal(sort(unname(loaded_colours[[cluster_key]])),
+  expect_true("cluster_id" %in% names(loaded_colours))
+  expect_equal(sort(unname(loaded_colours$cluster_id)),
                sort(unname(colours$cluster_id)))
 })
 
-test_that("load_parquet_for_shiny returns expected keys", {
+test_that("load_h5ad_for_shiny returns expected keys", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
   colours <- make_mock_colours(sce)
@@ -149,10 +144,10 @@ test_that("load_parquet_for_shiny returns expected keys", {
   env_save$umapDFList <- list(All = umap_df)
   env_save$coloursList <- colours
 
-  save_parquet_data(tmp, envir = env_save)
-  pq_dir <- file.path(tmp, "parquet")
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
 
-  result <- load_parquet_for_shiny(pq_dir)
+  result <- load_h5ad_for_shiny(h5ad_path)
   expect_true(is.list(result))
   expect_true("sce" %in% names(result))
   expect_true("md" %in% names(result))
@@ -163,7 +158,8 @@ test_that("load_parquet_for_shiny returns expected keys", {
   expect_s4_class(result$sce, "SingleCellExperiment")
 })
 
-test_that("save_parquet_data handles empty coloursList entries without crashing", {
+test_that("save_h5ad_data handles empty coloursList entries without crashing", {
+  skip_if_not_installed("anndataR")
   sce <- make_mock_sce()
   umap_df <- make_mock_umap_df(sce)
 
@@ -178,9 +174,12 @@ test_that("save_parquet_data handles empty coloursList entries without crashing"
   env$umapDFList <- list(All = umap_df)
   env$coloursList <- colours
 
-  expect_no_error(save_parquet_data(tmp, envir = env))
+  expect_no_error(save_h5ad_data(tmp, envir = env))
 
   # The empty entry should be skipped, non-empty entries saved
-  col_files <- list.files(file.path(tmp, "parquet", "colours"), pattern = "\\.parquet$")
-  expect_true(length(col_files) >= 2)  # cluster_id + condition, not empty_entry
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+  ad <- anndataR::read_h5ad(h5ad_path)
+  colour_keys <- names(ad$uns$colours)
+  expect_true(length(colour_keys) >= 2)  # cluster_id + condition, not empty_entry
+  expect_false("empty_entry" %in% colour_keys)
 })

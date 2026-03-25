@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
-use crate::process::runner::enrich_path;
+use crate::process::runner::{enrich_path, strip_ansi};
 
 /// Internal helper: spawn a command, stream lines to `event_log`, emit `event_done` on completion.
 fn spawn_streamed(
@@ -28,24 +28,30 @@ fn spawn_streamed(
             }
         };
 
-        if let Some(stdout) = child.stdout.take() {
+        let stdout_handle = child.stdout.take().map(|stdout| {
             let app2 = app.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stdout).lines().flatten() {
-                    let _ = app2.emit(event_log, line);
+                    let _ = app2.emit(event_log, strip_ansi(&line));
                 }
-            });
-        }
-        if let Some(stderr) = child.stderr.take() {
+            })
+        });
+        let stderr_handle = child.stderr.take().map(|stderr| {
             let app2 = app.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stderr).lines().flatten() {
-                    let _ = app2.emit(event_log, line);
+                    let _ = app2.emit(event_log, strip_ansi(&line));
                 }
-            });
-        }
+            })
+        });
 
-        match child.wait() {
+        let result = child.wait();
+
+        // Drain reader threads before signalling completion
+        if let Some(h) = stdout_handle { let _ = h.join(); }
+        if let Some(h) = stderr_handle { let _ = h.join(); }
+
+        match result {
             Ok(status) => {
                 let ok = status.success();
                 let _ = app.emit(
@@ -113,7 +119,7 @@ MARMOT::install_marmot_extras(include_suggests={suggests},include_python={python
 #[tauri::command]
 pub fn run_check_setup(app: AppHandle, rscript_path: String) -> Result<(), String> {
     spawn_r_expr(app, rscript_path,
-        "if (!requireNamespace('MARMOT', quietly=TRUE)) { cat('MARMOT is not installed yet.\\nClick \"Install Packages\" below to install it.\\n') } else { MARMOT::check_setup() }".to_string());
+        "if (!requireNamespace('MARMOT', quietly=TRUE)) { cat('MARMOT is not installed yet.\\nClick \"Install Packages\" below to install it.\\n') } else { tryCatch(MARMOT::check_setup(), error = function(e) cat('check_setup() failed:', conditionMessage(e), '\\nYour MARMOT version may be outdated. Try reinstalling:\\n  pak::pkg_install(\"peterleary/MARMOT@dev\")\\n')) }".to_string());
     Ok(())
 }
 
@@ -126,22 +132,13 @@ pub fn query_installed_packages(rscript_path: String) -> serde_json::Value {
         "PARC": false, "pacmap": false
     });
 
-    // Check if basilisk env exists (fast path check) then verify imports.
-    // obtainEnvironmentPath returns the path without triggering env creation,
-    // so this won't block for minutes if the user hasn't run install_marmot_extras yet.
     let r_expr = r#"
 rphenograph <- requireNamespace('Rphenograph', quietly=TRUE)
 peacoqc <- requireNamespace('PeacoQC', quietly=TRUE)
 flow_ai <- requireNamespace('flowAI', quietly=TRUE)
 py <- tryCatch({
-  p4r <- suppressWarnings(getFromNamespace('p4r_env', 'MARMOT'))
-  env_path <- basilisk::obtainEnvironmentPath(p4r)
-  if (!dir.exists(env_path)) stop('env not created yet')
-  basilisk::basiliskRun(env = p4r, fun = function() {
-    parc_ok <- tryCatch({ reticulate::py_run_string('import parc',   convert=FALSE); TRUE }, error=function(e) FALSE)
-    pcm_ok  <- tryCatch({ reticulate::py_run_string('import pacmap', convert=FALSE); TRUE }, error=function(e) FALSE)
-    list(PARC = parc_ok, pacmap = pcm_ok)
-  })
+  status <- MARMOT::marmot_python_status()
+  list(PARC = status$available, pacmap = status$available)
 }, error = function(e) list(PARC = FALSE, pacmap = FALSE))
 pairs <- c(
   paste0('"Rphenograph":', tolower(rphenograph)),
@@ -189,7 +186,7 @@ pub fn install_quarto(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        // Check if brew is available
+        // Try brew first, fall back to direct .pkg download from GitHub
         let brew = std::process::Command::new("which")
             .arg("brew")
             .env("PATH", &enriched_path)
@@ -207,7 +204,38 @@ pub fn install_quarto(app: AppHandle) -> Result<(), String> {
                 );
                 Ok(())
             }
-            _ => Err("no_method".to_string()),
+            _ => {
+                // No Homebrew — download .pkg from GitHub releases and open native installer
+                let home = crate::process::runner::home_dir();
+                let script = format!(
+                    r#"set -e
+echo "Detecting latest Quarto release..."
+REDIR=$(curl -sI https://github.com/quarto-dev/quarto-cli/releases/latest 2>/dev/null | grep -i '^location:' | tr -d '\r')
+VER=$(echo "$REDIR" | sed -n 's|.*/v\([0-9][0-9.]*\).*|\1|p')
+if [ -z "$VER" ]; then
+  echo "ERROR: Could not detect latest Quarto version"
+  exit 1
+fi
+echo "Downloading Quarto v$VER..."
+URL="https://github.com/quarto-dev/quarto-cli/releases/download/v$VER/quarto-$VER-macos.pkg"
+PKG="{home}/Downloads/quarto-$VER-macos.pkg"
+curl -L -o "$PKG" "$URL"
+echo "Opening macOS installer..."
+open "$PKG"
+echo "The Quarto installer should now be open. Follow the prompts to install."
+"#,
+                    home = home
+                );
+                let _ = app.emit("quarto-install-log", "Downloading Quarto installer from GitHub...");
+                spawn_streamed(
+                    app,
+                    "sh".to_string(),
+                    vec!["-c".to_string(), script],
+                    "quarto-install-log",
+                    "quarto-install-done",
+                );
+                Ok(())
+            }
         }
     }
 
@@ -220,7 +248,7 @@ pub fn install_quarto(app: AppHandle) -> Result<(), String> {
             .output();
         match curl {
             Ok(out) if out.status.success() => {
-                let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                let home = crate::process::runner::home_dir();
                 let script = format!(
                     r#"set -e
 echo "Detecting latest Quarto release..."
@@ -261,7 +289,7 @@ echo "Quarto v$VER installed to {home}/.local/bin/quarto"
 
     #[cfg(target_os = "windows")]
     {
-        // Check if winget is available
+        // Try winget first, fall back to direct .exe download from GitHub
         let winget = std::process::Command::new("where")
             .arg("winget")
             .env("PATH", &enriched_path)
@@ -286,7 +314,33 @@ echo "Quarto v$VER installed to {home}/.local/bin/quarto"
                 );
                 Ok(())
             }
-            _ => Err("no_method".to_string()),
+            _ => {
+                // No winget — download .exe installer from GitHub releases via PowerShell
+                let script = r#"
+$ErrorActionPreference = 'Stop'
+Write-Output 'Detecting latest Quarto release...'
+$headers = @{}
+try { $headers = (Invoke-WebRequest -Uri 'https://github.com/quarto-dev/quarto-cli/releases/latest' -MaximumRedirection 0 -ErrorAction SilentlyContinue).Headers } catch { $headers = $_.Exception.Response.Headers }
+$location = if ($headers['Location']) { $headers['Location'] } else { $_.Exception.Response.Headers.Location.ToString() }
+if ($location -match 'v(\d+\.\d+\.\d+)') { $ver = $Matches[1] } else { Write-Error 'Could not detect latest Quarto version'; exit 1 }
+Write-Output "Downloading Quarto v$ver..."
+$url = "https://github.com/quarto-dev/quarto-cli/releases/download/v$ver/quarto-$ver-win.exe"
+$exe = "$env:TEMP\quarto-$ver-win.exe"
+Invoke-WebRequest -Uri $url -OutFile $exe
+Write-Output 'Opening Quarto installer...'
+Start-Process $exe
+Write-Output 'The Quarto installer should now be open. Follow the prompts to install.'
+"#;
+                let _ = app.emit("quarto-install-log", "Downloading Quarto installer from GitHub...");
+                spawn_streamed(
+                    app,
+                    "powershell".to_string(),
+                    vec!["-NoProfile".to_string(), "-Command".to_string(), script.to_string()],
+                    "quarto-install-log",
+                    "quarto-install-done",
+                );
+                Ok(())
+            }
         }
     }
 
