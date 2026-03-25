@@ -66,6 +66,7 @@ Imports:
   readr,
   readxl,
   reticulate,
+  rhdf5,
   rlang,
   reshape2,
   rstatix,

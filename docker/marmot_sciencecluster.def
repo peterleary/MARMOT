@@ -1,6 +1,6 @@
 # MARMOT + RStudio Desktop for UZH ScienceCluster
 #
-# Pulls the pre-built MARMOT Docker image (R 4.4.2, all Bioc/CRAN packages,
+# Pulls the pre-built MARMOT Docker image (R 4.5.2, all Bioc/CRAN packages,
 # Quarto, Python PARC/PaCMAP) and layers TurboVNC + Xfce + RStudio on top.
 #
 # Build:
@@ -78,7 +78,7 @@ From: ghcr.io/peterleary/marmot:latest
 
   ########
   # MARMOT customisation:
-  # R 4.4.2, Quarto, all R/Bioc packages (MARMOT + dependencies), and the
+  # R 4.5.2, Quarto, all R/Bioc packages (MARMOT + dependencies), and the
   # Python environment (PARC/PaCMAP via miniforge) are pre-installed in the
   # base Docker image (ghcr.io/peterleary/marmot). Only RStudio is added here.
 
