@@ -9,7 +9,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Depends:
-  R (>= 4.3)
+  R (>= 4.5)
 Imports:
   anndataR,
   BiocGenerics,

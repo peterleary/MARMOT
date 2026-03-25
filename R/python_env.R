@@ -51,7 +51,9 @@ marmot_python_status <- function() {
 
   # Verify imports via subprocess (never binds reticulate)
   ok <- tryCatch({
-    out <- system2(py_bin, c("-c", shQuote("import parc; import pacmap")),
+    quote_type <- if (.Platform$OS.type == "windows") "cmd" else "sh"
+    out <- system2(py_bin, c("-c", shQuote("import parc; import pacmap",
+                                           type = quote_type)),
                    stdout = TRUE, stderr = TRUE)
     is.null(attr(out, "status")) || identical(attr(out, "status"), 0L)
   }, error = function(e) FALSE)
@@ -126,11 +128,11 @@ use_marmot_python <- function() {
 #' @export
 install_marmot_python <- function(force = FALSE) {
 
-  # Find conda
-  conda_bin <- tryCatch(reticulate::conda_binary(), error = function(e) NULL)
-  if (is.null(conda_bin)) {
-    conda_bin <- Sys.which("mamba")
-    if (!nzchar(conda_bin)) conda_bin <- Sys.which("conda")
+  # Find conda (prefer conda over mamba — reticulate::conda_create uses
+  # conda_list internally for verification, which is broken with mamba)
+  conda_bin <- Sys.which("conda")
+  if (!nzchar(conda_bin)) {
+    conda_bin <- tryCatch(reticulate::conda_binary(), error = function(e) NULL)
   }
   if (is.null(conda_bin) || !nzchar(conda_bin) || !file.exists(conda_bin)) {
     message("No conda/mamba installation found.")
