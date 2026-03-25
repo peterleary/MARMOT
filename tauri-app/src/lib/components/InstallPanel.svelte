@@ -96,6 +96,8 @@
 
 <div class="panel">
 
+  <div class="panel-content">
+
   <!-- Check Setup -->
   <div class="check-row">
     <div>
@@ -133,7 +135,7 @@
     </div>
   </div>
 
-  <p class="note green-note"><strong>Prerequisites:</strong> R 4.3+ only.</p>
+  <p class="note green-note"><strong>Prerequisites:</strong> R 4.5+ only.</p>
   <p class="note amber-note">
     Mparc, Mpacmap, and Mphenograph are convenience R reimplementations bundled with MARMOT.
     They are provided as fallbacks only &mdash; results may differ from the original implementations.
@@ -204,16 +206,19 @@
     {#if isRunning && runningCmd === "extras"}Installing extras... ({elapsed}){:else}Install Extras{/if}
   </button>
 
-  <!-- Status + Log -->
-  {#if $installState === "done" || $installState === "error"}
-    <div class="status" class:done={$installState === "done"} class:error={$installState === "error"}>
-      {#if $installState === "done"}&#10003; Done{:else}&#10007; Error &mdash; see log below{/if}
-    </div>
-  {/if}
+  </div>
 
-  {#if $installLines.length > 0}
-    <pre class="log" bind:this={logContainer}>{#each $installLines as line}{line}
+  <!-- Status + Log (always visible at bottom) -->
+  {#if $installState === "done" || $installState === "error" || $installLines.length > 0}
+    <div class="log-area">
+      {#if $installState === "done" || $installState === "error"}
+        <div class="status" class:done={$installState === "done"} class:error={$installState === "error"}>
+          {#if $installState === "done"}&#10003; Done{:else}&#10007; Error{/if}
+        </div>
+      {/if}
+      <pre class="log" bind:this={logContainer}>{#each $installLines as line}{line}
 {/each}</pre>
+    </div>
   {/if}
 
 </div>
@@ -221,11 +226,25 @@
 <style>
   .panel {
     height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-content {
+    flex: 1 1 auto;
     overflow-y: auto;
     padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
+  }
+  .log-area {
+    flex: 0 0 auto;
+    max-height: 40%;
+    display: flex;
+    flex-direction: column;
+    padding: 0 1.5rem 1rem;
+    gap: 0.4rem;
   }
 
   hr {
@@ -434,8 +453,8 @@
     line-height: 1.5;
     overflow-y: auto;
     margin: 0;
-    min-height: 120px;
-    max-height: 40vh;
+    flex: 1 1 0;
+    min-height: 100px;
     white-space: pre-wrap;
     word-break: break-word;
   }

@@ -40,8 +40,9 @@
         <strong>Install MARMOT and dependencies</strong>
         <span>
           Go to the <b>Install</b> tab.
-          Click <b>Install Packages</b> to install everything &mdash; MARMOT, all R packages, and the Python environment for PARC/PaCMAP.
-          All you need beforehand is R and Quarto (which this app already checked for you on startup).
+          Click <b>Install MARMOT</b> for the core package (R 4.5+ required), then <b>Install Extras</b> for the original C++ and Python implementations.
+          Pure R fallbacks for PARC and PaCMAP are always included &mdash; for the original Python versions, you need
+          <a href="https://github.com/conda-forge/miniforge#miniforge3" target="_blank" rel="noopener">conda/miniforge</a> installed first.
           First-time installs can take 10-20 minutes.
           Use <b>Check Setup</b> afterwards to verify everything is green.
         </span>
