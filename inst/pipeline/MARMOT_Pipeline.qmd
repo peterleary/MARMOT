@@ -1,7 +1,5 @@
 ---
 title: "{{PIPELINE_NAME}}"
-author: "MARMOT Pipeline (Kirsche et al., 2025)"
-date: today
 
 format:
   html:
@@ -32,7 +30,7 @@ format:
       margin-width: 100px
 
     # ──────────────────────────────────────────────
-    # Responsive figures
+    # Header (banner with title overlay, tab cleanup)
     include-in-header:
       - marmot_header.html
       - text: |
@@ -126,8 +124,7 @@ gimmePDFs <- FALSE
 greyscalePlots <- FALSE
 quantileNormaliseAll <- FALSE
 
-## 🧠 Parallelism
-runInParallel <- TRUE
+## 🧠 Resources
 nCores <- 4
 ramPerCore <- 6
 
@@ -151,7 +148,7 @@ cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (knn = ", knn, "
 cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n")
 cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n")
 cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n")
-cat("- **Parallel:** ", if (runInParallel) paste0("Yes (", nCores, " cores)") else "No", "\n")
+cat("- **Cores:** ", nCores, "\n")
 cat("- **scGate:** ", if (runScGate) "Enabled" else "Disabled", "\n")
 cat(":::\n\n")
 ```
@@ -164,7 +161,7 @@ required_vars <- c(
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour"
+  "nCores", "themeToUse", "viridisColour"
 )
 
 missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
@@ -208,7 +205,7 @@ get_palette_colours <- function(palette, n = 64) {
 # Use pacman for convenience
 suppressWarnings(suppressPackageStartupMessages(
   pacman::p_load(
-    BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment, future.apply,
+    BiocGenerics, S4Vectors, SummarizedExperiment, SingleCellExperiment,
     flowCore, FlowSOM, ggplot2, dplyr, tidyr, purrr, tibble, readr,
     CATALYST, readxl, cowplot, diffcyt, ggpubr,
     ggprism, gridExtra, rstatix, plotly, grDevices,
@@ -218,9 +215,6 @@ suppressWarnings(suppressPackageStartupMessages(
   )
 ))
 
-# Parallel processing setup
-plan(multisession, workers = nCores)
-options(future.globals.maxSize = (ramPerCore * nCores) * 1024^3)
 set.seed(2)
 
 # Define class union for ExpData (if not already present)
@@ -280,11 +274,9 @@ if (!is.null(RDataFolder)) {
   message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
   MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
   # Also load FCS frame objects (stored as qs2 — not decomposable to h5ad)
-  for (qs_obj in c("framesList", "frames")) {
-    qs_path <- file.path(RDataFolder, paste0(qs_obj, ".qs2"))
-    if (file.exists(qs_path)) {
-      assign(qs_obj, qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
-    }
+  qs_path <- file.path(RDataFolder, "framesList.qs2")
+  if (file.exists(qs_path)) {
+    assign("framesList", qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
   }
 }
 
@@ -353,13 +345,15 @@ removeMarkers <- na.omit(smd$`Markers to exclude completely`)
 cfToUse <- as.numeric(na.omit(smd$`Cofactors for markers to use`))
 
 # Contrasts
+# Filter out empty or malformed contrasts (e.g. bare " over " from empty dropdowns)
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
+contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest)]
 contrastsToTestS <- paste(contrastsToTest, collapse = ",")
 
 # Subsampling settings
 raw_subsamp <- na.omit(smd$`Cells per condition in UMAPs etc.`)
 drCellPerCondition <- setNames(
-  lapply(raw_subsamp, function(expr) eval(parse(text = expr))),
+  vapply(raw_subsamp, function(expr) as.numeric(eval(parse(text = expr))), numeric(1)),
   conditionOrder
 )
 
@@ -443,13 +437,70 @@ fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
 fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
 fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
 
-# Read each FCS file into a named list
-frames <- setNames(
-  lapply(fcs_files, function(f) {
-    flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
-  }),
-  fcs_names
-)
+# ── Step 1: Header scan — get cell counts without loading data ────────────────
+fcs_headers <- sapply(fcs_files, function(f) {
+  hdr <- flowCore::read.FCSheader(f)
+  c(tot = as.numeric(hdr[[1]]["$TOT"]),
+    par = as.numeric(hdr[[1]]["$PAR"]))
+})
+originalCellCounts <- setNames(fcs_headers["tot", ], fcs_names)
+total_cells_raw    <- sum(originalCellCounts)
+n_params           <- fcs_headers["par", 1]
+n_samples          <- length(fcs_files)
+
+# ── Step 2: Compute RAM budget and per-sample cap ─────────────────────────────
+sys_ram_bytes <- tryCatch({
+  os <- Sys.info()[["sysname"]]
+  if (os == "Darwin") {
+    as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
+  } else if (os == "Linux") {
+    as.numeric(system("awk '/MemTotal/{print $2 * 1024}' /proc/meminfo", intern = TRUE))
+  } else {
+    as.numeric(system("wmic OS get TotalVisibleMemorySize /value 2>nul", intern = TRUE) |>
+      grep("=", value = TRUE) |> sub(".*=", "", x = _)) * 1024
+  }
+}, error = function(e) NA_real_)
+sys_ram_gb <- if (!is.na(sys_ram_bytes)) sys_ram_bytes / 1024^3 else Inf
+
+# Available RAM: lower of system RAM and user-declared budget
+user_budget_gb     <- ramPerCore * nCores
+available_gb       <- min(sys_ram_gb, user_budget_gb)
+pipeline_budget_gb <- available_gb * 0.6   # 60% for pipeline, 40% for OS/R/Quarto
+peak_multiplier    <- 2.5                  # measured 2.2× on real data; 2.5× for safety
+bytes_per_cell     <- n_params * 8
+
+max_total_cells <- floor((pipeline_budget_gb * 1024^3) / (bytes_per_cell * peak_multiplier))
+per_sample_cap  <- floor(max_total_cells / n_samples)
+needs_cap       <- total_cells_raw > max_total_cells
+
+message(sprintf("📊 Dataset: %s cells × %d params across %d samples",
+                format(total_cells_raw, big.mark = ","), n_params, n_samples))
+message(sprintf("📊 RAM: %.0f GB system, %.0f GB user budget, %.1f GB pipeline budget (60%%)",
+                sys_ram_gb, user_budget_gb, pipeline_budget_gb))
+
+if (needs_cap) {
+  message(sprintf(
+    paste0("⚠️  Dataset has %s cells but this machine can safely hold %s. ",
+           "Capping to %s cells per sample (%s total)."),
+    format(total_cells_raw, big.mark = ","),
+    format(max_total_cells, big.mark = ","),
+    format(per_sample_cap, big.mark = ","),
+    format(per_sample_cap * n_samples, big.mark = ",")))
+} else {
+  message(sprintf("📊 Dataset fits in RAM budget (%s cells < %s max)",
+                  format(total_cells_raw, big.mark = ","),
+                  format(max_total_cells, big.mark = ",")))
+}
+
+# ── Step 3: Read one file at a time, cap if needed, discard full ──────────────
+frames <- setNames(lapply(fcs_files, function(f) {
+  ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  if (needs_cap && nrow(ff) > per_sample_cap) {
+    set.seed(2)
+    ff <- ff[sample(nrow(ff), per_sample_cap), ]
+  }
+  ff
+}), fcs_names)
 
 # Exclude samples, if specified
 if (!is.null(excludeTheseSamples)) {
@@ -457,9 +508,32 @@ if (!is.null(excludeTheseSamples)) {
   frames <- frames[keep_samples]
 }
 
-framesList <- list(
-  "Untransformed" = frames
-)
+framesList <- list("Untransformed" = frames)
+rm(frames)
+invisible(gc())
+
+effective_cells <- sum(sapply(framesList$Untransformed, nrow))
+message(sprintf("📊 Loaded %s cells (%.1f GB estimated)",
+                format(effective_cells, big.mark = ","),
+                effective_cells * bytes_per_cell / 1024^3))
+```
+
+```{r import_ram_cap_notice, results = "asis", eval = is.null(RDataFolder)}
+if (needs_cap) {
+  cat(sprintf(
+    paste0("::: {.callout-warning title='RAM Cap Applied'}\n",
+           "Your dataset has **%s cells** across %d samples, but this machine ",
+           "can safely hold **%s cells** in memory (%.0f GB system RAM, ",
+           "%.1f GB pipeline budget at 60%%).\n\n",
+           "Each sample has been capped to **%s cells**. QC, clustering, and all ",
+           "downstream analysis will run on the capped data. ",
+           "To use more cells, run on a machine with more RAM or increase `ramPerCore`.\n",
+           ":::\n"),
+    format(total_cells_raw, big.mark = ","), n_samples,
+    format(max_total_cells, big.mark = ","),
+    sys_ram_gb, pipeline_budget_gb,
+    format(per_sample_cap, big.mark = ",")))
+}
 ```
 
 ```{r create_panel, results = "hide", eval = is.null(RDataFolder)}
@@ -510,7 +584,7 @@ asinh_transforms <- transformList(
   lapply(cf, function(cof) arcsinhTransform(a = 0, b = 1 / cof, c = 0))
 )
 # Apply to the flowSet
-framesList$Transformed <- future_lapply(seq_along(framesList$Untransformed), function(i) {
+framesList$Transformed <- lapply(seq_along(framesList$Untransformed), function(i) {
   flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
 }) |> setNames(names(framesList$Untransformed))
 ```
@@ -807,8 +881,14 @@ sce <- CATALYST::prepData(
   transform = FALSE,
   md_cols = list(factors = conditions)
 )
-assay(sce, "exprs") <- assay(sce, "counts")
-assay(sce, "exprsTransformed") <- assay(sce, "exprs")
+# exprs and exprsTransformed are identical to counts at this stage (transformation
+# was applied at the flowFrame level, before prepData).  Share the same matrix
+# object to avoid tripling memory — R's copy-on-modify means no duplication until
+# one is actually written to (which the pipeline does not do).
+.shared_mat <- assay(sce, "counts")
+assay(sce, "exprs") <- .shared_mat
+assay(sce, "exprsTransformed") <- .shared_mat
+rm(.shared_mat)
 
 # 99% quantile normalisation
 message("📐 Applying quantile normalisation...")
@@ -825,6 +905,13 @@ assay(sce, "exprsQuantNorm") <- norm_exprs
 # Also include a scaled version
 scale.coef <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
 assay(sce, "norm") <- t(scale(t(exprs_mat), center = scale.coef[, 1], scale = scale.coef[, 2] - scale.coef[, 1]))
+
+# Free intermediates and bulky framesList entries no longer needed for analysis.
+# framesList.qs (for FCS export) is saved separately; fsList/fsToUse are done.
+rm(exprs_mat, norm_exprs, qs, scale.coef)
+if (exists("fsList")) rm(fsList)
+if (exists("fsToUse")) rm(fsToUse)
+invisible(gc())
 ```
 
 ```{r select_assay_and_markers, results = "hide"}
@@ -878,9 +965,7 @@ if (clusteringMethodToUse %in% c("MfastPG", "Mphenograph", "Rphenograph")) {
     list(kids = ids, clusters = clusters)
   }
 
-  # Run clustering (parallel if requested)
-  run_fn <- if (runInParallel) future_lapply else lapply
-  kList <- setNames(run_fn(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
+  kList <- setNames(lapply(kValuesIWant, cluster_fn), paste0("k", kValuesIWant))
 
   # Store all clusterings in SCE object
   for (k in names(kList)) {
@@ -1486,13 +1571,11 @@ dir.create(excelDir, showWarnings = FALSE)
 message("💾 Saving outputs...")
 
 # Save FCS frame objects as qs2 — flowFrame/flowSet cannot be stored in Parquet
-for (qs_obj in c("framesList", "frames")) {
-  if (exists(qs_obj, envir = .GlobalEnv)) {
-    out_path <- file.path(rFilesDir, paste0(qs_obj, ".qs2"))
-    qs2::qs_save(get(qs_obj, envir = .GlobalEnv), file = out_path,
-                 nthreads = nCores)
-    message("Saved (qs2): ", qs_obj)
-  }
+if (exists("framesList", envir = .GlobalEnv)) {
+  out_path <- file.path(rFilesDir, "framesList.qs2")
+  qs2::qs_save(get("framesList", envir = .GlobalEnv), file = out_path,
+               nthreads = nCores)
+  message("Saved (qs2): framesList")
 }
 
 # Save h5ad — main data store for Shiny app and reproducibility
@@ -1516,9 +1599,7 @@ settings_list <- list(
   greyscalePlots        = toupper(as.character(greyscalePlots)),
   themeToUse            = as.character(themeToUse),
   viridisColour         = as.character(viridisColour),
-  runInParallel         = toupper(as.character(runInParallel)),
-  nCores                = as.character(nCores),
-  ramPerCore            = as.character(ramPerCore)
+  nCores                = as.character(nCores)
 )
 jsonlite::write_json(settings_list, file.path(rFilesDir, "pipeline_settings.json"),
                      auto_unbox = TRUE, pretty = TRUE)
@@ -1767,16 +1848,13 @@ plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_man
 ```
 
 ```{r, label = "plot full counts", results = 'asis', fig.height=4, fig.width=ceiling(length(conditions)*3)}
-if (!is.null(downsampleTo) && exists("framesList") && "Untransformed" %in% names(framesList)) {
+if (!is.null(downsampleTo) && exists("originalCellCounts")) {
   cat("\n\nHowever, because you downsampled, here are those numbers for the full dataset. The black line is what you downsampled to.\n\n")
   cat("\n\n")
-  originalCellNumbers <- lapply(names(framesList$Untransformed), function(x) {
-    nrow(framesList$Untransformed[[x]])
-  }) |> setNames(names(framesList$Untransformed))
-  originalCellNumbers <- originalCellNumbers |> data.frame(check.names = FALSE) |> t() |> data.frame()
-  colnames(originalCellNumbers)[[1]] <- "Cells"
-  originalCellNumbers <- tibble::rownames_to_column(.data = originalCellNumbers, "file_name")
-  originalCellNumbers$file_name <- paste0(originalCellNumbers$file_name, ".fcs")
+  originalCellNumbers <- data.frame(
+    file_name = paste0(names(originalCellCounts), ".fcs"),
+    Cells = as.numeric(originalCellCounts)
+  )
   originalCellNumbers <- dplyr::left_join(originalCellNumbers, md, by = "file_name")
   barplotAllCells <- ggplot(originalCellNumbers, aes(x = sample_id, y = Cells, fill = condition)) +
     geom_bar(stat = "identity") +

@@ -23,16 +23,16 @@ source("helpers/data_helpers.R",   local = TRUE)
 source("helpers/colour_helpers.R", local = TRUE)
 source("helpers/plot_helpers.R",   local = TRUE)
 
-# ── Crimson Theme ────────────────────────────────────────────────────────────
-# Red primary (#dc2626), zinc secondary (#3f3f46), dark zinc (#27272a),
-# near-black navy (#18181b), near-white body (#fafafa)
+# ── Forest Theme ─────────────────────────────────────────────────────────────
+# Forest green primary (#013220), darker shade (#012418), orange accent
+# (#ea580c / #c2410c), zinc secondary (#3f3f46), near-black navy (#18181b)
 my_theme <- fresh::create_theme(
   fresh::adminlte_color(
-    light_blue = "#dc2626",
+    light_blue = "#013220",
     aqua       = "#3f3f46",
     green      = "#27272a",
     navy       = "#18181b",
-    orange     = "#b91c1c"
+    orange     = "#ea580c"
   ),
   fresh::adminlte_sidebar(width = "400px")
 )
@@ -168,27 +168,27 @@ ui <- dashboardPage(
     use_theme(my_theme),
     use_waiter(),
 
-    # Head: favicon + Crimson CSS
+    # Head: favicon + Forest Theme CSS
     tags$head(
       tags$link(rel = "shortcut icon", href = "MARMOT_Logo_2_bw_small.png"),
       tags$style(HTML("
-        /* ── Crimson Theme CSS ──────────────────────────────────────── */
+        /* ── Forest Theme CSS ─────────────────────────────────────── */
 
-        /* Primary box headers: red gradient */
+        /* Primary box headers: forest green gradient */
         .box.box-solid.box-primary > .box-header {
           color: #fff;
-          background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
-          box-shadow: 0 3px 6px rgba(220, 38, 38, 0.3);
+          background: linear-gradient(135deg, #013220, #012418) !important;
+          box-shadow: 0 3px 6px rgba(1, 50, 32, 0.3);
         }
         .box.box-solid.box-primary {
-          border-bottom-color: #dc2626;
-          border-left-color:   #dc2626;
-          border-right-color:  #dc2626;
-          border-top-color:    #dc2626;
+          border-bottom-color: #013220;
+          border-left-color:   #013220;
+          border-right-color:  #013220;
+          border-top-color:    #013220;
         }
         .box.box-solid.box-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+          box-shadow: 0 4px 12px rgba(1, 50, 32, 0.15);
         }
 
         /* Success box headers: dark zinc gradient */
@@ -208,21 +208,21 @@ ui <- dashboardPage(
           box-shadow: 0 4px 12px rgba(39, 39, 42, 0.15);
         }
 
-        /* Warning box headers: darker red gradient */
+        /* Warning box headers: orange gradient */
         .box.box-solid.box-warning > .box-header {
           color: #fff;
-          background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
-          box-shadow: 0 3px 6px rgba(220, 38, 38, 0.3);
+          background: linear-gradient(135deg, #ea580c, #c2410c) !important;
+          box-shadow: 0 3px 6px rgba(234, 88, 12, 0.3);
         }
         .box.box-solid.box-warning {
-          border-bottom-color: #dc2626;
-          border-left-color:   #dc2626;
-          border-right-color:  #dc2626;
-          border-top-color:    #dc2626;
+          border-bottom-color: #ea580c;
+          border-left-color:   #ea580c;
+          border-right-color:  #ea580c;
+          border-top-color:    #ea580c;
         }
         .box.box-solid.box-warning:hover {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+          box-shadow: 0 4px 12px rgba(234, 88, 12, 0.15);
         }
 
         /* Box: soft shadow, no top border */
@@ -238,9 +238,9 @@ ui <- dashboardPage(
           font-size: 0.92rem;
         }
 
-        /* Sidebar active item: red accent bar */
+        /* Sidebar active item: orange accent bar */
         .sidebar-menu > li.active > a {
-          border-left: 3px solid #dc2626;
+          border-left: 3px solid #ea580c;
         }
 
         /* Content wrapper: near-white gradient */
@@ -253,19 +253,19 @@ ui <- dashboardPage(
           background-color: #27272a;
         }
         .skin-blue .sidebar-menu > li:hover > a {
-          border-left-color: #dc2626;
+          border-left-color: #ea580c;
         }
 
-        /* Buttons: primary = red gradient */
+        /* Buttons: primary = forest green gradient */
         .btn-primary {
-          background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
-          border-color: #dc2626 !important;
+          background: linear-gradient(135deg, #013220, #012418) !important;
+          border-color: #013220 !important;
           color: #fff !important;
         }
         .btn-primary:hover {
-          background: linear-gradient(135deg, #b91c1c, #991b1b) !important;
+          background: linear-gradient(135deg, #012418, #011a10) !important;
           transform: translateY(-1px);
-          box-shadow: 0 3px 8px rgba(220, 38, 38, 0.3);
+          box-shadow: 0 3px 8px rgba(1, 50, 32, 0.3);
         }
 
         /* Buttons: success = dark zinc gradient */
@@ -280,10 +280,10 @@ ui <- dashboardPage(
           box-shadow: 0 3px 8px rgba(63, 63, 70, 0.3);
         }
 
-        /* Input focus: red ring */
+        /* Input focus: orange ring */
         .form-control:focus {
-          border-color: #dc2626;
-          box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+          border-color: #ea580c;
+          box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
         }
 
         /* Download buttons: uniform dark zinc styling */
@@ -309,24 +309,24 @@ ui <- dashboardPage(
         .main-footer {
           background-color: #18181b;
           color: #a1a1aa;
-          border-top: 2px solid #dc2626;
+          border-top: 2px solid #013220;
           text-align: center;
           font-size: 0.85rem;
         }
         .main-footer a {
-          color: #dc2626;
+          color: #ea580c;
         }
 
         /* Checkbox accent */
         input[type='checkbox']:checked {
-          accent-color: #dc2626;
+          accent-color: #013220;
         }
 
         /* Tab panel headers */
         .nav-tabs > li.active > a,
         .nav-tabs > li.active > a:hover,
         .nav-tabs > li.active > a:focus {
-          border-top: 2px solid #dc2626;
+          border-top: 2px solid #ea580c;
         }
       "))
     ),

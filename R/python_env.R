@@ -75,22 +75,19 @@ use_marmot_python <- function() {
 
   if (.marmot_py$bound) return(.marmot_py$available)
 
-  # If reticulate is already bound to some Python, test that one
+  # If reticulate is already bound to some Python, assume it is the right one.
+
+  # NOTE: we deliberately do NOT run `import parc; import pacmap` here.
+  # Eagerly loading heavy C++ extensions (hnswlib, igraph, llvmlite, annoy)
+
+  # just to check availability corrupts process state and causes segfaults
+  # when annoy's NN code runs later.  The actual imports happen when the
+  # individual Python scripts are source_python()'d.
   if (reticulate::py_available(initialize = FALSE)) {
-    ok <- tryCatch({
-      reticulate::py_run_string("import parc; import pacmap", convert = FALSE)
-      TRUE
-    }, error = function(e) FALSE)
     .marmot_py$bound     <- TRUE
-    .marmot_py$available <- ok
-    if (ok) {
-      .marmot_py$path <- reticulate::py_config()$python
-      return(TRUE)
-    }
-    warning("Reticulate is already bound to a Python that lacks parc/pacmap.\n",
-            "Mparc and Mpacmap (R fallbacks) will be used instead.",
-            call. = FALSE)
-    return(FALSE)
+    .marmot_py$available <- TRUE
+    .marmot_py$path      <- reticulate::py_config()$python
+    return(TRUE)
   }
 
   # Try to bind p4r (pass conda= explicitly — reticulate's auto-detection
@@ -99,7 +96,7 @@ use_marmot_python <- function() {
   if (!nzchar(conda_bin)) conda_bin <- "auto"
   ok <- tryCatch({
     reticulate::use_condaenv("p4r", conda = conda_bin, required = TRUE)
-    reticulate::py_run_string("import parc; import pacmap", convert = FALSE)
+    reticulate::py_run_string("True", convert = FALSE)  # verify Python starts
     TRUE
   }, error = function(e) FALSE)
 

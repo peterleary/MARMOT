@@ -1,11 +1,3 @@
-import os
-import sys
-
-# Run one-time macOS environment fixes (libz/libc++ rpath symlinks, annoy patch)
-# before any import that transitively loads llvmlite or annoy.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import marmot_setup  # noqa: E402  (side-effects intentional)
-
 import pacmap
 
 

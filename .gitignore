@@ -64,4 +64,4 @@ CLAUDE.md
 # Dev-only artifacts
 dev-to-main-plan.md
 scratch.R
-parc_pacmap_r/
+parc_pacmap_r/inst/benchmarks/

@@ -1,5 +1,12 @@
 <script>
-  let { headers = $bindable([]), rows = $bindable([]), onchange = () => {} } = $props();
+  let { headers = $bindable([]), rows = $bindable([]), onchange = () => {}, cellStyle = null, columnConfig = {} } = $props();
+
+  function getCellStyle(rowIdx, colIdx, value) {
+    if (!cellStyle) return "";
+    const s = cellStyle(rowIdx, colIdx, value);
+    if (!s) return "";
+    return Object.entries(s).map(([k, v]) => `${k}:${v}`).join(";");
+  }
 
   function addRow() {
     rows = [...rows, headers.map(() => "")];
@@ -26,9 +33,17 @@
   }
 
   function handleCellEdit(rowIdx, colIdx, e) {
+    rows[rowIdx] = [...rows[rowIdx]];
     rows[rowIdx][colIdx] = e.target.value;
-    rows = rows;
+    rows = [...rows];
     onchange();
+  }
+
+  function mergeContrast(a, b) {
+    a = (a || "").trim();
+    b = (b || "").trim();
+    if (!a && !b) return "";
+    return `${a} over ${b}`;
   }
 </script>
 
@@ -57,12 +72,47 @@
           <tr>
             <td class="row-num">{rowIdx + 1}</td>
             {#each row as cell, colIdx}
-              <td>
-                <input
-                  type="text"
-                  value={cell}
-                  onchange={(e) => handleCellEdit(rowIdx, colIdx, e)}
-                />
+              <td style={getCellStyle(rowIdx, colIdx, cell)}>
+                {#if columnConfig[colIdx]?.type === "contrast"}
+                  {@const parts = (cell || "").includes(" over ") ? cell.split(" over ") : ["", ""]}
+                  <span class="contrast-cell">
+                    <select
+                      value={parts[0]?.trim() || ""}
+                      onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeContrast(e.target.value, parts[1]) }})}
+                    >
+                      <option value="">--</option>
+                      {#each columnConfig[colIdx].options as opt}
+                        <option value={opt}>{opt}</option>
+                      {/each}
+                    </select>
+                    <span class="over-label">over</span>
+                    <select
+                      value={parts[1]?.trim() || ""}
+                      onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeContrast(parts[0], e.target.value) }})}
+                    >
+                      <option value="">--</option>
+                      {#each columnConfig[colIdx].options as opt}
+                        <option value={opt}>{opt}</option>
+                      {/each}
+                    </select>
+                  </span>
+                {:else if columnConfig[colIdx]?.type === "dropdown"}
+                  <select
+                    value={cell}
+                    onchange={(e) => handleCellEdit(rowIdx, colIdx, e)}
+                  >
+                    <option value=""></option>
+                    {#each columnConfig[colIdx].options as opt}
+                      <option value={opt}>{opt}</option>
+                    {/each}
+                  </select>
+                {:else}
+                  <input
+                    type="text"
+                    value={cell}
+                    onchange={(e) => handleCellEdit(rowIdx, colIdx, e)}
+                  />
+                {/if}
               </td>
             {/each}
             <td class="action-col">
@@ -132,7 +182,7 @@
     width: 30px;
     text-align: center;
   }
-  td input {
+  td input, td select {
     width: 100%;
     min-width: 80px;
     border: none;
@@ -141,7 +191,7 @@
     background: transparent;
     font-family: inherit;
   }
-  td input:focus {
+  td input:focus, td select:focus {
     outline: none;
     background: #fffde8;
   }
@@ -162,5 +212,20 @@
     color: #999;
     padding: 1rem;
     font-style: italic;
+  }
+  .contrast-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .contrast-cell select {
+    flex: 1;
+    min-width: 100px;
+  }
+  .over-label {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-style: italic;
+    flex-shrink: 0;
   }
 </style>

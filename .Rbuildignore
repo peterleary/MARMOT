@@ -26,3 +26,10 @@
 ^dev-to-main-plan\.md$
 ^parc_pacmap_r$
 ^inst/app_legacy$
+^inst/examples$
+^inst/reports$
+^\.DS_Store$
+^\.RData$
+^\.Rhistory$
+^\.\.Rcheck$
+^CLAUDE\.md$
