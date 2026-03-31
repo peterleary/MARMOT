@@ -65,3 +65,8 @@ CLAUDE.md
 dev-to-main-plan.md
 scratch.R
 parc_pacmap_r/inst/benchmarks/
+inst/benchmarks/
+inst/pipeline/test_header.*
+
+# PARC/PacMAP R implenetation testing 
+parc_pacmap_r

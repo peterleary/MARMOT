@@ -18,17 +18,39 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    right: 0;
-    padding: 4px 20px;
+    left: 0;
+    padding: 4px 24px;
     color: #fff;
-    font-size: 1.1em;
+    font-size: 1.8em;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    text-align: right;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    letter-spacing: 0.03em;
+    text-align: left;
+    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 -2px 0 #000, 0 2px 0 #000, -2px 0 0 #000, 2px 0 0 #000, 0 0 10px rgba(0,0,0,0.6);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .marmot-banner-brand {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .marmot-banner-brand img {
+    height: 40px;
+    width: auto;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+  }
+  .marmot-banner-brand span {
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
   }
   /* Hide Quarto's default title block */
   .quarto-title-block {
@@ -69,6 +91,16 @@ document.addEventListener('DOMContentLoaded', function() {
     overlay.className = 'marmot-banner-title';
     overlay.textContent = titleEl.textContent;
     banner.appendChild(overlay);
+    var brand = document.createElement('div');
+    brand.className = 'marmot-banner-brand';
+    var logo = document.createElement('img');
+    logo.src = 'logo.png';
+    logo.alt = 'MARMOT logo';
+    brand.appendChild(logo);
+    var label = document.createElement('span');
+    label.textContent = 'MARMOT';
+    brand.appendChild(label);
+    banner.appendChild(brand);
   }
 });
 </script>
