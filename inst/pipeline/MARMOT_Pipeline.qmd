@@ -281,6 +281,16 @@ if (!is.null(RDataFolder)) {
     assign("framesList", qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
   }
 
+  # Load DA/DS result objects (S4 structures that can't survive h5ad)
+  da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
+  if (file.exists(da_ds_path)) {
+    da_ds <- qs2::qs_read(da_ds_path, nthreads = nCores)
+    for (nm in names(da_ds)) {
+      if (!is.null(da_ds[[nm]])) assign(nm, da_ds[[nm]], envir = .GlobalEnv)
+    }
+    message("Loaded (qs2): da_ds_results.qs2")
+  }
+
   # Reconstruct panel from rowData(sce) — create_panel chunk is skipped on reload
   rd <- as.data.frame(SummarizedExperiment::rowData(sce))
   panel <- data.frame(
@@ -1635,6 +1645,18 @@ if (exists("framesList", envir = .GlobalEnv)) {
   message("Saved (qs2): framesList")
 }
 
+# Save DA/DS result objects as qs2 — S4 structures can't round-trip through h5ad
+da_ds_save <- list(
+  daList = if (exists("daList")) daList else NULL,
+  dsList = if (exists("dsList")) dsList else NULL,
+  selectedClustersList = if (exists("selectedClustersList")) selectedClustersList else NULL,
+  clustersToMapList = if (exists("clustersToMapList")) clustersToMapList else NULL,
+  sceDS = if (exists("sceDS")) sceDS else NULL,
+  daPValToUse = if (exists("daPValToUse")) daPValToUse else "p_adj"
+)
+qs2::qs_save(da_ds_save, file.path(rFilesDir, "da_ds_results.qs2"), nthreads = nCores)
+message("Saved (qs2): da_ds_results.qs2")
+
 # Save h5ad — main data store for Shiny app and reproducibility
 message("💾 Saving h5ad format...")
 MARMOT::save_h5ad_data(rFilesDir, envir = .GlobalEnv)
@@ -2006,7 +2028,14 @@ numbersOfClustersPerKnn <- setNames(lapply(paste0(mergeBy, kValuesIWant), functi
 
 ```{r, label = "clustree", fig.height = ceiling(length(kValuesIWant)*3), fig.width = ceiling(max(lengths(numbersOfClustersPerKnn))/2.5)}
 if(length(kValuesIWant) >= 2) {
-  clustree::clustree(sce, prefix = mergeBy, exprs = "exprsTransformed")
+  # Subset colData to only clustering columns + sample metadata to avoid
+  # prefix collisions (e.g. patient_id collides with PARC prefix "p")
+  k_cols <- paste0(mergeBy, kValuesIWant)
+  keep_cols <- c(k_cols, "cluster_id", "sample_id")
+  keep_cols <- intersect(keep_cols, names(colData(sce)))
+  sce_ct <- sce
+  colData(sce_ct) <- colData(sce_ct)[, keep_cols, drop = FALSE]
+  clustree::clustree(sce_ct, prefix = mergeBy, exprs = "exprsTransformed")
 }
 ```
 
