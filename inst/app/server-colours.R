@@ -41,18 +41,11 @@ observe({
     choices = c("None", colsThatCanBePlot), selected = "None")
 
   # ── Contrast dropdowns ─────────────────────────────────────────────────
-  # Pipeline names are "Contrast 1: Treatment Up" / "Contrast 1: Control Up"
-  # Keys come in pairs: odd = up, even = down
-  if (!is.null(res$selectedClustersList) && length(res$selectedClustersList) > 0) {
-    scl_names <- names(res$selectedClustersList)
-    # Strip trailing " Up" or " Down" (pipeline format) or ".up"/".down" (legacy)
-    contrast_names <- unique(gsub("\\s+(Up|Down)$|\\.(up|down)$", "",
-      scl_names, ignore.case = TRUE))
-    contrast_names <- contrast_names[nzchar(contrast_names)]
-    if (length(contrast_names) == 0) contrast_names <- "None"
-  } else {
-    contrast_names <- "None"
-  }
+  # Populate from the actual contrast names in study metadata (same as main branch).
+  # selectedClustersList is indexed positionally: odd = up, even = down.
+  contrast_names <- na.omit(res$smd$`Conditions To Test`)
+  contrast_names <- contrast_names[nzchar(contrast_names)]
+  if (length(contrast_names) == 0) contrast_names <- "None"
   updateSelectInput(session, "umapContrast", choices = contrast_names)
   updateSelectInput(session, "fpContrast",   choices = contrast_names)
 

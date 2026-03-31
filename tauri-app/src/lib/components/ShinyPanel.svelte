@@ -26,7 +26,11 @@
 
   async function handleOpenPreviousShiny() {
     if (!previousResultsDir) return;
-    await launch(previousResultsDir + "/R_files");
+    // Support both Results_Files_* and R_files being selected
+    const rFilesPath = previousResultsDir.endsWith("/R_files") || previousResultsDir.endsWith("\\R_files")
+      ? previousResultsDir
+      : previousResultsDir + "/R_files";
+    await launch(rFilesPath);
   }
 
   async function handleBrowsePrevious() {

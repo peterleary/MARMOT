@@ -564,21 +564,24 @@ observeEvent(
       contrast <- input$fpContrast %||% "None"
       if (da_mode != "None" && contrast != "None" &&
           !is.null(inputDataReactive$Results$selectedClustersList)) {
-        scl       <- inputDataReactive$Results$selectedClustersList
-        scl_names <- names(scl)
-        matched   <- scl_names[startsWith(scl_names, contrast)]
-        up_idx    <- grep("Up$|up$|\\.up$", matched)
-        down_idx  <- grep("Down$|down$|\\.down$", matched)
-        if (length(up_idx) == 0 && length(down_idx) == 0 && length(matched) >= 2) {
-          up_idx <- 1; down_idx <- 2
+        # Positional indexing (same as main branch):
+        # selectedClustersList pairs: odd = up, even = down
+        scl <- inputDataReactive$Results$selectedClustersList
+        contrasts_all <- na.omit(inputDataReactive$Results$smd$`Conditions To Test`)
+        contrast_idx  <- match(contrast, contrasts_all)
+        if (!is.na(contrast_idx)) {
+          pair_start    <- (contrast_idx - 1) * 2 + 1
+          up_clusters   <- scl[[pair_start]]
+          down_clusters <- if (length(scl) >= pair_start + 1) scl[[pair_start + 1]] else character(0)
+        } else {
+          up_clusters   <- character(0)
+          down_clusters <- character(0)
         }
-        up_clusters   <- if (length(up_idx) > 0) scl[[matched[up_idx[1]]]] else character(0)
-        down_clusters <- if (length(down_idx) > 0) scl[[matched[down_idx[1]]]] else character(0)
 
         da_clusters <- switch(da_mode,
           "All" = as.character(c(up_clusters, down_clusters)),
-          "Up only" = up_clusters,
-          "Down only" = down_clusters,
+          "Up only" = as.character(up_clusters),
+          "Down only" = as.character(down_clusters),
           character(0)
         )
         if (length(da_clusters) > 0) {

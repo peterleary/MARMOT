@@ -81,28 +81,21 @@ umapReactive <- eventReactive(
 
       if (da_mode != "None" && contrast != "None" &&
           !is.null(res$selectedClustersList)) {
-        # Pipeline names: "Contrast 1: Treatment Up" / "Contrast 1: Control Up"
-        # Match by prefix: keys that start with the contrast name
-        scl_names <- names(res$selectedClustersList)
-        matched   <- scl_names[startsWith(scl_names, contrast)]
-        # Identify up vs down by position (odd = up, even = down in pipeline)
-        # or by suffix if available
-        up_idx   <- grep("Up$|up$|\\.up$", matched)
-        down_idx <- grep("Down$|down$|\\.down$", matched)
-        # Fallback: if no suffix match, use positional (first = up, second = down)
-        if (length(up_idx) == 0 && length(down_idx) == 0 && length(matched) >= 2) {
-          up_idx <- 1; down_idx <- 2
+        # Positional indexing (same as main branch):
+        # selectedClustersList pairs: odd = up, even = down
+        contrasts_all <- na.omit(res$smd$`Conditions To Test`)
+        contrast_idx  <- match(contrast, contrasts_all)
+        if (!is.na(contrast_idx)) {
+          pair_start <- (contrast_idx - 1) * 2 + 1
+          clusters_to_plot <- res$selectedClustersList[c(pair_start, pair_start + 1)]
+        } else {
+          clusters_to_plot <- list(character(0), character(0))
         }
-        clusters_to_plot <- list(
-          if (length(up_idx) > 0) res$selectedClustersList[[matched[up_idx[1]]]] else character(0),
-          if (length(down_idx) > 0) res$selectedClustersList[[matched[down_idx[1]]]] else character(0)
-        )
         da_result <- filter_da_clusters(umapDF, clusters_to_plot, mode = da_mode)
         umapDF <- da_result$umap_df
         if (!is.null(da_result$warning)) {
           showNotification(da_result$warning, type = "warning")
         }
-        # Ensure "Other" has a grey colour
         if (!is.null(res$coloursList$cluster_id)) {
           res$coloursList$cluster_id[["Other"]] <- "grey80"
         }

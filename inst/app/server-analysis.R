@@ -185,6 +185,12 @@ observeEvent(input$analysisPlotType, {
             label   = "Point size",
             min     = 0.1, max = 3, value = 0.3, step = 0.1,
             ticks   = FALSE
+          ),
+          sliderInput(
+            inputId = "analysisMarkerPairMaxCells",
+            label   = "Max cells to plot",
+            min     = 1000, max = 100000, value = 20000, step = 1000,
+            ticks   = FALSE
           )
         )
       },
@@ -525,8 +531,9 @@ analysisPlotReactive <- reactive({
         expr_df$cluster_id <- as.character(SummarizedExperiment::colData(sce)$cluster_id)
 
         # Downsample for performance
-        if (nrow(expr_df) > 5000) {
-          expr_df <- expr_df[sample(nrow(expr_df), 5000), ]
+        max_cells <- as.numeric(input$analysisMarkerPairMaxCells %||% 20000)
+        if (nrow(expr_df) > max_cells) {
+          expr_df <- expr_df[sample(nrow(expr_df), max_cells), ]
         }
 
         # Compute cluster medians for labels

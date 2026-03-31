@@ -85,6 +85,9 @@
         {placeholder}
         readonly
       />
+      {#if value}
+        <button class="clear-btn" onclick={() => { value = ""; onchange?.(""); }} {disabled} title="Clear">✕</button>
+      {/if}
       <button class="browse-btn" onclick={handleBrowseFolder} {disabled}>Browse</button>
     </div>
   {:else}
@@ -202,6 +205,20 @@
     flex: 1;
     max-width: none;
     background: #fafafa;
+  }
+  .clear-btn {
+    padding: 0 0.4rem;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    background: #fff;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .clear-btn:hover {
+    background: #fef2f2;
   }
   .browse-btn {
     padding: 0 0.6rem;

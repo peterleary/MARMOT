@@ -553,7 +553,34 @@ make_barplot <- function(df, x_col, fill_col, colours = NULL,
   }
 
   if (show_numbers) {
-    p <- p + geom_text(stat = "count", aes(label = after_stat(count)), vjust = -1)
+    # Pre-compute counts per group so labels match the position transform
+    counts <- as.data.frame(table(df[[x_col]], df[[fill_col]]))
+    names(counts) <- c("x_var", "fill_var", "n")
+    totals <- tapply(counts$n, counts$x_var, sum)
+    counts$pct <- counts$n / totals[as.character(counts$x_var)]
+    counts <- counts[counts$n > 0, ]
+
+    if (fractional) {
+      counts$label <- sprintf("%.0f%%", counts$pct * 100)
+      p <- p + geom_text(
+        data = counts,
+        aes(x = .data[["x_var"]], fill = .data[["fill_var"]],
+            label = .data[["label"]]),
+        stat = "identity",
+        position = position_fill(vjust = 0.5),
+        size = base_size / 4, check_overlap = TRUE
+      )
+    } else {
+      counts$label <- as.character(counts$n)
+      p <- p + geom_text(
+        data = counts,
+        aes(x = .data[["x_var"]], fill = .data[["fill_var"]],
+            label = .data[["label"]]),
+        stat = "identity",
+        position = position_stack(vjust = 0.5),
+        size = base_size / 4, check_overlap = TRUE
+      )
+    }
   }
 
   p

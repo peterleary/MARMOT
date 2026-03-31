@@ -45,7 +45,7 @@ format:
 
     # ──────────────────────────────────────────────
     # Figure defaults
-    fig-dpi: 150
+    fig-dpi: 100
 
 # Execution
 execute:
@@ -87,8 +87,10 @@ include-after-body:
 ```{r knitr_settings, include = FALSE}
 knitr::opts_chunk$set(
   comment = "",
-  fig.width = 8,
-  fig.height = 8,
+  fig.width = 6,
+  fig.height = 5,
+  fig.retina = 1,
+  out.width = "40%",
   dev = if (requireNamespace("ragg", quietly = TRUE)) "ragg_png" else "png"
 )
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
@@ -278,6 +280,32 @@ if (!is.null(RDataFolder)) {
   if (file.exists(qs_path)) {
     assign("framesList", qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
   }
+
+  # Reconstruct panel from rowData(sce) — create_panel chunk is skipped on reload
+  rd <- as.data.frame(SummarizedExperiment::rowData(sce))
+  panel <- data.frame(
+    fcs_colname  = rownames(rd),
+    marker_name  = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
+    antigen      = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
+    marker_class = if ("marker_class" %in% names(rd)) rd$marker_class else "none",
+    use_channel  = TRUE,
+    stringsAsFactors = FALSE
+  )
+
+  # Inject md columns into colData — prepData did this on fresh run via
+  # md_cols = list(factors = conditions), but h5ad doesn't preserve the merge.
+  cd <- as.data.frame(SummarizedExperiment::colData(sce))
+  md_reload <- as.data.frame(md)
+  md_extra_cols <- setdiff(names(md_reload), c("file_name", names(cd)))
+  if (length(md_extra_cols) > 0) {
+    lookup <- md_reload[, c("sample_id", md_extra_cols), drop = FALSE]
+    matched <- lookup[match(cd$sample_id, lookup$sample_id), md_extra_cols, drop = FALSE]
+    rownames(matched) <- rownames(cd)
+    for (col in md_extra_cols) {
+      SummarizedExperiment::colData(sce)[[col]] <- matched[[col]]
+    }
+    message("ℹ️  Injected md columns into colData: ", paste(md_extra_cols, collapse = ", "))
+  }
 }
 
 # Pick the merge method depending on clustering backend
@@ -349,6 +377,7 @@ cfToUse <- as.numeric(na.omit(smd$`Cofactors for markers to use`))
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
 contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest)]
 contrastsToTestS <- paste(contrastsToTest, collapse = ",")
+cTTForPlots <- contrastsToTest
 
 # Subsampling settings
 raw_subsamp <- na.omit(smd$`Cells per condition in UMAPs etc.`)
@@ -428,16 +457,16 @@ conditionCols <- setNames(
 )
 ```
 
-```{r import_fcs_files, include = FALSE, results = "asis", eval = is.null(RDataFolder)}
+```{r import_fcs_scan, include = FALSE, results = "asis", eval = is.null(RDataFolder)}
 
-message("📥 Importing FCS files...")
+message("📥 Scanning FCS files...")
 
 # List all .fcs files
 fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
 fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
 fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
 
-# ── Step 1: Header scan — get cell counts without loading data ────────────────
+# ── Header scan — get cell counts without loading data ────────────────────────
 fcs_headers <- sapply(fcs_files, function(f) {
   hdr <- flowCore::read.FCSheader(f)
   c(tot = as.numeric(hdr[[1]]["$TOT"]),
@@ -448,7 +477,7 @@ total_cells_raw    <- sum(originalCellCounts)
 n_params           <- fcs_headers["par", 1]
 n_samples          <- length(fcs_files)
 
-# ── Step 2: Compute RAM budget and per-sample cap ─────────────────────────────
+# ── Compute RAM budget and per-sample cap ─────────────────────────────────────
 sys_ram_bytes <- tryCatch({
   os <- Sys.info()[["sysname"]]
   if (os == "Darwin") {
@@ -491,31 +520,6 @@ if (needs_cap) {
                   format(total_cells_raw, big.mark = ","),
                   format(max_total_cells, big.mark = ",")))
 }
-
-# ── Step 3: Read one file at a time, cap if needed, discard full ──────────────
-frames <- setNames(lapply(fcs_files, function(f) {
-  ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
-  if (needs_cap && nrow(ff) > per_sample_cap) {
-    set.seed(2)
-    ff <- ff[sample(nrow(ff), per_sample_cap), ]
-  }
-  ff
-}), fcs_names)
-
-# Exclude samples, if specified
-if (!is.null(excludeTheseSamples)) {
-  keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
-  frames <- frames[keep_samples]
-}
-
-framesList <- list("Untransformed" = frames)
-rm(frames)
-invisible(gc())
-
-effective_cells <- sum(sapply(framesList$Untransformed, nrow))
-message(sprintf("📊 Loaded %s cells (%.1f GB estimated)",
-                format(effective_cells, big.mark = ","),
-                effective_cells * bytes_per_cell / 1024^3))
 ```
 
 ```{r import_ram_cap_notice, results = "asis", eval = is.null(RDataFolder)}
@@ -525,8 +529,8 @@ if (needs_cap) {
            "Your dataset has **%s cells** across %d samples, but this machine ",
            "can safely hold **%s cells** in memory (%.0f GB system RAM, ",
            "%.1f GB pipeline budget at 60%%).\n\n",
-           "Each sample has been capped to **%s cells**. QC, clustering, and all ",
-           "downstream analysis will run on the capped data. ",
+           "Each sample has been capped to **%s cells**. QC ran on the full dataset. ",
+           "Clustering, dimensionality reduction, and all downstream analysis use the capped data. ",
            "To use more cells, run on a machine with more RAM or increase `ramPerCore`.\n",
            ":::\n"),
     format(total_cells_raw, big.mark = ","), n_samples,
@@ -538,10 +542,13 @@ if (needs_cap) {
 
 ```{r create_panel, results = "hide", eval = is.null(RDataFolder)}
 
-# Extract parameter metadata
-param_df <- pData(parameters(framesList$Untransformed[[1]])) |>
+# Extract parameter metadata from one frame (just need pData, not expression data)
+.tmp_ff <- flowCore::read.FCS(fcs_files[1], transformation = FALSE,
+                               truncate_max_range = FALSE, which.lines = 1)
+param_df <- pData(parameters(.tmp_ff)) |>
   as.data.frame() |>
   dplyr::mutate(desc = ifelse(is.na(desc), name, desc))
+rm(.tmp_ff)
 
 # Build panel
 panel <- param_df |>
@@ -578,20 +585,15 @@ cf <- cf[match(all_channels, names(cf))]
 cf2 <- setNames(cf[match(panel$fcs_colname, names(cf))], panel$marker_name)
 cf2 <- cf2[panel$use_channel]
 
-# Assume `fs` is your flowSet and `cofactors` is a named numeric vector
 asinh_transforms <- transformList(
   names(cf),
   lapply(cf, function(cof) arcsinhTransform(a = 0, b = 1 / cof, c = 0))
 )
-# Apply to the flowSet
-framesList$Transformed <- lapply(seq_along(framesList$Untransformed), function(i) {
-  flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
-}) |> setNames(names(framesList$Untransformed))
 ```
 
 ```{r check_qc_viability, include = FALSE, eval = is.null(RDataFolder)}
 if (runQC %in% c("FlowAI", "PeacoQC")) {
-  sample_sizes <- sapply(framesList$Transformed, nrow)
+  sample_sizes <- originalCellCounts
   min_events <- min(sample_sizes)
   small_sample <- names(which.min(sample_sizes))
 
@@ -635,54 +637,43 @@ if (runQC == "FlowAI") {
     all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC.fcs"))
 
   if (qc_present) {
-    message("📁 QC files found — loading from disk.")
+    message("📁 QC files found on disk — skipping recomputation.")
   } else {
-    message("⚙️  QC files not found — running `flow_auto_qc()`.")
-    flow_auto_qc(
-      fcsfiles      = as(framesList$Untransformed, "flowSet"),
-      folder_results = qc_dir,
-      remove_from   = metricsQC,
-      fcs_highQ     = "_QC_highQ",
-      fcs_lowQ      = "_QC_lowQ"
-    )
+    message("⚙️  Running FlowAI per-file at full resolution...")
+    dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
+
+    for (i in seq_along(fcs_files)) {
+      message(sprintf("  [%d/%d] %s (%s cells)",
+                      i, length(fcs_files), basename(fcs_files[i]),
+                      format(originalCellCounts[i], big.mark = ",")))
+      ff <- flowCore::read.FCS(fcs_files[i], transformation = FALSE,
+                                truncate_max_range = FALSE)
+      flow_auto_qc(
+        fcsfiles       = ff,
+        folder_results = qc_dir,
+        remove_from    = metricsQC,
+        fcs_highQ      = "_QC_highQ",
+        fcs_lowQ       = "_QC_lowQ"
+      )
+      rm(ff); invisible(gc())
+    }
   }
 
-  # Load the QC FCS files
+  # Load and annotate QC summary table
   fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
   fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC)]
-  fcsNames <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
+  fcsNamesQC <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
 
-  message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
-  framesList[["FlowAI"]] <- setNames(
-    lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    paste0(fcsNames, ".fcs")
-  )
-
-  # Force evaluation of ranges to avoid downstream surprises
-  invisible(lapply(framesList[["FlowAI"]], range, type = "data"))
-
-  # Load and annotate QC summary table
   QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
     dplyr::distinct(`Name file`, .keep_all = TRUE)
-  QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$`Name file`), ]
-
-  message("🧾 Processing QC summary metadata...")
+  QCmini <- QCmini[grep(paste0(fcsNamesQC, collapse = "|"), QCmini$`Name file`), ]
 
   qc_names_clean <- sub("_QC_highQ|\\.fcs", "", QCmini$`Name file`)
   md_names_clean <- sub("\\.fcs$", "", md$file_name)
-
   QCmini$`Sample Name` <- md$sample_id[match(qc_names_clean, md_names_clean)]
   QCmini <- QCmini[gtools::mixedorder(QCmini$`Name file`), ]
 
-  # Use QC data as default if requested
-  if (useQC) {
-    
-    framesList <- framesList[c("FlowAI", setdiff(names(framesList), "FlowAI"))]
-  } else {
-    message("📦 QC-filtered data loaded but not used in primary workflow.")
-  }
-
-  message("🎉 QC step complete.")
+  message("🎉 FlowAI QC complete.")
 }
 ```
 
@@ -699,71 +690,137 @@ if (runQC == "PeacoQC") {
   }
 
   if (qc_present) {
-    message("📁 QC files found — loading from disk.")
+    message("📁 QC files found on disk — skipping recomputation.")
   } else {
-    message("⚙️  QC files not found — running PeacoQC...")
+    message("⚙️  Running PeacoQC per-file at full resolution...")
 
     dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
 
-    fs <- as(framesList$Transformed, "flowSet")
-    all_channels <- colnames(fs[[1]])
+    # Determine fluorescence channels from one frame's metadata
+    all_channels <- param_df$name
     fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
-    # Also exclude common technical channels if present
     fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
     message("🔬 Using channels for QC: ", paste(fluor_channels, collapse = ", "))
     message("🚫 Excluded channels: ", paste(setdiff(all_channels, fluor_channels), collapse = ", "))
-    
-    fs_qc <- lapply(seq_along(fs), function(i) {
-      fcs_name <- sampleNames(fs)[i]
-      ff <- fs[[i]]
-      qc_result <- PeacoQC::PeacoQC(
-        ff = ff, 
-        channels = fluor_channels, 
-        plot = TRUE, 
-        save_fcs = TRUE, 
-        output_directory = qc_dir, 
-        name_directory = fcs_name, 
-        report = TRUE, 
-        determine_good_cells = "all"
+
+    for (i in seq_along(fcs_files)) {
+      fcs_name <- fcs_names[i]
+      message(sprintf("  [%d/%d] %s (%s cells)",
+                      i, length(fcs_files), fcs_name,
+                      format(originalCellCounts[i], big.mark = ",")))
+      ff <- flowCore::read.FCS(fcs_files[i], transformation = FALSE,
+                                truncate_max_range = FALSE)
+      ff_t <- flowCore::transform(ff, asinh_transforms)
+      rm(ff)
+
+      PeacoQC::PeacoQC(
+        ff = ff_t, channels = fluor_channels,
+        plot = TRUE, save_fcs = TRUE,
+        output_directory = qc_dir, name_directory = fcs_name,
+        report = TRUE, determine_good_cells = "all"
       )
-      keep <- qc_result$GoodCells
-      ff[keep, ]
-    })
-    fs_qc <- flowSet(fs_qc)
-    
-    # Generate a QC summary table
+      rm(ff_t); invisible(gc())
+    }
+
+    # Generate combined QC summary table
     qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
     QCmini <- readr::read_tsv(qc_files[[1]], show_col_types = FALSE)
     if (length(qc_files) > 1) {
-      for (i in 2:length(qc_files)) {
-        xx <- readr::read_tsv(qc_files[[i]], show_col_types = FALSE)
-        QCmini[i,] <- xx[1,]
+      for (j in 2:length(qc_files)) {
+        xx <- readr::read_tsv(qc_files[[j]], show_col_types = FALSE)
+        QCmini[j, ] <- xx[1, ]
       }
     }
     readr::write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
-    message("✅ PeacoQC processing complete. QC files saved to: ", qc_dir)
+    message("✅ PeacoQC processing complete.")
   }
-  
-  # Load the QC FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
-  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
-  fcsNames <- sub("_QC.fcs$", "", basename(fcsFilesQC))
-
-  message("📥 Loading ", length(fcsFilesQC), " QC FCS files into memory...")
-  framesList[["PeacoQC"]] <- setNames(
-    lapply(fcsFilesQC, \(f) read.FCS(f, truncate_max_range = FALSE, transformation = FALSE)),
-    paste0(fcsNames, ".fcs")
-  )
-
-  # Force evaluation of ranges
-  invisible(lapply(framesList[["PeacoQC"]], range, type = "data"))
 
   # Load QC summary table
-  QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
-  QCmini <- QCmini[grep(paste0(fcsNames, collapse = "|"), QCmini$Filename), ]
-  message("🧾 Processing QC summary metadata...")
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
+  fcsNamesQC <- sub("_QC.fcs$", "", basename(fcsFilesQC))
 
-  message("🎉 QC step complete.")
+  QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
+  QCmini <- QCmini[grep(paste0(fcsNamesQC, collapse = "|"), QCmini$Filename), ]
+
+  message("🎉 PeacoQC QC complete.")
+}
+```
+
+```{r import_fcs_load, include = FALSE, results = "asis", eval = is.null(RDataFolder)}
+
+message("📥 Loading FCS data into memory...")
+
+# Helper: read one FCS file and apply RAM cap if needed
+read_and_cap <- function(f) {
+  ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  if (needs_cap && nrow(ff) > per_sample_cap) {
+    set.seed(2)
+    ff <- ff[sort(sample(nrow(ff), per_sample_cap)), ]
+  }
+  ff
+}
+
+# Load only the data that will actually be used for analysis
+if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
+  # useQC=TRUE, FlowAI: load only QC'd FCS files
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
+  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC)]
+  fcsNamesQC <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
+
+  framesList <- list()
+  framesList[["FlowAI"]] <- setNames(
+    lapply(fcsFilesQC, read_and_cap),
+    paste0(fcsNamesQC, ".fcs")
+  )
+  invisible(lapply(framesList[["FlowAI"]], range, type = "data"))
+
+} else if (useQC && runQC == "PeacoQC" && exists("qc_dir") && dir.exists(qc_dir)) {
+  # useQC=TRUE, PeacoQC: load only QC'd FCS files
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
+  fcsNamesQC <- sub("_QC.fcs$", "", basename(fcsFilesQC))
+
+  framesList <- list()
+  framesList[["PeacoQC"]] <- setNames(
+    lapply(fcsFilesQC, read_and_cap),
+    paste0(fcsNamesQC, ".fcs")
+  )
+  invisible(lapply(framesList[["PeacoQC"]], range, type = "data"))
+
+} else {
+  # useQC=FALSE or no QC: load raw files → build Transformed
+  frames <- setNames(lapply(fcs_files, read_and_cap), fcs_names)
+  if (!is.null(excludeTheseSamples)) {
+    keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
+    frames <- frames[keep_samples]
+  }
+  framesList <- list("Untransformed" = frames)
+  rm(frames)
+}
+
+invisible(gc())
+
+effective_cells <- sum(sapply(framesList[[1]], nrow))
+message(sprintf("📊 Loaded %s cells (%.1f GB estimated)",
+                format(effective_cells, big.mark = ","),
+                effective_cells * bytes_per_cell / 1024^3))
+```
+
+```{r arcsinh_transform_apply, results = "hide", eval = is.null(RDataFolder)}
+# Build Transformed from Untransformed (useQC=FALSE / no QC path)
+if ("Untransformed" %in% names(framesList)) {
+  framesList$Transformed <- lapply(seq_along(framesList$Untransformed), function(i) {
+    flowCore::transform(framesList$Untransformed[[i]], asinh_transforms)
+  }) |> setNames(names(framesList$Untransformed))
+}
+
+# Transform FlowAI QC'd data — FlowAI runs on raw data, so QC'd files are untransformed.
+# PeacoQC doesn't need this: it runs on already-transformed data.
+if ("FlowAI" %in% names(framesList)) {
+  framesList[["FlowAI"]] <- lapply(seq_along(framesList[["FlowAI"]]), function(i) {
+    flowCore::transform(framesList[["FlowAI"]][[i]], asinh_transforms)
+  }) |> setNames(names(framesList[["FlowAI"]]))
 }
 ```
 
@@ -791,8 +848,8 @@ message("📉 Generating cofactor histograms for visualising transformations..."
 
 cofactorsToTry <- c(5, 50, 500, 1000, 2500, 5000, 10000, 15000)
 
-# Aggressively downsample
-framesList[["Marker Histos"]] <- lapply(framesList$Untransformed, function(fcs) {
+# Aggressively downsample (use whatever data was loaded — raw or QC'd)
+framesList[["Marker Histos"]] <- lapply(framesList[[1]], function(fcs) {
   if (nrow(fcs) > 1000) {
     set.seed(2)
     fcs[sample(nrow(fcs), 1000), ]
@@ -817,7 +874,7 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
   # Flat vector of expression values
   expr_vec <- unlist(marker_expr)
   sample_vec <- rep(names(marker_expr), times = purrr::map_int(marker_expr, length))
-  cond_vec <- md$condition[match(sample_vec, gsub("\\.fcs", "", md$file_name))]
+  cond_vec <- md$condition[match(gsub("\\.fcs$", "", sample_vec), gsub("\\.fcs$", "", md$file_name))]
 
   # Build only what's needed: wide format DF with just transformed values + condition
   df <- tibble::tibble(
@@ -1156,7 +1213,7 @@ sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse
 if (is.null(RDataFolder) && runScGate) {
   if (requireNamespace("Seurat", quietly = TRUE)) {
     message("🖼️ Generating Seurat object for scGate...")
-    scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = exprsToUse, data = "exprsQuantNorm"))
+    scData <- suppressWarnings(Seurat::as.Seurat(sce, counts = "exprsTransformed", data = "exprsTransformed"))
     scData <- Seurat::ScaleData(scData, assay = "originalexp", verbose = FALSE)
   } else {
     warning("Seurat is not installed — skipping scGate.")
@@ -1338,7 +1395,7 @@ for (k in kValuesIWant) {
 }
 ```
 
-```{r da_ds_analysis, results = "hide", dependson = c("input settings", "make sce", "import md file")}
+```{r da_ds_analysis, results = "hide", dependson = c("input settings", "make sce", "import md file"), eval = is.null(RDataFolder)}
 message("🚀 Starting differential abundance (DA) and differential state (DS) analysis...")
 
 daPValToUse <- "p_adj"
@@ -1487,7 +1544,7 @@ for (i in seq_along(contrasts)) {
   selectedClustersList[[idx_down]] <- down_clusters
   
   names_list[idx_up] <- paste0("Contrast ", i, ": ", contrast_conditions[1], " Up")
-  names_list[idx_down] <- paste0("Contrast ", i, ": ", contrast_conditions[2], " Up")
+  names_list[idx_down] <- paste0("Contrast ", i, ": ", contrast_conditions[2], " Down")
 }
 
 names(selectedClustersList) <- names_list
@@ -1839,15 +1896,15 @@ n_cells(sce)
 ```
 :::
 
-```{r, label = "plot cell counts 1", fig.height=4, fig.width=ceiling(length(conditions)*2)}
+```{r, label = "plot cell counts 1", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
 plotCounts(sce, color_by = "condition") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
-```{r, label = "plot cell counts 2", fig.height=4, fig.width=ceiling(length(conditions)*3)}
+```{r, label = "plot cell counts 2", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
 plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
-```{r, label = "plot full counts", results = 'asis', fig.height=4, fig.width=ceiling(length(conditions)*3)}
+```{r, label = "plot full counts", results = 'asis', fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
 if (!is.null(downsampleTo) && exists("originalCellCounts")) {
   cat("\n\nHowever, because you downsampled, here are those numbers for the full dataset. The black line is what you downsampled to.\n\n")
   cat("\n\n")
@@ -2975,7 +3032,7 @@ print(
 )
 ```
 
-```{r, label = "scgate_model_plots", results = 'asis', fig.height=6, fig.width=18, eval = show_scgate}
+```{r, label = "scgate_model_plots", results = 'asis', fig.height=6, fig.width=6, eval = show_scgate}
 invisible(lapply(names(scgate_models), function(mpt) {
   cat("####", mpt, "\n\n")
   y <- gsub("[ -]", "", mpt)
@@ -2992,7 +3049,13 @@ invisible(lapply(names(scgate_models), function(mpt) {
     m2 <- hit[[1]]
   }
 
-  # Panel 1: DimPlot — is this cell type?
+  dr_theme <- theme_prism() + theme(
+    axis.text = element_blank(), axis.ticks = element_blank(),
+    axis.line = element_blank(), legend.position = "none",
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+  )
+
+  # Plot 1: DimPlot — is this cell type?
   p1 <- plotUMAPNice(
     df = umapDFList$Downsampled,
     colour_by = paste0("is_", y),
@@ -3000,8 +3063,10 @@ invisible(lapply(names(scgate_models), function(mpt) {
     alpha = 1
   ) + ggtitle(paste0("Are ", mpt, "?")) +
     theme(legend.position = "none")
+  print(p1)
+  cat("\n\n")
 
-  # Panel 2: FeaturePlot — UCell score
+  # Plot 2: FeaturePlot — UCell score
   ucell_col <- paste0(mpt, "_UCell")
   p2 <- ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
     geom_point(size = dr_point_size, shape = 16) +
@@ -3010,26 +3075,13 @@ invisible(lapply(names(scgate_models), function(mpt) {
       x = paste(dimRedMethodToUse, "dim 1"),
       y = paste(dimRedMethodToUse, "dim 2"),
       title = paste0(mpt, " UCell Score")
-    ) +
-    theme_prism() +
-    theme(
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      axis.line = element_blank(),
-      legend.position = "none",
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
-    )
+    ) + dr_theme
+  print(p2)
+  cat("\n\n")
 
-  # Panel 3: Joint density — ks::kde weighted scatter (same as Shiny app)
-  dr_theme <- theme_prism() + theme(
-    axis.text = element_blank(), axis.ticks = element_blank(),
-    axis.line = element_blank(), legend.position = "none",
-    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
-  )
+  # Plot 3: Joint density — ks::kde weighted scatter
   df_joint <- umapDFList$Downsampled
   emb_mat <- as.matrix(df_joint[, c("x", "y")])
-
-  # Sum expression weights across both markers
   w_joint <- rep(0, nrow(df_joint))
   for (mk in c(m1, m2)) {
     if (mk %in% colnames(df_joint)) {
@@ -3038,7 +3090,6 @@ invisible(lapply(names(scgate_models), function(mpt) {
       w_joint <- w_joint + v
     }
   }
-
   if (sum(w_joint) > 0) {
     w_norm <- w_joint / sum(w_joint) * length(w_joint)
     dens <- ks::kde(emb_mat, w = w_norm, eval.points = emb_mat)
@@ -3056,8 +3107,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
     labs(x = paste(dimRedMethodToUse, "dim 1"),
          y = paste(dimRedMethodToUse, "dim 2"),
          colour = "Density")
-
-  print(cowplot::plot_grid(p1, p2, p3, align = "hv", ncol = 3))
+  print(p3)
   cat("\n\n")
 }))
 ```
