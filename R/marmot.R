@@ -17,7 +17,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # if the user supplied a relative path, fullpathify it 
   make_absolute_path <- function(path) {
-    if (grepl("^\\~|^\\/|^C\\:/", path)) return(path)
+    if (grepl("^\\~|^\\/|^[A-Za-z]\\:/", path)) return(path) 
     return(normalizePath(file.path(getwd(), path), winslash = "/", mustWork = FALSE))
   }
   metadata <- make_absolute_path(metadata)
