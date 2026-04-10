@@ -101,7 +101,7 @@ required_vars <- c(
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour", "UCell"
+  "runInParallel", "nCores", "ramPerCore", "themeToUse", "viridisColour"
 )
 
 missingVariables <- names(unlist(setNames(lapply(required_vars, function(x) {
