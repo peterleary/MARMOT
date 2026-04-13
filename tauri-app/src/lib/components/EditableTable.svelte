@@ -45,6 +45,14 @@
     if (!a && !b) return "";
     return `${a} over ${b}`;
   }
+
+  function mergeMarkerPair(cellType, marker1, marker2) {
+    cellType = (cellType || "").trim();
+    marker1 = (marker1 || "").trim();
+    marker2 = (marker2 || "").trim();
+    if (!cellType && !marker1 && !marker2) return "";
+    return `${cellType}: ${marker1} ${marker2}`;
+  }
 </script>
 
 <div class="table-wrapper">
@@ -89,6 +97,39 @@
                     <select
                       value={parts[1]?.trim() || ""}
                       onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeContrast(parts[0], e.target.value) }})}
+                    >
+                      <option value="">--</option>
+                      {#each columnConfig[colIdx].options as opt}
+                        <option value={opt}>{opt}</option>
+                      {/each}
+                    </select>
+                  </span>
+                {:else if columnConfig[colIdx]?.type === "marker_pair"}
+                  {@const colonIdx = (cell || "").indexOf(":")}
+                  {@const cellType = colonIdx >= 0 ? (cell || "").slice(0, colonIdx).trim() : ""}
+                  {@const markersPart = colonIdx >= 0 ? (cell || "").slice(colonIdx + 1).trim() : ""}
+                  {@const mpMarkers = markersPart ? markersPart.split(/\s+/) : ["", ""]}
+                  <span class="marker-pair-cell">
+                    <input
+                      type="text"
+                      class="mp-text"
+                      placeholder="Cell type"
+                      value={cellType}
+                      onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeMarkerPair(e.target.value, mpMarkers[0], mpMarkers[1]) }})}
+                    />
+                    <span class="mp-colon">:</span>
+                    <select
+                      value={mpMarkers[0] || ""}
+                      onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeMarkerPair(cellType, e.target.value, mpMarkers[1]) }})}
+                    >
+                      <option value="">--</option>
+                      {#each columnConfig[colIdx].options as opt}
+                        <option value={opt}>{opt}</option>
+                      {/each}
+                    </select>
+                    <select
+                      value={mpMarkers[1] || ""}
+                      onchange={(e) => handleCellEdit(rowIdx, colIdx, { target: { value: mergeMarkerPair(cellType, mpMarkers[0], e.target.value) }})}
                     >
                       <option value="">--</option>
                       {#each columnConfig[colIdx].options as opt}
@@ -226,6 +267,26 @@
     color: #94a3b8;
     font-size: 0.75rem;
     font-style: italic;
+    flex-shrink: 0;
+  }
+  .marker-pair-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+  .marker-pair-cell input.mp-text {
+    flex: 1;
+    min-width: 80px;
+    max-width: 120px;
+  }
+  .marker-pair-cell select {
+    flex: 1;
+    min-width: 80px;
+  }
+  .mp-colon {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
     flex-shrink: 0;
   }
 </style>

@@ -1,3 +1,4 @@
+import marmot_setup  # noqa: F401  (side-effects: rpath libs + annoy patch)
 import pacmap
 
 

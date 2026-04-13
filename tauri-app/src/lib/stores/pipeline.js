@@ -11,6 +11,10 @@ export const logLines = writable([]);
 // Start time for elapsed timer
 export const startTime = writable(null);
 
+// Quarto chunk progress — updated as Quarto renders each chunk.
+// Shape: { done: number, total: number, chunk: string } | null
+export const pipelineProgress = writable(null);
+
 // Post-run output paths (set on successful pipeline completion)
 export const pipelineOutputDir = writable(null); // Results_Files_* dir path
 export const pipelineHtmlPath = writable(null);  // MARMOT_Pipeline_<name>.html path
@@ -46,10 +50,12 @@ export function clearLog() {
 // Lives in the store (module scope) so event listeners survive tab switches.
 
 let activeUnlistenLog = null;
+let activeUnlistenProgress = null;
 let activeUnlistenDone = null;
 
 function cleanupListeners() {
   if (activeUnlistenLog) { activeUnlistenLog(); activeUnlistenLog = null; }
+  if (activeUnlistenProgress) { activeUnlistenProgress(); activeUnlistenProgress = null; }
   if (activeUnlistenDone) { activeUnlistenDone(); activeUnlistenDone = null; }
 }
 
@@ -64,6 +70,9 @@ export async function launchPipeline({ rscriptPath: rPath, metadataPath, runName
   // Set up event listeners (module-scoped, not tied to any component)
   activeUnlistenLog = await listen("pipeline-log", (event) => {
     addLogLine(event.payload);
+  });
+  activeUnlistenProgress = await listen("pipeline-progress", (event) => {
+    pipelineProgress.set(event.payload);
   });
   activeUnlistenDone = await listen("pipeline-done", async (event) => {
     const result = event.payload;
@@ -82,6 +91,7 @@ export async function launchPipeline({ rscriptPath: rPath, metadataPath, runName
 
   // Start
   clearLog();
+  pipelineProgress.set(null);
   pipelineState.set("running");
   startTime.set(Date.now());
 

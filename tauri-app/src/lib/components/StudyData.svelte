@@ -12,6 +12,16 @@
     return [...new Set(vals)];
   });
 
+  // ── Marker list from Study Data ────────────────────────────────
+  let markers = $derived.by(() => {
+    const mkIdx = $metadata.study_data.headers.findIndex(h => /include|cluster/i.test(h));
+    if (mkIdx < 0) return [];
+    const vals = $metadata.study_data.rows
+      .map(r => (r[mkIdx] || "").trim())
+      .filter(v => v);
+    return [...new Set(vals)];
+  });
+
   // ── Column config: dropdowns for specific columns ─────────────
   let columnConfig = $derived.by(() => {
     const cfg = {};
@@ -21,10 +31,24 @@
         cfg[i] = { type: "contrast", options: conditions };
       } else if (h.includes("conditions order") && conditions.length > 0) {
         cfg[i] = { type: "dropdown", options: conditions };
+      } else if (h.includes("marker pairs") && markers.length > 0) {
+        cfg[i] = { type: "marker_pair", options: markers };
       }
     }
     return cfg;
   });
+
+  // ── Conditional colouring for type/state markers ──────────────
+  function cellStyle(rowIdx, colIdx, value) {
+    const hdrs = $metadata.study_data.headers;
+    const mtIdx = hdrs.findIndex(h => h.toLowerCase().includes("marker type"));
+    const mkIdx = hdrs.findIndex(h => /include|cluster/i.test(h));
+    if (colIdx !== mtIdx && colIdx !== mkIdx) return null;
+    const mtVal = ($metadata.study_data.rows[rowIdx]?.[mtIdx] || "").trim().toLowerCase();
+    if (mtVal === "type") return { "background-color": "#dbeafe" };
+    if (mtVal === "state") return { "background-color": "#fed7aa" };
+    return null;
+  }
 
   function handleChange() {
     isDirty.set(true);
@@ -46,6 +70,7 @@
     bind:rows={$metadata.study_data.rows}
     onchange={handleChange}
     {columnConfig}
+    {cellStyle}
   />
 </div>
 

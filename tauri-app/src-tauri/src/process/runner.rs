@@ -3,6 +3,37 @@ use std::io::{BufRead, BufReader};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
+/// Parse a Quarto chunk-progress line such as `58/249 [dim_reduction]`
+/// or `51/249` (for unnamed chunks). Returns `(done, total, chunk_name)`,
+/// where `chunk_name` is empty when the chunk is anonymous.
+///
+/// Quarto prints these to stdout as it starts rendering each code chunk.
+/// We use them to drive the GUI progress bar without requiring any changes
+/// to the pipeline code.
+pub fn parse_quarto_progress(line: &str) -> Option<(u32, u32, String)> {
+    let s = line.trim();
+    // Expect: DIGITS '/' DIGITS [optional whitespace + '[' NAME ']']
+    let slash = s.find('/')?;
+    let (a, rest) = s.split_at(slash);
+    let done: u32 = a.parse().ok()?;
+    let rest = &rest[1..]; // skip '/'
+    let total_end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+    if total_end == 0 { return None; }
+    let total: u32 = rest[..total_end].parse().ok()?;
+    if total == 0 { return None; }
+    let tail = rest[total_end..].trim_start();
+    let chunk = if tail.starts_with('[') {
+        let close = tail.find(']')?;
+        tail[1..close].to_string()
+    } else if tail.is_empty() {
+        String::new()
+    } else {
+        // Trailing text that isn't a [name] — not a progress line
+        return None;
+    };
+    Some((done, total, chunk))
+}
+
 /// Strip ANSI escape codes (colours, bold, etc.) so log output is readable
 /// in the GUI's plain-text log panel.
 pub fn strip_ansi(s: &str) -> String {
@@ -351,14 +382,24 @@ pub fn spawn_pipeline(
 
         let _ = app.emit("pipeline-log", format!("Started pipeline (PID: {})", pid));
 
-        // Stream stdout — hold the JoinHandle so we can wait for it
+        // Stream stdout — hold the JoinHandle so we can wait for it.
+        // Also detect Quarto chunk-progress lines and emit a structured
+        // `pipeline-progress` event for the GUI's progress bar.
         let stdout_handle = child.stdout.take().map(|stdout| {
             let app_clone = app.clone();
             let reader = BufReader::new(stdout);
             std::thread::spawn(move || {
                 for line in reader.lines() {
                     if let Ok(line) = line {
-                        let _ = app_clone.emit("pipeline-log", strip_ansi(&line));
+                        let clean = strip_ansi(&line);
+                        if let Some((done, total, chunk)) = parse_quarto_progress(&clean) {
+                            let _ = app_clone.emit("pipeline-progress", serde_json::json!({
+                                "done": done,
+                                "total": total,
+                                "chunk": chunk,
+                            }));
+                        }
+                        let _ = app_clone.emit("pipeline-log", clean);
                     }
                 }
             })
@@ -437,5 +478,54 @@ pub fn kill_pipeline(process: &SharedProcess) -> Result<(), String> {
         Ok(())
     } else {
         Err("No running pipeline to cancel".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quarto_progress_named_chunk() {
+        assert_eq!(
+            parse_quarto_progress("58/249 [dim_reduction]"),
+            Some((58, 249, "dim_reduction".to_string()))
+        );
+    }
+
+    #[test]
+    fn quarto_progress_anonymous_chunk() {
+        assert_eq!(
+            parse_quarto_progress("51/249"),
+            Some((51, 249, String::new()))
+        );
+    }
+
+    #[test]
+    fn quarto_progress_leading_and_trailing_whitespace() {
+        assert_eq!(
+            parse_quarto_progress("  50/249 [parc_clustering]     "),
+            Some((50, 249, "parc_clustering".to_string()))
+        );
+    }
+
+    #[test]
+    fn quarto_progress_rejects_non_progress_lines() {
+        assert_eq!(parse_quarto_progress("Running PaCMAP"), None);
+        assert_eq!(parse_quarto_progress("dim: 5000 2"), None);
+        assert_eq!(parse_quarto_progress("time elapsed 16.5 seconds"), None);
+        assert_eq!(parse_quarto_progress(""), None);
+    }
+
+    #[test]
+    fn quarto_progress_rejects_totally_unrelated_slash_text() {
+        // e.g. file paths, timestamps
+        assert_eq!(parse_quarto_progress("/usr/local/bin"), None);
+        assert_eq!(parse_quarto_progress("ratio 1/2 of cells"), None);
+    }
+
+    #[test]
+    fn quarto_progress_zero_total_rejected() {
+        assert_eq!(parse_quarto_progress("0/0"), None);
     }
 }

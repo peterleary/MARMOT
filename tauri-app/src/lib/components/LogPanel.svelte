@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { pipelineState, logLines, startTime, pipelineOutputDir, pipelineHtmlPath, rscriptPath }
+  import { pipelineState, logLines, startTime, pipelineProgress,
+           pipelineOutputDir, pipelineHtmlPath, rscriptPath }
       from "../stores/pipeline.js";
 
   let shinyLaunching = $state(false);
@@ -9,6 +10,87 @@
   let elapsed = $state("0:00");
   let timer = $state(null);
 
+  // Per-chunk "still going" tracking. Resets every time Quarto moves to a
+  // new chunk. If we sit on the same chunk for > 60s, show a reassuring
+  // message that rotates every 90s so the user can tell the GUI is alive.
+  let chunkStartTime = $state(null);
+  let secondsOnChunk = $state(0);
+
+  // Per-chunk custom messages. Chunks not listed fall back to GENERIC_MESSAGES.
+  const CHUNK_MESSAGES = {
+    dim_reduction: [
+      "Running dimensionality reduction — UMAP and TSNE can take 5–10 minutes on 100k+ cells.",
+      "TSNE is O(n log n) with big constants. This is the pipeline's slowest chunk.",
+      "Marmot is burrowing through nearest neighbours... 🦫",
+      "Still crunching. PaCMAP, UMAP and TSNE each build their own kNN index."
+    ],
+    parc_clustering: [
+      "PARC is building a kNN graph + running Leiden community detection.",
+      "kNN construction is the slow part here. We're getting there.",
+      "Still clustering. PARC scales well but big datasets still take a few minutes."
+    ],
+    mparc_clustering: [
+      "Running the pure-R PARC fallback — slower than the Python version, be patient.",
+      "Mparc is the R implementation. It works, it's just not fast."
+    ],
+    FlowSOM: [
+      "FlowSOM is training its self-organising map and running metaclustering.",
+      "Still clustering. FlowSOM is usually quick, but bigger datasets take longer."
+    ],
+    import_fcs_load: [
+      "Loading FCS files into memory — disk speed matters here.",
+      "Still reading FCS. Large files with many samples take a while."
+    ],
+    run_peacoqc: [
+      "PeacoQC is scanning every event in every file for bad signal regions.",
+      "QC in progress. This scales with (total cells × channels)."
+    ],
+    run_flow_auto_qc: [
+      "flowAI is running quality control on every file.",
+      "Still doing QC. Large files take longer."
+    ],
+    da_ds_analysis: [
+      "Fitting differential abundance / state models — one GLM per cluster per contrast.",
+      "Still running DA/DS. Scales with (clusters × contrasts)."
+    ],
+    create_sce: [
+      "Building the SingleCellExperiment object and its assay matrices.",
+      "Still assembling the SCE. Large datasets mean big assay matrices."
+    ]
+  };
+
+  const GENERIC_MESSAGES = [
+    "Still working... 🦫",
+    "Hang tight, this chunk is taking a bit.",
+    "Keep an eye on the log below for updates."
+  ];
+
+  // Compute the current "still going" message from the chunk name and how
+  // long we've been on it. Returns null when the chunk just started (< 60s),
+  // so no banner appears for fast chunks.
+  let stillGoingMessage = $derived.by(() => {
+    if (!$pipelineProgress || secondsOnChunk < 60) return null;
+    const chunk = $pipelineProgress.chunk;
+    const messages = (chunk && CHUNK_MESSAGES[chunk]) || GENERIC_MESSAGES;
+    // Rotate every 90s after the 60s threshold
+    const idx = Math.floor((secondsOnChunk - 60) / 90) % messages.length;
+    return messages[idx];
+  });
+
+  // Reset chunk timer whenever Quarto moves to a new chunk
+  $effect(() => {
+    const key = $pipelineProgress
+      ? `${$pipelineProgress.done}-${$pipelineProgress.chunk}`
+      : null;
+    if (key !== null) {
+      chunkStartTime = Date.now();
+      secondsOnChunk = 0;
+    } else {
+      chunkStartTime = null;
+      secondsOnChunk = 0;
+    }
+  });
+
   // Auto-scroll log to bottom
   $effect(() => {
     if ($logLines && logContainer) {
@@ -16,14 +98,18 @@
     }
   });
 
-  // Elapsed time updater
+  // Elapsed time + per-chunk time updater
   $effect(() => {
     if ($pipelineState === "running" && $startTime) {
       timer = setInterval(() => {
-        const diff = Math.floor((Date.now() - $startTime) / 1000);
+        const now = Date.now();
+        const diff = Math.floor((now - $startTime) / 1000);
         const mins = Math.floor(diff / 60);
         const secs = diff % 60;
         elapsed = `${mins}:${secs.toString().padStart(2, "0")}`;
+        if (chunkStartTime) {
+          secondsOnChunk = Math.floor((now - chunkStartTime) / 1000);
+        }
       }, 1000);
     }
     return () => {
@@ -102,6 +188,35 @@
       {/if}
     </div>
   </div>
+  {#if $pipelineState === "running" && $pipelineProgress}
+    <div class="progress-container">
+      <div class="progress-header">
+        <span class="progress-chunk">
+          {$pipelineProgress.chunk || "…"}
+        </span>
+        <span class="progress-count">
+          {$pipelineProgress.done} / {$pipelineProgress.total}
+        </span>
+      </div>
+      <div
+        class="progress-track"
+        role="progressbar"
+        aria-valuenow={$pipelineProgress.done}
+        aria-valuemin="0"
+        aria-valuemax={$pipelineProgress.total}
+      >
+        <div
+          class="progress-fill"
+          style="width: {($pipelineProgress.done / $pipelineProgress.total) * 100}%"
+        ></div>
+      </div>
+      {#if stillGoingMessage}
+        {#key stillGoingMessage}
+          <div class="still-going">{stillGoingMessage}</div>
+        {/key}
+      {/if}
+    </div>
+  {/if}
   {#if $pipelineState === "error"}
     <div class="error-banner">
       <span class="error-x">&#10007;</span>
@@ -187,6 +302,53 @@
   }
   .btn-stop:hover {
     background: #fbe9e7;
+  }
+  .progress-container {
+    margin-bottom: 0.6rem;
+  }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.78rem;
+    color: #555;
+    margin-bottom: 0.3rem;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  }
+  .progress-chunk {
+    font-weight: 600;
+    color: #3f3f46;
+  }
+  .progress-count {
+    color: #71717a;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-track {
+    height: 6px;
+    background: #e4e4e7;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444 0%, #f97316 100%);
+    transition: width 0.3s ease;
+    border-radius: 3px;
+  }
+  .still-going {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: #71717a;
+    background: #fafafa;
+    border-left: 3px solid #f97316;
+    border-radius: 0 4px 4px 0;
+    animation: still-going-fade 0.4s ease-out;
+  }
+  @keyframes still-going-fade {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   .post-run-banner {
     background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);

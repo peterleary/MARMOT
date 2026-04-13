@@ -45,7 +45,7 @@ format:
 
     # ──────────────────────────────────────────────
     # Figure defaults
-    fig-dpi: 100
+    fig-dpi: 120
 
 # Execution
 execute:
@@ -89,7 +89,7 @@ knitr::opts_chunk$set(
   comment = "",
   fig.width = 6,
   fig.height = 5,
-  fig.retina = 1,
+  fig.retina = 2,
   out.width = "60%",
   dev = if (requireNamespace("ragg", quietly = TRUE)) "ragg_png" else "png"
 )
@@ -256,6 +256,45 @@ setup_scgate_colours <- function(gated_cells, model_names, palette) {
   }
   cols
 }
+
+# Rewrite ComplexHeatmap top-annotation colours from coloursList. Four slots
+# need to be poked per condition because ComplexHeatmap caches color_mapping
+# both on the anno_list slot and inside the draw closure's var_env.
+apply_anno_colours <- function(pDH, conditions, coloursList) {
+  for (con in conditions) {
+    cm <- pDH@top_annotation@anno_list[[con]]@color_mapping
+    new_cols <- coloursList[[con]][match(names(cm@colors), names(coloursList[[con]]))]
+    pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- new_cols
+    pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- new_cols
+    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- new_cols
+    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- new_cols
+  }
+  pDH
+}
+
+# Build inputs for the `Heatmaps of DA Clusters` chunk. This replaces the
+# old `function for custom heatmap` chunk that leaked x / z / lgd_aes into
+# the global env via CATALYST internals.
+build_da_heatmap_inputs <- function(sce, k, assay = "exprs",
+                                    fun = "median", q = 0.01) {
+  x <- sce[unique(CATALYST:::.get_features(sce, NULL)), ]
+  CATALYST:::.check_k(x, k)
+  x$cluster_id <- cluster_ids(x, k)
+
+  # "first" scale path: scale the assay, then aggregate.
+  z_assay <- CATALYST:::.scale_exprs(assay(x, assay), 1, q)
+  assay(x, assay, FALSE) <- z_assay
+  z <- CATALYST:::.agg(x, "cluster_id", fun, assay)
+  z <- t(z)
+
+  qs <- round(quantile(z, c(0.01, 0.99)) * 5) / 5
+  lgd_aes <- list(
+    at = seq(qs[1], qs[2], 0.2),
+    title_gp = grid::gpar(fontsize = 10, fontface = "bold", lineheight = 0.8)
+  )
+
+  list(x = x, z = z, lgd_aes = lgd_aes)
+}
 ```
 
 ```{r load_rdata, include = FALSE, results = 'asis'}
@@ -385,6 +424,8 @@ cfToUse <- as.numeric(na.omit(smd$`Cofactors for markers to use`))
 # Contrasts
 # Filter out empty or malformed contrasts (e.g. bare " over " from empty dropdowns)
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
+contrastsToTest <- trimws(contrastsToTest)
+contrastsToTest <- gsub("\\s+", " ", contrastsToTest)
 contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest)]
 contrastsToTestS <- paste(contrastsToTest, collapse = ",")
 cTTForPlots <- contrastsToTest
@@ -617,6 +658,7 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
       "With so few events, automated QC is tenuous at best — ",
       "consider acquiring more events or excluding very small samples.")
     runQC <- "None"
+    useQC <- FALSE
 
   } else if (runQC == "PeacoQC" && min_events < 5000) {
     warning("Sample '", small_sample, "' has only ", min_events,
@@ -629,6 +671,7 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
       "To run QC on this dataset, try **FlowAI** (works with ~2,000+ events), ",
       "or set `runQC` to `None` to skip QC entirely.")
     runQC <- "None"
+    useQC <- FALSE
   }
 }
 ```
@@ -1063,10 +1106,15 @@ if (clusteringMethodToUse == "PARC") {
   set.seed(2)
   esPARC <- t(assay(sce, exprsToUse)[featuresToCluster, ])
 
-  reticulate::source_python(system.file("python", "f_parc.py", package = "MARMOT"))
+  # Run PARC in an isolated Python subprocess. Same process as R would collide
+  # libomp runtimes (R's data.table libomp vs conda's annoy/hnswlib libomp on
+  # macOS arm64) and segfault. The subprocess writes/reads raw float64 via
+  # temp files so reticulate is bypassed entirely.
   parcClustList <- setNames(lapply(kValuesIWant, function(k) {
-    as.integer(unlist(parc_clust(esPARC, knn = as.integer(k),
-                                 num_threads = as.integer(nCores))))
+    labels <- MARMOT:::run_parc_subprocess(
+      esPARC, knn = k, num_threads = nCores
+    )
+    as.integer(labels)
   }), paste0("p", kValuesIWant))
 
   for (k in kValuesIWant) {
@@ -1181,27 +1229,27 @@ if (!is.null(featureType) && markersToDimRedBy == "type") {
   featuresToUmap <- panel$marker_name
 }
 
-# Always run PCA first (needed for pacmap, helpful for others)
-sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
+n_cells_dr <- ncol(sce)
 
-# PaCMAP (via conda p4r env) — falls back to Mpacmap if Python unavailable
+# Always run PCA first (needed for pacmap, helpful for others)
+message("  ▸ PCA on ", n_cells_dr, " cells × ", length(featuresToUmap), " features...")
+t0 <- Sys.time()
+sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
+message("    done (", format(round(Sys.time() - t0, 1)), ")")
+
+# PaCMAP — runs in an isolated Python subprocess (see R/run_python_dr.R).
+# In-process reticulate collides libomp runtimes with R's data.table on
+# macOS arm64 and segfaults during ANNOY's NN search. Falls back to Mpacmap
+# (pure R) if the p4r conda env is missing or the subprocess errors.
 if (dimRedMethodToUse == "pacmap") {
-  if (!MARMOT:::use_marmot_python()) {
-    message("Python PaCMAP unavailable -- falling back to Mpacmap (R).")
+  es <- as.matrix(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+  embedding <- MARMOT:::run_pacmap_subprocess(es, apply_pca = FALSE, verbose = TRUE)
+  if (is.null(embedding)) {
+    message("PaCMAP failed -- falling back to Mpacmap (R).")
     dimRedMethodToUse <- "Mpacmap"
   } else {
-    es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-    embedding <- tryCatch({
-      reticulate::source_python(system.file("python", "f_pacmap.py", package = "MARMOT"))
-      pacmap_fit(es, verbose = TRUE, apply_pca = FALSE)
-    }, error = function(e) { message("PaCMAP failed: ", e$message); NULL })
-    if (is.null(embedding)) {
-      message("PaCMAP failed -- falling back to Mpacmap (R).")
-      dimRedMethodToUse <- "Mpacmap"
-    } else {
-      colnames(embedding) <- c("x", "y")
-      reducedDim(sce, dimRedMethodToUse) <- embedding
-    }
+    colnames(embedding) <- c("x", "y")
+    reducedDim(sce, dimRedMethodToUse) <- embedding
   }
 }
 
@@ -1945,7 +1993,9 @@ if (!is.null(downsampleTo) && exists("originalCellCounts")) {
   print(barplotAllCells)
   cat("\n\n")
 }
+cat("\n\n")
 ```
+
 ### Pseudo-bulk MDS Plots
 
 ```{r, label = "build mds plots", include = FALSE}
@@ -1978,34 +2028,7 @@ if (gimmePDFs) {
 }
 ```
 
-### Non-redundancy score plot
-
-```{r, label = "plot nrs", fig.height=4, fig.width=12}
-plotNRS(sce, color_by = "condition", features = featureType) + scale_colour_manual(values = coloursList$condition)  + theme_prism(axis_text_angle = 90)
-```
-
-### Marker Expression Heatmap
-
-```{r, label = "plot marker expr heatmap", fig.height=8, fig.width=12}
-pEH <- plotExprHeatmap(sce, bin_anno = TRUE, row_anno = TRUE)
-for (con in conditions) {
-  pEH@left_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pEH@left_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pEH@left_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-}
-pEH
-```
-
 ::::::::::
-
-```{r, label = "save expression marker", include = FALSE, eval = gimmePDFs}
-if (gimmePDFs) {
-  pdf(file = file.path(pdfDir, "marker_heatmap.pdf"), width = 12, height = (nrowsCofactors*2), bg = "transparent")
-  print(pEH)
-  dev.off()
-}
-```
 
 ## `r paste(clusteringMethodToUse)` Cluster Analysis
 
@@ -2294,20 +2317,15 @@ if (gimmePDFs) {
 ```{r, label = "sample per cluster heatmap", fig.height=ceiling(length(numbersOfClusters)/3.5), fig.width=(ceiling(length(md$sample_id)/1.2))}
 pFH <- plotFreqHeatmap(
   x = sce,
-  k = clusteringMethodToUse, 
-  normalize = TRUE, 
-  col_clust = FALSE, 
-  bars = TRUE, 
-  perc = TRUE, 
+  k = clusteringMethodToUse,
+  normalize = TRUE,
+  col_clust = FALSE,
+  bars = TRUE,
+  perc = TRUE,
   hm_pal = hmPalToUse,
   k_pal = coloursList[[paste0(mergeBy, knn)]]
   )
-for (con in conditions) {
-  pFH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pFH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pFH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  pFH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pFH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-}
+pFH <- apply_anno_colours(pFH, conditions, coloursList)
 pFH
 ```
 
@@ -2322,80 +2340,6 @@ if (gimmePDFs) {
   print(pFH)
   dev.off()
 }
-```
-
-```{r, label = "function for custom heatmap"}
-x <- sce
-by <- "cluster_id"
-k <- clusteringMethodToUse
-assay = "exprs"
-fun = "median"
-scale = "first"
-q = 0.01
-features = NULL
-hm_pal = rev(brewer.pal(11, "RdYlBu"))
-left_anno = TRUE
-row_clust = TRUE
-row_anno = TRUE
-col_anno = TRUE
-perc = TRUE
-row_clust = TRUE 
-col_clust = TRUE
-row_dend = TRUE
-col_dend = TRUE
-linkage = c("average")
-
-x <- x[unique(CATALYST:::.get_features(x, features)), ]
-if (by != "sample_id") {
-  CATALYST:::.check_k(x, k)
-  x$cluster_id <- cluster_ids(x, k)
-}
-if (by == "both") {
-  by <- c("cluster_id", "sample_id")
-}
-.do_agg <- function() {
-  z <- CATALYST:::.agg(x, by, fun, assay)
-  if (length(by) == 1) {
-    return(z)
-  }
-  set_rownames(do.call("rbind", z), levels(x$cluster_id))
-}
-.do_scale <- function() {
-  if (scale == "first") {
-    z <- assay(x, assay)
-    z <- CATALYST:::.scale_exprs(z, 1, q)
-    assay(x, assay, FALSE) <- z
-    return(x)
-  } else {
-    CATALYST:::.scale_exprs(z, 1, q)
-  }
-}
-z <- switch(scale,
-            first = {
-              x <- .do_scale()
-              .do_agg()
-            },
-            last = {
-              z <- .do_agg()
-              .do_scale()
-            },
-            never = {
-              .do_agg()
-            }
-)
-if (length(by) == 1) {
-  z <- t(z)
-}
-if (scale != "never" && !(assay == "counts" && fun == "sum")) {
-  qs <- round(quantile(z, c(0.01, 0.99)) * 5) / 5
-  lgd_aes <- list(at = seq(qs[1], qs[2], 0.2))
-} else {
-  lgd_aes <- list()
-}
-lgd_aes$title_gp <- gpar(
-  fontsize = 10, fontface = "bold",
-  lineheight = 0.8
-)
 ```
 
 ::::::
@@ -2532,7 +2476,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
     g <- g + scale_fill_manual(values = coloursList[[names(selectedClustersList)[[i]]]])
     g <- g + ggtitle(names(dfList)[i])
     g <- g + scale_x_discrete(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0), labels = seq(0, 100, 25), limits = c(0, 100))
-    g <- g + theme_prism()
+    g <- g + theme_prism(axis_text_angle = 90)
     g <- g + theme(panel.border = element_blank(), panel.spacing.x = unit(1, "lines"))
     g <- g + ylab("Proportion [%]") + xlab("Sample ID")
     print(g)
@@ -2774,7 +2718,7 @@ paste(featuresToUmap)
 
 ```{r, label = "DR all cells", fig.height=6, fig.width=7, results = 'asis'}
 if (!is.null(drCellPerCondition)) {
-  cat("#### All Cells", dimRedMethodToUse, "\n\n")
+  cat("#### Clusters: All Cells \n\n")
   cat("Since you clustered on all available cells (after initial downsampling), here is a DR plot of all available cells. All subsequent DR plots are subset from this main DR plot.\n\n")
   dr0 <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, alpha = 0.9, show_cluster_labels = TRUE, show_grids = FALSE, text_size = 14) +
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
@@ -2812,7 +2756,7 @@ if (!is.null(drCellPerCondition)) {
 }
 ```
 
-#### All Samples: Selected Clusters
+#### Clusters: Selected Cells 
 
 ```{r, label = "main cluster DR 1", fig.height=6, fig.width=7}
 if (is.null(drCellPerCondition)) {
@@ -3169,12 +3113,7 @@ daResultsList <- setNames(lapply(names(daList), function(cont) {
   cat("\n\n")
   cat("####", cont, "Top 20 \n\n")
   pDH <- plotDiffHeatmap(sce, daList[[cont]], normalize = TRUE, all = TRUE, top_n = 20, col_anno = conditions)
-  for (con in conditions) {
-    pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  }
+  pDH <- apply_anno_colours(pDH, conditions, coloursList)
   print(pDH)
   cat("\n\n")
   cx <- cont |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "-", replacement = "_", x = _) |> gsub(pattern = "\\+", replacement = ".", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
@@ -3263,13 +3202,8 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
   }
 
   cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions)
-  for (con in conditions) {
-    pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  }
+  pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions, hm_pal = hmPalToUse)
+  pDH <- apply_anno_colours(pDH, conditions, coloursList)
   print(pDH)
   cat("\n\n")
   cat("**Full Results**\n\n")
@@ -3332,13 +3266,8 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
     cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
   }
   cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, col_anno = conditions)
-  for (con in conditions) {
-    pDH@top_annotation@anno_list[[con]]@color_mapping@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@color_mapping@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@colors <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-    pDH@top_annotation@anno_list[[con]]@fun@var_env[["color_mapping"]]@full_col <- coloursList[[con]][match(names(pDH@top_annotation@anno_list[[con]]@color_mapping@colors), names(coloursList[[con]]))]
-  }
+  pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, col_anno = conditions, hm_pal = hmPalToUse)
+  pDH <- apply_anno_colours(pDH, conditions, coloursList)
   print(pDH)
   cat("\n\n")
   cat("**Full Results**\n\n")
@@ -3367,6 +3296,10 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
 
 ### Heatmaps of DA Clusters
 
+```{r, label = "build da heatmap inputs", include = FALSE}
+.da_hm <- build_da_heatmap_inputs(sce, clusteringMethodToUse)
+```
+
 :::::::: panel-tabset
 
 ```{r, label = "heatmap by clusters", fig.height = 4, fig.width = 8, results = 'asis', message = FALSE}
@@ -3376,10 +3309,10 @@ for (i in seq_along(selectedClustersList)) {
 
     cat("####", names(selectedClustersList)[i], "\n\n")
     cl <- selectedClustersList[[i]]
-    x1 <- filterSCE(x, cluster_id %in% cl, k = clusteringMethodToUse)
+    x1 <- filterSCE(.da_hm$x, cluster_id %in% cl, k = clusteringMethodToUse)
     x1$cluster_id <- droplevels(x1$cluster_id)
 
-    ns <- table(x[[by[1]]])
+    ns <- table(.da_hm$x[["cluster_id"]])
     ns2 <- ns[which(names(ns) %in% cl)]
     fq <- round(ns/sum(ns) * 100, 2)
     txt <- sprintf("%s%%(%s)", fq, names(fq))
@@ -3389,7 +3322,7 @@ for (i in seq_along(selectedClustersList)) {
 
     left_anno <- CATALYST:::.anno_clusters(x1, "cluster_id", NULL, coloursList[[names(selectedClustersList)[[i]]]], NULL)
 
-    z1 <- z[selectedClustersList[[i]], ]
+    z1 <- .da_hm$z[selectedClustersList[[i]], ]
     h1 <- Heatmap(
       matrix = z1,
       name = paste0("median scaled\nexpression"),
@@ -3398,11 +3331,12 @@ for (i in seq_along(selectedClustersList)) {
       cluster_columns = FALSE,
       show_row_dend = TRUE,
       show_column_dend = TRUE,
-      show_row_names = (is.null(left_anno) || isTRUE(by == "sample_id")) && !perc, row_names_side = ifelse(by[1] == "cluster_id" || isFALSE(row_anno) && !row_dend || isFALSE(row_clust), "left", "right"),
+      show_row_names = FALSE,
+      row_names_side = "left",
       left_annotation = left_anno,
       right_annotation = right_anno,
       rect_gp = gpar(col = "white"),
-      heatmap_legend_param = lgd_aes
+      heatmap_legend_param = .da_hm$lgd_aes
     )
     print(h1)
     heatmapClustersList[[i]] <- h1
