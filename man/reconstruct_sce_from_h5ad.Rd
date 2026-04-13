@@ -4,7 +4,7 @@
 \alias{reconstruct_sce_from_h5ad}
 \title{Reconstruct a SingleCellExperiment from h5ad}
 \usage{
-reconstruct_sce_from_h5ad(h5ad_path)
+reconstruct_sce_from_h5ad(h5ad_path, ad = NULL)
 }
 \arguments{
 \item{h5ad_path}{Path to the marmot_results.h5ad file}

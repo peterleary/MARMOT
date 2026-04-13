@@ -90,7 +90,7 @@ knitr::opts_chunk$set(
   fig.width = 6,
   fig.height = 5,
   fig.retina = 1,
-  out.width = "40%",
+  out.width = "60%",
   dev = if (requireNamespace("ragg", quietly = TRUE)) "ragg_png" else "png"
 )
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
@@ -1365,6 +1365,7 @@ if (!is.null(drCellPerCondition)) {
         if (nrow(.x) > target_n) .x[sample(nrow(.x), target_n), ] else .x
       }) |>
       dplyr::ungroup()
+    down_df <- droplevels(down_df)
     umapDFList[[paste0("Downsampled.", method)]] <- down_df
   }
 }
@@ -1772,7 +1773,7 @@ plotUMAPNice <- function(
         dplyr::group_by(.data[[cluster_labels]]) |>
         dplyr::summarise(x = median(x), y = median(y)))
     if (colour_by %in% useMarkers) {
-      label_coords[[colour_by]] <- lapply(levels(df[[cluster_labels]]), function(level) {
+      label_coords[[colour_by]] <- lapply(label_coords[[cluster_labels]], function(level) {
         mean(df[[colour_by]][df[[cluster_labels]] == level])
       }) |> unlist()
       gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = FALSE)

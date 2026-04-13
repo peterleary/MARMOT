@@ -5,8 +5,7 @@
 # ────────────────────────────────────────────────────────────────────────────
 
 # ── Wait for data ──────────────────────────────────────────────────────────
-observe({
-  req(inputDataReactive$Results)
+observeEvent(inputDataReactive$Results, once = TRUE, {
   res                  <- inputDataReactive$Results
   sce                  <- res$sce
   umapDFList           <- res$umapDFList
@@ -78,7 +77,7 @@ observe({
     updateSliderInput(session, "pointAlphaUMAP", value = 0.6)
   }
 
-}) # end one-time data observer
+}) # end once-only data observer
 
 
 # Note: colour pickers are not in the v2 UI -- colour management is handled

@@ -366,6 +366,7 @@ server <- function(input, output, session) {
   genesReactive        <- reactiveValues(genes = NULL)
   cellsToKeepReactive  <- reactiveValues(sc2 = NULL)
   featurePlotReactive  <- reactiveValues(fp = NULL, needs_arrange = FALSE, ncol = 1)
+  drDataVersion        <- reactiveVal(0L)
 
   source("server-import.R",   local = TRUE)
   source("server-colours.R",  local = TRUE)

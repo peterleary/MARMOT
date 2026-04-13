@@ -128,7 +128,7 @@ output$clusterLabelTable <- DT::renderDataTable({
 
 # ── Cell edit observer ───────────────────────────────────────────────────────
 
-observeEvent(input$clusterLabelTable_cell_edit, ignoreNULL = FALSE, ignoreInit = TRUE, {
+observeEvent(input$clusterLabelTable_cell_edit, ignoreNULL = TRUE, ignoreInit = TRUE, {
   clusterTableReactive$table <- DT::editData(
     clusterTableReactive$table, input$clusterLabelTable_cell_edit
   )
@@ -154,13 +154,26 @@ observeEvent(input$applyRelabelling, {
     cluster_table = clusterTableReactive$table,
     source_column = active_col
   )
-  inputDataReactive$Results$sce         <- result$sce
-  inputDataReactive$Results$umapDFList  <- result$umapDFList
-  inputDataReactive$Results$coloursList <- result$coloursList
+  # Atomic update: single invalidation instead of three separate sub-field writes
+  res <- inputDataReactive$Results
+  res$sce         <- result$sce
+  res$umapDFList  <- result$umapDFList
+  res$coloursList <- result$coloursList
+  inputDataReactive$Results <- res
+
+  # Bump data version to force DR plot redraw even if UI inputs haven't changed
+  drDataVersion(isolate(drDataVersion()) + 1L)
 
   # Register relabelled palette so it appears in palette selector
   new_colours <- result$coloursList[["relabelled_clusters"]]
   colourPaletteList[["relabelled_clusters"]] <- new_colours
+
+  # Freeze inputs to prevent intermediate invalidations during batch update
+  freezeReactiveValue(input, "umapColourPalette")
+  freezeReactiveValue(input, "umapColumnToPlot")
+  freezeReactiveValue(input, "fpColumnToPlot")
+  freezeReactiveValue(input, "umapColumnToSplit")
+  freezeReactiveValue(input, "fpColumnToSplit")
 
   # Update palette selector to include the new palette
   updateSelectInput(session, "umapColourPalette",

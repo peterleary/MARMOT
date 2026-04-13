@@ -52,7 +52,7 @@ umap_inputs <- umap_inputs_raw |> debounce(umap_debounce_ms)
 
 # ── Main DR reactive ────────────────────────────────────────────────────────
 umapReactive <- eventReactive(
-  umap_inputs(),
+  list(umap_inputs(), drDataVersion()),
   ignoreNULL = FALSE,
   {
     req(input$umapDRToPlot, input$umapColumnToPlot)
@@ -138,6 +138,8 @@ umapReactive <- eventReactive(
         pal <- rep_len(pal, length(present_levels))
         colours <- setNames(pal[seq_along(present_levels)], present_levels)
       }
+      # Align colour vector order with factor levels (plotly uses positional matching)
+      colours <- colours[present_levels]
 
       # ── Split column ────────────────────────────────────────────────────
       split_col <- if (!is.null(inputs$umapColumnToSplit) &&
