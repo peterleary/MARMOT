@@ -25,8 +25,11 @@ For additional information, guidelines, and tips, please refer to the [Wiki](htt
 Good news! A new standalone desktop app that can prepare and run the entire MARMOT pipeline — no code required - is here! Download the latest release for your platform from the [GitHub Releases page](https://github.com/peterleary/MARMOT/releases).
 
 - **macOS**: Download the `.zip`, unzip, and open MARMOT.app.
-  > **Important — macOS Gatekeeper:** Because the app is not signed with an Apple Developer certificate, macOS will block it on first launch ("MARMOT.app is damaged" or "can't be verified"). To open it: **right-click** (or Control-click) the app → click **Open** → click **Open** again in the dialog. You only need to do this once. Alternatively, run `xattr -cr MARMOT.app` in Terminal.
-- **Windows**: Download and run the `.msi` installer. If SmartScreen warns "Windows protected your PC", click **More info** → **Run anyway**.
+  > **Important — macOS Gatekeeper:** Because the app is not signed with an Apple Developer certificate, macOS will block it on first launch.
+  > See the [Wiki](Opening-the-MARMOT-App-on-macOS) for instructions on how to open it anyway.
+- **Windows**: Download and run the `.msi` installer.
+  > If SmartScreen warns "Windows protected your PC", click **More info** → **Run anyway**.
+  > See the [Wiki](Opening-the-MARMOT-App-on-Windows) for instructions on how to open it anyway.
 - **Linux**: Download and extract the `.tar.gz`. Requires WebKit GTK: `sudo apt install libwebkit2gtk-4.1-0` (Ubuntu/Debian) or equivalent for your distro. Without it the app will not start.
 
 Nonetheless, it is still **highly** recommended to run the couple of lines of R code required to install and run the pipeline in R!
