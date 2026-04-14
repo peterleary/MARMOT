@@ -125,16 +125,15 @@
   onMount(async () => {
     splashStatus = "Loading metadata and detecting R & Quarto...";
 
-    // Metadata load + Rscript + Quarto detection in parallel (independent operations)
+    // Metadata load + Rscript + Quarto detection in parallel (independent operations).
+    // Start with an EMPTY metadata (pipeline settings defaults, no file rows,
+    // no marker rows) so the user's first action is to Open an existing Excel
+    // or Browse to an FCS folder — the Welcome panel explains both paths.
     const [rPath, , qPath] = await Promise.all([
       invoke("find_rscript_cached").catch(() => null),
-      invoke("load_default_metadata")
+      invoke("create_new_metadata")
         .then((d) => metadata.set(d))
-        .catch(() =>
-          invoke("create_new_metadata")
-            .then((d) => metadata.set(d))
-            .catch(() => {})
-        ),
+        .catch(() => {}),
       invoke("find_quarto_cached").catch(() => null),
     ]);
 

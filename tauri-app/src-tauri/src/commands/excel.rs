@@ -76,11 +76,19 @@ pub fn create_new_metadata() -> MetadataFile {
         })
         .collect();
 
+    // Headers must match what the pipeline QMD reads: it uses literal
+    // names like `Marker Type`, `Markers to include`, `Conditions Order`,
+    // etc. See inst/pipeline/MARMOT_Pipeline.qmd around line 380-420.
     let study_data = SheetData {
         headers: vec![
-            "fcs_colname".to_string(),
-            "antigen".to_string(),
-            "marker_class".to_string(),
+            "Conditions Order".to_string(),
+            "Cells per condition in UMAPs etc.".to_string(),
+            "Conditions To Test".to_string(),
+            "Markers to include".to_string(),
+            "Marker Type".to_string(),
+            "Cofactors for markers to use".to_string(),
+            "Markers to exclude completely".to_string(),
+            "Marker Pairs".to_string(),
         ],
         rows: Vec::new(),
     };

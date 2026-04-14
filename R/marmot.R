@@ -24,7 +24,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   metadata <- make_absolute_path(metadata)
   
   # Get the directory name
-  fp <- normalizePath(dirname(metadata), mustWork = TRUE)
+  fp <- normalizePath(dirname(metadata), mustWork = TRUE, winslash = "/")
   md_fp <- file.path(fp, basename(metadata))
 
   # Create results directory early so QMD + header + HTML all live there

@@ -512,9 +512,9 @@ conditionCols <- setNames(
 
 message("📥 Scanning FCS files...")
 
-# List all .fcs files
-fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE)
-fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files)]
+# List all .fcs files (case-insensitive — some cytometers export as .FCS)
+fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE, ignore.case = TRUE)
+fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files, ignore.case = TRUE)]
 fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
 
 # ── Header scan — get cell counts without loading data ────────────────────────
@@ -536,8 +536,8 @@ sys_ram_bytes <- tryCatch({
   } else if (os == "Linux") {
     as.numeric(system("awk '/MemTotal/{print $2 * 1024}' /proc/meminfo", intern = TRUE))
   } else {
-    as.numeric(system("wmic OS get TotalVisibleMemorySize /value 2>nul", intern = TRUE) |>
-      grep("=", value = TRUE) |> sub(".*=", "", x = _)) * 1024
+    as.numeric(trimws(system("wmic OS get TotalVisibleMemorySize /value 2>nul", intern = TRUE) |>
+      grep("=", value = TRUE) |> sub(".*=", "", x = _))) * 1024
   }
 }, error = function(e) NA_real_)
 sys_ram_gb <- if (!is.na(sys_ram_bytes)) sys_ram_bytes / 1024^3 else Inf
@@ -685,9 +685,9 @@ if (runQC == "FlowAI") {
   metricsQC <- "FR_FS"
 
   qc_dir <- file.path(fp, "resultsQC_flowAI")
-  expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
+  expected_qc_files <- gsub("\\.fcs$", "_QC.fcs", md$file_name)
   qc_present <- dir.exists(qc_dir) &&
-    all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC.fcs"))
+    all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC\\.fcs", ignore.case = TRUE))
 
   if (qc_present) {
     message("📁 QC files found on disk — skipping recomputation.")
@@ -713,9 +713,9 @@ if (runQC == "FlowAI") {
   }
 
   # Load and annotate QC summary table
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
-  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC)]
-  fcsNamesQC <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ\\.fcs", ignore.case = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
+  fcsNamesQC <- sub("_QC_highQ\\.fcs$", "", basename(fcsFilesQC))
 
   QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE) |>
     dplyr::distinct(`Name file`, .keep_all = TRUE)
@@ -737,8 +737,8 @@ if (runQC == "PeacoQC") {
 
   qc_dir <- file.path(fp, "resultsQC_peacoQC")
   qc_present <- dir.exists(qc_dir) && {
-    expected_qc_files <- gsub(".fcs$", "_QC.fcs", md$file_name)
-    actual_qc_paths <- list.files(qc_dir, pattern = "_QC\\.fcs$", recursive = TRUE, full.names = TRUE)
+    expected_qc_files <- gsub("\\.fcs$", "_QC.fcs", md$file_name)
+    actual_qc_paths <- list.files(qc_dir, pattern = "_QC\\.fcs$", recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
     all(expected_qc_files %in% basename(actual_qc_paths))
   }
 
@@ -776,7 +776,7 @@ if (runQC == "PeacoQC") {
     }
 
     # Generate combined QC summary table
-    qc_files <- list.files(path = qc_dir, pattern = "report.txt", recursive = TRUE, full.names = TRUE)
+    qc_files <- list.files(path = qc_dir, pattern = "report\\.txt", recursive = TRUE, full.names = TRUE)
     QCmini <- readr::read_tsv(qc_files[[1]], show_col_types = FALSE)
     if (length(qc_files) > 1) {
       for (j in 2:length(qc_files)) {
@@ -789,9 +789,9 @@ if (runQC == "PeacoQC") {
   }
 
   # Load QC summary table
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
-  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
-  fcsNamesQC <- sub("_QC.fcs$", "", basename(fcsFilesQC))
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC\\.fcs$", recursive = TRUE, ignore.case = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
+  fcsNamesQC <- sub("_QC\\.fcs$", "", basename(fcsFilesQC))
 
   QCmini <- readr::read_tsv(file.path(qc_dir, "QCmini.txt"), show_col_types = FALSE)
   QCmini <- QCmini[grep(paste0(fcsNamesQC, collapse = "|"), QCmini$Filename), ]
@@ -817,9 +817,9 @@ read_and_cap <- function(f) {
 # Load only the data that will actually be used for analysis
 if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
   # useQC=TRUE, FlowAI: load only QC'd FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ.fcs")
-  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC)]
-  fcsNamesQC <- sub("_QC_highQ.fcs$", "", basename(fcsFilesQC))
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ\\.fcs", ignore.case = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
+  fcsNamesQC <- sub("_QC_highQ\\.fcs$", "", basename(fcsFilesQC))
 
   framesList <- list()
   framesList[["FlowAI"]] <- setNames(
@@ -830,9 +830,9 @@ if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
 
 } else if (useQC && runQC == "PeacoQC" && exists("qc_dir") && dir.exists(qc_dir)) {
   # useQC=TRUE, PeacoQC: load only QC'd FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC.fcs$", recursive = TRUE)
-  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC)]
-  fcsNamesQC <- sub("_QC.fcs$", "", basename(fcsFilesQC))
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC\\.fcs$", recursive = TRUE, ignore.case = TRUE)
+  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
+  fcsNamesQC <- sub("_QC\\.fcs$", "", basename(fcsFilesQC))
 
   framesList <- list()
   framesList[["PeacoQC"]] <- setNames(

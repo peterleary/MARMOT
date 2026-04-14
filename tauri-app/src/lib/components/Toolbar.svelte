@@ -5,8 +5,20 @@
   import { pipelineState, rscriptPath, quartoPath, launchPipeline,
            pipelineOutputDir, pipelineHtmlPath } from "../stores/pipeline.js";
   import { validateSettings, validateFileData } from "../utils/validation.js";
+  import { scanFcsFolder } from "../utils/fcs-scan.js";
 
   let { onActiveTab = () => {} } = $props();
+
+  // Truncate long paths for the toolbar display — keep the last two segments
+  // so users see the meaningful filename/folder name. Full path is available
+  // via the tooltip.
+  function shortenPath(p) {
+    if (!p) return "";
+    const sep = p.includes("/") ? "/" : "\\";
+    const parts = p.split(sep).filter(Boolean);
+    if (parts.length <= 2) return p;
+    return "…" + sep + parts.slice(-2).join(sep);
+  }
 
   async function handleOpen() {
     const selected = await open({
@@ -62,8 +74,18 @@
 
   async function handleBrowse() {
     const selected = await open({ directory: true, title: "Select FCS folder" });
-    if (selected) {
-      fcsFolder.set(selected);
+    if (!selected) return;
+    try {
+      // Full scan: sets fcsFolder, enumerates files into file_data,
+      // peeks the first file for markers and pre-fills Study Data.
+      // Result is a small status object — we surface it via alert for now
+      // because the toolbar has no dedicated banner slot.
+      const result = await scanFcsFolder(selected);
+      if (result && result.kind === "warn") {
+        alert(result.text);
+      }
+    } catch (e) {
+      alert("Failed to scan FCS folder: " + (e.message || e));
     }
   }
 
@@ -126,18 +148,32 @@
 
 <div class="toolbar">
   <div class="toolbar-left">
-    <span class="toolbar-group-label">Metadata</span>
-    <button class="btn" onclick={handleNew} title="Create new metadata">New</button>
-    <button class="btn" onclick={handleOpen} title="Open metadata Excel">Open</button>
+    <span class="toolbar-group-label">Input</span>
+    <button class="btn" onclick={handleNew} title="Start from a blank metadata">New</button>
+    <button
+      class="btn"
+      onclick={handleOpen}
+      title="Open an existing MARMOT_Metadata.xlsx file"
+    >Open Metadata…</button>
+    <button
+      class="btn"
+      onclick={handleBrowse}
+      title="Point MARMOT at a folder of .fcs files. Enumerates files, fills in file_name / sample_id, and peeks the first file to pre-fill the marker panel."
+    >Open FCS Folder…</button>
     <button class="btn" onclick={handleSave} title="Save metadata Excel">Save{$isDirty ? " *" : ""}</button>
 
-    <div class="separator"></div>
-
-    <div class="folder-input">
-      <label for="fcs-folder">FCS Folder:</label>
-      <input id="fcs-folder" type="text" bind:value={$fcsFolder} placeholder="Select folder..." readonly />
-      <button class="btn btn-sm" onclick={handleBrowse}>Browse</button>
-    </div>
+    {#if $metadata.path || $fcsFolder}
+      <div class="separator"></div>
+      <div class="loaded-display" title={$metadata.path || $fcsFolder}>
+        {#if $metadata.path}
+          <span class="loaded-icon">📄</span>
+          <span class="loaded-path">{shortenPath($metadata.path)}</span>
+        {:else}
+          <span class="loaded-icon">📁</span>
+          <span class="loaded-path">{shortenPath($fcsFolder)}</span>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <div class="toolbar-right">
@@ -198,10 +234,6 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.78rem;
-  }
   .btn-run {
     background: #2563eb;
     color: #fff;
@@ -218,28 +250,45 @@
     background: #ccc;
     margin: 0 0.3rem;
   }
-  .folder-input, .run-name-input {
+  .run-name-input {
     display: flex;
     align-items: center;
     gap: 0.3rem;
   }
-  .folder-input label, .run-name-input label {
+  .run-name-input label {
     font-size: 0.8rem;
     color: #555;
     white-space: nowrap;
   }
-  .folder-input input, .run-name-input input {
+  .run-name-input input {
     padding: 0.3rem 0.5rem;
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 0.8rem;
     font-family: inherit;
-  }
-  .folder-input input {
-    width: 200px;
-    background: #fafafa;
-  }
-  .run-name-input input {
     width: 160px;
+  }
+  .loaded-display {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    background: #fafafa;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    color: #334155;
+    max-width: 320px;
+    cursor: default;
+  }
+  .loaded-icon {
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+  .loaded-path {
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

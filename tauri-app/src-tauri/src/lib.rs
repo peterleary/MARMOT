@@ -25,6 +25,7 @@ pub fn run() {
             commands::excel::create_new_metadata,
             commands::excel::save_template_to,
             commands::filesystem::scan_fcs_folder,
+            commands::filesystem::peek_fcs_markers,
             commands::filesystem::find_latest_results_dir,
             commands::filesystem::open_path,
             commands::filesystem::read_reload_settings,

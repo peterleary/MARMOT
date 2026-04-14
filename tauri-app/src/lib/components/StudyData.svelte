@@ -33,6 +33,8 @@
         cfg[i] = { type: "dropdown", options: conditions };
       } else if (h.includes("marker pairs") && markers.length > 0) {
         cfg[i] = { type: "marker_pair", options: markers };
+      } else if (h.includes("marker type")) {
+        cfg[i] = { type: "dropdown", options: ["type", "state"] };
       }
     }
     return cfg;

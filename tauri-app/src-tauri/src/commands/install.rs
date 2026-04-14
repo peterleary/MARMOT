@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
+use crate::process::new_command;
 use crate::process::runner::{enrich_path, strip_ansi};
 
 /// Internal helper: spawn a command, stream lines to `event_log`, emit `event_done` on completion.
@@ -13,7 +14,7 @@ fn spawn_streamed(
 ) {
     std::thread::spawn(move || {
         let enriched_path = enrich_path();
-        let mut child = match std::process::Command::new(&program)
+        let mut child = match new_command(&program)
             .args(&args)
             .env("PATH", &enriched_path)
             .stdout(Stdio::piped())
@@ -151,7 +152,7 @@ cat('MARMOT_PKG_STATUS:{', paste(pairs, collapse = ','), '}', sep = '')
 "#;
 
     let enriched_path = enrich_path();
-    let output = std::process::Command::new(&rscript_path)
+    let output = new_command(&rscript_path)
         .args(["-e", r_expr])
         .env("PATH", &enriched_path)
         .output();
@@ -187,7 +188,7 @@ pub fn install_quarto(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         // Try brew first, fall back to direct .pkg download from GitHub
-        let brew = std::process::Command::new("which")
+        let brew = new_command("which")
             .arg("brew")
             .env("PATH", &enriched_path)
             .output();
@@ -242,7 +243,7 @@ echo "The Quarto installer should now be open. Follow the prompts to install."
     #[cfg(target_os = "linux")]
     {
         // Check if curl is available
-        let curl = std::process::Command::new("which")
+        let curl = new_command("which")
             .arg("curl")
             .env("PATH", &enriched_path)
             .output();
@@ -290,7 +291,7 @@ echo "Quarto v$VER installed to {home}/.local/bin/quarto"
     #[cfg(target_os = "windows")]
     {
         // Try winget first, fall back to direct .exe download from GitHub
-        let winget = std::process::Command::new("where")
+        let winget = new_command("where")
             .arg("winget")
             .env("PATH", &enriched_path)
             .output();

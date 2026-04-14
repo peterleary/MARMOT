@@ -34,6 +34,12 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
 
   skipped <- character(0)
 
+  # Never offer to compile CRAN packages from source. Windows users without
+  # Rtools would otherwise be prompted interactively, which blocks automated
+  # installs (e.g. from the Tauri install panel). Binaries are always fine.
+  old_opt <- options(install.packages.compile.from.source = "never")
+  on.exit(options(old_opt), add = TRUE)
+
   # -- Bootstrap BiocManager --
   if (!requireNamespace("BiocManager", quietly = TRUE)) {
     install.packages("BiocManager")
@@ -134,16 +140,28 @@ install_marmot_extras <- function(include_suggests = TRUE, include_python = TRUE
     fireworks   = "hypebright/fireworks"
   )
 
+  # Rphenograph is a C++ Rcpp package. On Windows without Rtools, pak will
+  # block on an interactive Rtools prompt rather than failing cleanly — which
+  # hangs the Tauri install panel. Skip it preemptively and point users at
+  # the pure-R Mphenograph / MfastPG bundled in MARMOT.
+  has_toolchain <- tryCatch(
+    requireNamespace("pkgbuild", quietly = TRUE) &&
+      pkgbuild::has_build_tools(debug = FALSE),
+    error = function(e) FALSE
+  )
+  if (!has_toolchain) {
+    message("No C/C++ toolchain detected (Rtools on Windows, Xcode CLT on macOS). ",
+            "Skipping Rphenograph -- MARMOT's Mphenograph / MfastPG are pure-R ",
+            "reimplementations with identical results.")
+    github_pkgs$Rphenograph <- NULL
+    skipped <- c(skipped, "Rphenograph")
+  }
+
   for (pkg_name in names(github_pkgs)) {
     ok <- try_install_github(pkg_name, github_pkgs[[pkg_name]])
     if (!ok) {
       skipped <- c(skipped, pkg_name)
     }
-  }
-
-  if ("Rphenograph" %in% skipped) {
-    message("Note: Rphenograph (C++) not installed -- use MfastPG or Mphenograph ",
-            "(bundled in MARMOT, identical results)")
   }
 
   # =========================================================================

@@ -1,4 +1,5 @@
 use tauri::{AppHandle, State};
+use crate::process::new_command;
 use crate::process::runner::{self, SharedProcess, SharedShinyProcess};
 
 #[tauri::command]
@@ -50,7 +51,7 @@ pub fn launch_shiny_app(
 
     let enriched_path = runner::enrich_path();
 
-    let mut cmd = std::process::Command::new(&rscript_path);
+    let mut cmd = new_command(&rscript_path);
     cmd.args(["-e", &r_expr])
         .env("PATH", &enriched_path)
         .stdout(std::process::Stdio::null())

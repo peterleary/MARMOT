@@ -52,19 +52,32 @@
     <div class="step">
       <span class="step-number">2</span>
       <div class="step-body">
-        <strong>Load your metadata file</strong>
+        <strong>Point MARMOT at your data</strong>
         <span>
-          Click <b>Open</b> in the toolbar above to load the <code>MARMOT_Metadata.xlsx</code> file.
-          This file should live in the same folder as your FCS files &mdash; the FCS folder is set automatically when you open it.
-          The metadata file contains three sheets:
+          There are two ways to start — either works:
         </span>
         <ul>
-          <li><b>Pipeline Settings</b> &mdash; clustering method, DR, QC, contrasts, etc.</li>
-          <li><b>Study Design</b> &mdash; marker panel: <code>fcs_colname</code>, <code>antigen</code>, and <code>marker_class</code> (type, state, or none)</li>
-          <li><b>File Data</b> &mdash; one row per FCS file with <code>file_name</code>, <code>sample_id</code>, <code>condition</code>, and any other grouping variables</li>
+          <li>
+            <b>I have a folder of FCS files.</b>
+            Click <b>Browse</b> next to "FCS Folder" in the toolbar and pick the folder.
+            MARMOT enumerates the files, fills in <code>file_name</code> / <code>sample_id</code>,
+            peeks the first file to pre-fill the marker panel, and leaves <code>condition</code>
+            blank for you to set.
+          </li>
+          <li>
+            <b>I already have a metadata Excel file.</b>
+            Click <b>Open</b> in the toolbar to load an existing <code>MARMOT_Metadata.xlsx</code>.
+            The FCS folder is set automatically from its parent directory.
+          </li>
         </ul>
         <span>
-          Don't have a metadata file yet? Download the template to your FCS folder, fill it in, then open it:
+          The metadata has three sheets: <b>Pipeline Settings</b> (clustering, DR, QC,
+          contrasts), <b>Study Design</b> (the marker panel — <code>fcs_colname</code>,
+          <code>antigen</code>, <code>marker_class</code>), and <b>File Data</b>
+          (one row per FCS file with grouping variables).
+        </span>
+        <span>
+          Need a blank template? Save one to fill in by hand:
         </span>
         <div class="template-action">
           <button
@@ -78,9 +91,6 @@
             <span class="save-msg" class:error={saveMessage.startsWith("Error")}>{saveMessage}</span>
           {/if}
         </div>
-        <span>
-          You can also use <b>Scan FCS Folder</b> in the <b>Files</b> tab to auto-populate filenames.
-        </span>
       </div>
     </div>
 

@@ -1,7 +1,7 @@
 <script>
-  import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { metadata, isDirty, fcsFolder } from "../stores/metadata.js";
+  import { metadata, isDirty } from "../stores/metadata.js";
+  import { scanFcsFolder } from "../utils/fcs-scan.js";
   import EditableTable from "./EditableTable.svelte";
 
   let scanning = $state(false);
@@ -47,36 +47,15 @@
     return warnings;
   });
 
+  let markerInfoMsg = $state(null);
+
   async function scanFolder() {
     try {
       const selected = await open({ directory: true, title: "Select FCS folder" });
       if (!selected) return;
-
-      fcsFolder.set(selected);
       scanning = true;
-
-      const files = await invoke("scan_fcs_folder", { path: selected });
-
-      metadata.update((m) => {
-        if (!m.file_data.headers.includes("file_name")) {
-          m.file_data.headers = ["file_name", "sample_id", "condition", ...m.file_data.headers.filter(h => !["file_name", "sample_id", "condition"].includes(h))];
-        }
-
-        const fnIdx = m.file_data.headers.indexOf("file_name");
-        const sidIdx = m.file_data.headers.indexOf("sample_id");
-
-        m.file_data.rows = files.map((fname, i) => {
-          const row = m.file_data.headers.map(() => "");
-          row[fnIdx] = fname;
-          if (sidIdx >= 0) {
-            row[sidIdx] = fname.replace(/\.fcs$/i, "");
-          }
-          return row;
-        });
-        return m;
-      });
-
-      isDirty.set(true);
+      markerInfoMsg = null;
+      markerInfoMsg = await scanFcsFolder(selected);
     } catch (e) {
       console.error("Scan failed:", e);
     } finally {
@@ -99,6 +78,13 @@
       {scanning ? "Scanning..." : "Scan FCS Folder"}
     </button>
   </div>
+  {#if markerInfoMsg}
+    <div class="marker-info-wrap">
+      <div class="marker-info marker-info-{markerInfoMsg.kind}">
+        {markerInfoMsg.text}
+      </div>
+    </div>
+  {/if}
   {#if caseWarnings.length > 0}
     <div class="case-warnings">
       {#each caseWarnings as [a, b]}
@@ -164,5 +150,24 @@
   .cw-val {
     font-family: monospace;
     font-weight: 600;
+  }
+  .marker-info-wrap {
+    padding: 0.5rem 1rem 0;
+  }
+  .marker-info {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    border-left: 3px solid;
+  }
+  .marker-info-info {
+    background: #eff6ff;
+    border-left-color: #2563eb;
+    color: #1e3a8a;
+  }
+  .marker-info-warn {
+    background: #fef3c7;
+    border-left-color: #f59e0b;
+    color: #92400e;
   }
 </style>

@@ -1,7 +1,9 @@
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::io::{BufRead, BufReader};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
+
+use super::new_command;
 
 /// Parse a Quarto chunk-progress line such as `58/249 [dim_reduction]`
 /// or `51/249` (for unnamed chunks). Returns `(done, total, chunk_name)`,
@@ -135,7 +137,7 @@ pub fn kill_shiny(process: &SharedShinyProcess) {
         }
         #[cfg(windows)]
         {
-            let _ = Command::new("taskkill")
+            let _ = new_command("taskkill")
                 .args(["/T", "/F", "/PID", &pid.to_string()])
                 .output();
         }
@@ -171,7 +173,7 @@ pub fn find_quarto() -> Option<String> {
 
     // Use enriched PATH for the fallback so ~/.local/bin etc. are searched
     let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Ok(output) = Command::new(cmd)
+    if let Ok(output) = new_command(cmd)
         .arg("quarto")
         .env("PATH", enrich_path())
         .output()
@@ -189,7 +191,7 @@ pub fn find_quarto() -> Option<String> {
 }
 
 pub fn get_quarto_version(quarto_path: &str) -> Result<String, String> {
-    let output = Command::new(quarto_path)
+    let output = new_command(quarto_path)
         .arg("--version")
         .env("PATH", enrich_path())
         .output()
@@ -246,7 +248,7 @@ pub fn find_rscript() -> Option<String> {
 
     // Try which/where (use enriched PATH so user-local installs are found)
     let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Ok(output) = Command::new(cmd)
+    if let Ok(output) = new_command(cmd)
         .arg("Rscript")
         .env("PATH", enrich_path())
         .output()
@@ -293,7 +295,7 @@ pub fn get_r_info(rscript_path: &str) -> Result<(String, bool), String> {
         " tolower(requireNamespace('MARMOT', quietly=TRUE)),",
         " '\\n', sep='')"
     );
-    let output = Command::new(rscript_path)
+    let output = new_command(rscript_path)
         .args(["-e", r_expr])
         .env("PATH", enrich_path())
         .output()
@@ -347,7 +349,7 @@ pub fn spawn_pipeline(
             safe_name
         );
 
-        let mut cmd = Command::new(&rscript_path);
+        let mut cmd = new_command(&rscript_path);
         cmd.args(["-e", &r_expr])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -471,7 +473,7 @@ pub fn kill_pipeline(process: &SharedProcess) -> Result<(), String> {
         }
         #[cfg(windows)]
         {
-            let _ = Command::new("taskkill")
+            let _ = new_command("taskkill")
                 .args(["/T", "/F", "/PID", &pid.to_string()])
                 .output();
         }
