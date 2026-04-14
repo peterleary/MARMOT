@@ -1,7 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { rscriptPath, installState, installLines, installStartTime, packageStatus } from "../stores/pipeline.js";
+  import { rscriptPath, installState, installLines, installStartTime, packageStatus, marmotInstalled } from "../stores/pipeline.js";
 
   let logContainer = $state(null);
   let includeSuggests = $state(true);
@@ -47,6 +47,10 @@
       unlistenLog();
       unlistenDone();
       try {
+        if (e.payload.success) {
+          const [, installed] = await invoke("get_r_info", { rscriptPath: $rscriptPath });
+          marmotInstalled.set(installed);
+        }
         const status = await invoke("query_installed_packages", { rscriptPath: $rscriptPath });
         packageStatus.set(status);
       } catch (_) {}
