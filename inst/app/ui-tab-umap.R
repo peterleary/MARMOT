@@ -56,7 +56,7 @@ tabItem(
 
           # --- Size + Colour tab ---
           tabPanel(
-            title = "Size+Colour",
+            title = "Size & Colour",
             selectInput(
               inputId = "umapColourPalette",
               label = "Colour palette",
@@ -91,7 +91,7 @@ tabItem(
             splitLayout(
               sliderInput(
                 inputId = "pointSizeUMAP", label = "Dot size",
-                min = 0.1, max = 4, value = 1.5, step = 0.1,
+                min = 0.1, max = 4, value = 0.3, step = 0.1,
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
@@ -282,9 +282,9 @@ tabItem(
         width = NULL,
         tabsetPanel(
 
-          # --- Inputs tab ---
+          # --- Controls tab: plot type + common inputs + dynamic per-type block ---
           tabPanel(
-            title = "Inputs",
+            title = "Controls",
             selectInput(
               inputId = "featurePlotType",
               label = "Select a plot type",
@@ -351,55 +351,19 @@ tabItem(
               label = "Show DA clusters",
               choices = c("None", "All", "Up only", "Down only"),
               selected = "None"
-            )
+            ),
+            # Dynamic plot-type-specific controls (sections keyed off
+            # input$featurePlotType). See server-plots.R output$plotTypeControls.
+            uiOutput(outputId = "plotTypeControls"),
+            # Warning slot
+            uiOutput(outputId = "umapFeaturePlotWarningUI")
           ),
 
-          # --- Advanced settings tab ---
+          # --- Layout tab: size, colour, plot-by, split-by ---
           tabPanel(
-            title = "Advanced",
-            uiOutput(outputId = "fpNebulosaOutputUI1", inline = TRUE),
-            uiOutput(outputId = "fpNebulosaOutputUI2", inline = TRUE),
-            lapply(0:10, function(i) {
-              uiOutput(
-                outputId = paste0("umapFeaturePlotSettingsUI", i),
-                inline = TRUE
-              )
-            }),
-            # Dot Plot settings
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI1", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI2", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI3", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI4", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI5", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI6", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI7", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotDotPlotUI8", inline = TRUE),
-            # Violin settings
-            uiOutput(outputId = "umapFeaturePlotViolinUI1", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotViolinUI2", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotViolinUI3", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotViolinUI4", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotViolinUI5", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotViolinUI6", inline = TRUE),
-            # Heatmap settings
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI1", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI2", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI3", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI4", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI5", inline = TRUE),
-            uiOutput(outputId = "umapFeaturePlotHeatmapUI6", inline = TRUE),
-            # Ridge settings
-            uiOutput(outputId = "fpRidgePlotUI1", inline = TRUE),
-            uiOutput(outputId = "fpRidgePlotUI2", inline = TRUE),
-            # Warning
-            uiOutput(outputId = "umapFeaturePlotWarningUI", inline = TRUE),
-            # Barplot settings
-            # (Barplot moved to Analysis section)
-          ),
-
-          # --- Size + Colour tab ---
-          tabPanel(
-            title = "Size+Colour",
+            title = "Layout",
+            tags$h5("Colour",
+                    style = "margin-top: 0.5rem; margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid #ddd; font-weight: 600; color: #555;"),
             selectInput(
               inputId = "viridisColourFP",
               label = "Colour palette",
@@ -418,6 +382,14 @@ tabItem(
               label = "Flip colour scale?",
               value = FALSE
             ),
+            selectInput(
+              inputId = "fpLegendPosition",
+              label = "Legend Position",
+              choices = c("Right" = "right", "Bottom" = "bottom", "None" = "none"),
+              selected = "right"
+            ),
+            tags$h5("Size",
+                    style = "margin-top: 1rem; margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid #ddd; font-weight: 600; color: #555;"),
             splitLayout(
               sliderInput(
                 inputId = "textSizeFP", label = "Font Size",
@@ -447,29 +419,17 @@ tabItem(
                 width = "85%", ticks = FALSE
               )
             ),
-            selectInput(
-              inputId = "fpLegendPosition",
-              label = "Legend Position",
-              choices = c("Right" = "right", "Bottom" = "bottom", "None" = "none"),
-              selected = "right"
-            )
-          ),
-
-          # --- Plot-By tab ---
-          tabPanel(
-            title = "Plot-By",
-            uiOutput(outputId = "plotByBucket")
-          ),
-
-          # --- Split-By tab ---
-          tabPanel(
-            title = "Split-By",
+            tags$h5("Plot by",
+                    style = "margin-top: 1rem; margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid #ddd; font-weight: 600; color: #555;"),
+            uiOutput(outputId = "plotByBucket"),
+            tags$h5("Split by",
+                    style = "margin-top: 1rem; margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid #ddd; font-weight: 600; color: #555;"),
             uiOutput(outputId = "splitByBucket")
           ),
 
           # --- Subset cells tab ---
           tabPanel(
-            title = "Subset cells",
+            title = "Subset",
             radioButtons(
               inputId = "fpSubsetMode",
               label = "Subset mode",

@@ -13,19 +13,23 @@
     "#e8d5f5", "#cfe2f3", "#f4cccc", "#d9ead3", "#fff2cc",
   ];
 
-  // Deterministic colour from string — same string always gets the same colour
-  function hashColor(str) {
-    let h = 0;
-    for (let i = 0; i < str.length; i++) {
-      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  let conditionColourMap = $derived.by(() => {
+    const condIdx = $metadata.file_data.headers.indexOf("condition");
+    if (condIdx < 0) return new Map();
+    const map = new Map();
+    for (const row of $metadata.file_data.rows) {
+      const v = (row[condIdx] || "").trim();
+      if (v && !map.has(v)) {
+        map.set(v, PALETTE[map.size % PALETTE.length]);
+      }
     }
-    return PALETTE[((h % PALETTE.length) + PALETTE.length) % PALETTE.length];
-  }
+    return map;
+  });
 
   function cellStyle(rowIdx, colIdx, value) {
     const condIdx = $metadata.file_data.headers.indexOf("condition");
     if (colIdx !== condIdx || !value || !value.trim()) return null;
-    return { "background-color": hashColor(value.trim()) };
+    return { "background-color": conditionColourMap.get(value.trim()) };
   }
 
   // Detect near-duplicate conditions (differ only in case)

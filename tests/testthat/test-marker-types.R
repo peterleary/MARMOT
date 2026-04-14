@@ -35,9 +35,20 @@ build_marker_class_test <- function(param_df, useMarkers, markerType,
   panel
 }
 
-#' Replicate QMD lines 790-799: select markers for clustering
-select_cluster_features_test <- function(panel, featureType, markersToClusterBy) {
-  if (!is.null(featureType) && markersToClusterBy == "type") {
+#' Replicate QMD: is the panel homogeneous (missing one of type/state)?
+#' Matches the idiom used at MARMOT_Pipeline.qmd L622.
+is_homogeneous_test <- function(markerType) {
+  !(("type" %in% markerType) && ("state" %in% markerType))
+}
+
+#' Replicate QMD clustering feature selection (MARMOT_Pipeline.qmd L1044-1058).
+#' When homogeneousPanel is TRUE, the user's markersToClusterBy choice is
+#' overridden and all panel markers are returned.
+select_cluster_features_test <- function(panel, featureType, markersToClusterBy,
+                                         homogeneousPanel = FALSE) {
+  if (homogeneousPanel) {
+    panel$marker_name
+  } else if (!is.null(featureType) && markersToClusterBy == "type") {
     panel$marker_name[panel$marker_class == "type"]
   } else if (!is.null(featureType) && markersToClusterBy == "state") {
     panel$marker_name[panel$marker_class == "state"]
@@ -48,9 +59,14 @@ select_cluster_features_test <- function(panel, featureType, markersToClusterBy)
   }
 }
 
-#' Replicate QMD lines 940-946: select markers for DR
-select_dr_features_test <- function(panel, featureType, markersToDimRedBy) {
-  if (!is.null(featureType) && markersToDimRedBy == "type") {
+#' Replicate QMD DR feature selection (MARMOT_Pipeline.qmd L1224-1233 and
+#' L1241-1250). When homogeneousPanel is TRUE, the user's markersToDimRedBy
+#' choice is overridden and all panel markers are returned.
+select_dr_features_test <- function(panel, featureType, markersToDimRedBy,
+                                    homogeneousPanel = FALSE) {
+  if (homogeneousPanel) {
+    panel$marker_name
+  } else if (!is.null(featureType) && markersToDimRedBy == "type") {
     panel$marker_name[panel$marker_class == "type"]
   } else if (!is.null(featureType) && markersToDimRedBy == "state") {
     panel$marker_name[panel$marker_class == "state"]
@@ -162,6 +178,7 @@ scenarios <- list(
     expect_type_markers = org19_type_markers,
     expect_state_markers = org19_state_markers,
     expect_heatmap_split = TRUE,
+    expect_homogeneous = FALSE,
     include_pairs = TRUE
   ),
   all_state = list(
@@ -172,6 +189,7 @@ scenarios <- list(
     expect_type_markers = character(0),
     expect_state_markers = org19_markers,
     expect_heatmap_split = FALSE,
+    expect_homogeneous = TRUE,
     include_pairs = FALSE
   ),
   all_type = list(
@@ -182,6 +200,7 @@ scenarios <- list(
     expect_type_markers = org19_markers,
     expect_state_markers = character(0),
     expect_heatmap_split = FALSE,
+    expect_homogeneous = TRUE,
     include_pairs = FALSE
   ),
   min_1t_1s = list(
@@ -192,6 +211,7 @@ scenarios <- list(
     expect_type_markers = "CD4",
     expect_state_markers = "KLRG1",
     expect_heatmap_split = TRUE,
+    expect_homogeneous = FALSE,
     include_pairs = TRUE
   ),
   min_1t_20s = list(
@@ -202,6 +222,7 @@ scenarios <- list(
     expect_type_markers = "CD4",
     expect_state_markers = org19_markers[2:21],
     expect_heatmap_split = TRUE,
+    expect_homogeneous = FALSE,
     include_pairs = TRUE
   ),
   min_20t_1s = list(
@@ -212,6 +233,7 @@ scenarios <- list(
     expect_type_markers = org19_markers[1:20],
     expect_state_markers = "ICOS",
     expect_heatmap_split = TRUE,
+    expect_homogeneous = FALSE,
     include_pairs = TRUE
   )
 )
@@ -334,49 +356,55 @@ test_that("select_cluster_features: 'all' returns all markers in Excel order", {
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_cluster_features_test(panel, info$featureType, "all")
+    features <- select_cluster_features_test(panel, info$featureType, "all",
+                                             homogeneousPanel = hp)
     expect_equal(features, sc$markers, info = paste(sc$name, "cluster by all"))
   }
 })
 
-test_that("select_cluster_features: 'type' returns type markers in Excel order", {
+test_that("select_cluster_features: 'type' returns type markers (or all if homogeneous)", {
   for (sc_name in names(scenarios)) {
     sc <- scenarios[[sc_name]]
     smd <- make_study_data(sc$markers, sc$types)
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_cluster_features_test(panel, info$featureType, "type")
+    features <- select_cluster_features_test(panel, info$featureType, "type",
+                                             homogeneousPanel = hp)
 
-    if (!is.null(info$featureType)) {
+    if (hp) {
+      # Homogeneous panel → override to all markers regardless of choice
+      expect_equal(features, sc$markers,
+                   info = paste(sc$name, "homogeneous override (cluster by type)"))
+    } else {
       expect_equal(features, sc$expect_type_markers,
                    info = paste(sc$name, "cluster by type"))
-    } else {
-      # featureType is NULL → "type" setting falls through to "all"
-      expect_equal(features, sc$markers,
-                   info = paste(sc$name, "cluster by type with NULL featureType"))
     }
   }
 })
 
-test_that("select_cluster_features: 'state' returns state markers in Excel order", {
+test_that("select_cluster_features: 'state' returns state markers (or all if homogeneous)", {
   for (sc_name in names(scenarios)) {
     sc <- scenarios[[sc_name]]
     smd <- make_study_data(sc$markers, sc$types)
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_cluster_features_test(panel, info$featureType, "state")
+    features <- select_cluster_features_test(panel, info$featureType, "state",
+                                             homogeneousPanel = hp)
 
-    if (!is.null(info$featureType)) {
+    if (hp) {
+      expect_equal(features, sc$markers,
+                   info = paste(sc$name, "homogeneous override (cluster by state)"))
+    } else {
       expect_equal(features, sc$expect_state_markers,
                    info = paste(sc$name, "cluster by state"))
-    } else {
-      expect_equal(features, sc$markers,
-                   info = paste(sc$name, "cluster by state with NULL featureType"))
     }
   }
 })
@@ -391,50 +419,107 @@ test_that("select_dr_features: 'all' returns all markers in Excel order", {
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_dr_features_test(panel, info$featureType, "all")
+    features <- select_dr_features_test(panel, info$featureType, "all",
+                                        homogeneousPanel = hp)
     expect_equal(features, sc$markers, info = paste(sc$name, "DR by all"))
   }
 })
 
-test_that("select_dr_features: 'type' returns type markers in Excel order", {
+test_that("select_dr_features: 'type' returns type markers (or all if homogeneous)", {
   for (sc_name in names(scenarios)) {
     sc <- scenarios[[sc_name]]
     smd <- make_study_data(sc$markers, sc$types)
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_dr_features_test(panel, info$featureType, "type")
+    features <- select_dr_features_test(panel, info$featureType, "type",
+                                        homogeneousPanel = hp)
 
-    if (!is.null(info$featureType)) {
+    if (hp) {
+      expect_equal(features, sc$markers,
+                   info = paste(sc$name, "homogeneous override (DR by type)"))
+    } else {
       expect_equal(features, sc$expect_type_markers,
                    info = paste(sc$name, "DR by type"))
-    } else {
-      expect_equal(features, sc$markers,
-                   info = paste(sc$name, "DR by type with NULL featureType"))
     }
   }
 })
 
-test_that("select_dr_features: 'state' returns state markers in Excel order", {
+test_that("select_dr_features: 'state' returns state markers (or all if homogeneous)", {
   for (sc_name in names(scenarios)) {
     sc <- scenarios[[sc_name]]
     smd <- make_study_data(sc$markers, sc$types)
     info <- extract_marker_info_test(smd)
     param_df <- make_param_df_with_scatter(sc$markers)
     panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+    hp <- is_homogeneous_test(info$markerType)
 
-    features <- select_dr_features_test(panel, info$featureType, "state")
+    features <- select_dr_features_test(panel, info$featureType, "state",
+                                        homogeneousPanel = hp)
 
-    if (!is.null(info$featureType)) {
+    if (hp) {
+      expect_equal(features, sc$markers,
+                   info = paste(sc$name, "homogeneous override (DR by state)"))
+    } else {
       expect_equal(features, sc$expect_state_markers,
                    info = paste(sc$name, "DR by state"))
-    } else {
-      expect_equal(features, sc$markers,
-                   info = paste(sc$name, "DR by state with NULL featureType"))
     }
   }
+})
+
+
+# ── A3b: homogeneousPanel detection ──────────────────────────────────────────
+
+test_that("is_homogeneous_test: correct for each scenario", {
+  for (sc_name in names(scenarios)) {
+    sc <- scenarios[[sc_name]]
+    smd <- make_study_data(sc$markers, sc$types)
+    info <- extract_marker_info_test(smd)
+    expect_equal(is_homogeneous_test(info$markerType), sc$expect_homogeneous,
+                 info = paste(sc$name, "homogeneousPanel"))
+  }
+})
+
+test_that("is_homogeneous_test: TRUE for empty markerType (missing column / all-NA)", {
+  # Missing Marker Type column → markerType is named(character(0))
+  expect_true(is_homogeneous_test(setNames(character(0), character(0))))
+  # Explicitly NULL
+  expect_true(is_homogeneous_test(NULL))
+})
+
+test_that("REGRESSION: all-type panel + 'state' choice no longer returns empty", {
+  # Before the homogeneousPanel fix, an all-type panel with markersToClusterBy
+  # or markersToDimRedBy set to "state" produced character(0) and crashed
+  # downstream in prcomp / FlowSOM / phenograph. It must now return all markers.
+  sc <- scenarios$all_type
+  smd <- make_study_data(sc$markers, sc$types)
+  info <- extract_marker_info_test(smd)
+  param_df <- make_param_df_with_scatter(sc$markers)
+  panel <- build_marker_class_test(param_df, sc$markers, info$markerType)
+  hp <- is_homogeneous_test(info$markerType)
+  expect_true(hp, info = "All-type panel is homogeneous")
+
+  # Reproduce the old broken behaviour without the override for comparison
+  old_cluster <- select_cluster_features_test(panel, info$featureType, "state",
+                                              homogeneousPanel = FALSE)
+  expect_length(old_cluster, 0)
+
+  old_dr <- select_dr_features_test(panel, info$featureType, "state",
+                                    homogeneousPanel = FALSE)
+  expect_length(old_dr, 0)
+
+  # Fixed behaviour with the homogeneous override
+  new_cluster <- select_cluster_features_test(panel, info$featureType, "state",
+                                              homogeneousPanel = hp)
+  expect_equal(new_cluster, sc$markers)
+
+  new_dr <- select_dr_features_test(panel, info$featureType, "state",
+                                    homogeneousPanel = hp)
+  expect_equal(new_dr, sc$markers)
 })
 
 

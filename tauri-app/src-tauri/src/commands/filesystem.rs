@@ -43,16 +43,30 @@ pub fn find_latest_results_dir(fcs_folder: String) -> Result<String, String> {
 #[tauri::command]
 pub fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    let cmd = "open";
+    {
+        new_command("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+    }
     #[cfg(target_os = "linux")]
-    let cmd = "xdg-open";
+    {
+        new_command("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+    }
     #[cfg(target_os = "windows")]
-    let cmd = "explorer";
-
-    new_command(cmd)
-        .arg(&path)
-        .spawn()
-        .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+    {
+        // `explorer <file>` doesn't reliably launch a file's default handler —
+        // it opens File Explorer instead. `cmd /c start "" "<path>"` routes
+        // through ShellExecute, which opens HTML in the default browser and
+        // still handles directories correctly.
+        new_command("cmd")
+            .args(["/c", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+    }
     Ok(())
 }
 

@@ -412,7 +412,8 @@ featureType <- if ("Marker Type" %in% names(smd)) {
   types <- na.omit(smd$`Marker Type`)
   if ("type" %in% types) "type" else NULL
 } else {
-  stop("Metadata file must contain 'Marker Type' column.")
+  warning("Metadata has no 'Marker Type' column \u2014 all markers will be used for clustering and DR.")
+  NULL
 }
 
 # Markers to exclude
@@ -612,6 +613,19 @@ panel <- param_df |>
   dplyr::filter(!marker_name %in% removeMarkers) |>
   dplyr::filter(marker_name %in% useMarkers) |>
   dplyr::arrange(match(marker_name, useMarkers))
+
+# Homogeneous panel: missing one of the two marker classes (type or state).
+# Reuses the idiom already used at the marker-pair / heatmap chunks below.
+# When TRUE, clustering and DR override markersToClusterBy / markersToDimRedBy
+# and run on every marker in the panel — the type/state distinction is
+# meaningless here.
+homogeneousPanel <- !(("type" %in% markerType) && ("state" %in% markerType))
+if (homogeneousPanel) {
+  message(sprintf(
+    "\u2139\ufe0f  Panel is homogeneous \u2014 clustering and DR will run on all %d markers, ignoring markersToClusterBy/markersToDimRedBy.",
+    length(panel$marker_name)
+  ))
+}
 
 # Sanity check
 missing <- setdiff(useMarkers, panel$marker_name)
@@ -1027,7 +1041,9 @@ invisible(gc())
 ```{r select_assay_and_markers, results = "hide"}
 
 # Define which markers to use for clustering
-if (!is.null(featureType) && markersToClusterBy == "type") {
+if (homogeneousPanel) {
+  featuresToCluster <- panel$marker_name
+} else if (!is.null(featureType) && markersToClusterBy == "type") {
   featuresToCluster <- panel$marker_name[panel$marker_class == "type"]
 } else if (!is.null(featureType) && markersToClusterBy == "state") {
   featuresToCluster <- panel$marker_name[panel$marker_class == "state"]
@@ -1204,7 +1220,9 @@ numbersOfClusters <- gtools::mixedsort(levels(kids))
 # Derive featuresToUmap from panel — works for both fresh run and reload.
 # On fresh run this is redundant (dim_reduction chunk sets it too), but on reload
 # the dim_reduction chunk is skipped and featuresToUmap would be missing.
-if (!is.null(featureType) && markersToDimRedBy == "type") {
+if (homogeneousPanel) {
+  featuresToUmap <- panel$marker_name
+} else if (!is.null(featureType) && markersToDimRedBy == "type") {
   featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
 } else if (!is.null(featureType) && markersToDimRedBy == "state") {
   featuresToUmap <- panel$marker_name[panel$marker_class == "state"]
@@ -1221,7 +1239,9 @@ message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
 set.seed(2)
 
 # Select features for DR
-if (!is.null(featureType) && markersToDimRedBy == "type") {
+if (homogeneousPanel) {
+  featuresToUmap <- panel$marker_name
+} else if (!is.null(featureType) && markersToDimRedBy == "type") {
   featuresToUmap <- panel$marker_name[panel$marker_class == "type"]
 } else if (!is.null(featureType) && markersToDimRedBy == "state") {
   featuresToUmap <- panel$marker_name[panel$marker_class == "state"]
@@ -2031,6 +2051,28 @@ if (gimmePDFs) {
 ::::::::::
 
 ## `r paste(clusteringMethodToUse)` Cluster Analysis
+
+```{r, label = "homogeneous_panel_notice", results = 'asis'}
+if (homogeneousPanel) {
+  class_label <- if ("type" %in% markerType) {
+    "all markers are **type**"
+  } else if ("state" %in% markerType) {
+    "all markers are **state**"
+  } else {
+    "no marker-class info was provided"
+  }
+  cat(sprintf(
+    paste0("::: {.callout-note title='Marker class override'}\n",
+           "Your panel is homogeneous (%s), so the `type` / `state` distinction ",
+           "does not apply here. **Clustering and dimensionality reduction ran on all ",
+           "%d markers** regardless of your `markersToClusterBy` / `markersToDimRedBy` ",
+           "settings. Differential state analysis also uses every marker. ",
+           "This is the intended behaviour for homogeneous panels.\n",
+           ":::\n\n"),
+    class_label, length(panel$marker_name)
+  ))
+}
+```
 
 :::::::::: panel-tabset
 ### K Tree

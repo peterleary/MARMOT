@@ -106,79 +106,56 @@ observeEvent(input$fpColumnToSplit, {
 }, suspended = FALSE)
 
 
-# ── 3. Dynamic Advanced Settings per Plot Type ───────────────────────────────
-# All UI slot IDs declared in ui-tab-umap.R's "Advanced" tab:
-#   umapFeaturePlotSettingsUI0..10  (DR, raster, border, label, custom min/max)
-#   umapFeaturePlotDotPlotUI1..8   (dot plot settings)
-#   umapFeaturePlotViolinUI1..6    (violin settings)
-#   umapFeaturePlotHeatmapUI1..6   (heatmap settings)
-#   fpRidgePlotUI1..2              (ridge settings)
-#   fpNebulosaOutputUI1..2         (nebulosa settings)
-#   fpBarplotOptionsUI1..3         (barplot settings)
-#   fpBarplotOutputUI2             (barplot counts table)
-#   umapFeaturePlotWarningUI       (warning slot)
+# ── 3. Dynamic plot-type-specific controls (replaces the old Advanced tab) ──
+# Rendered into the single `plotTypeControls` uiOutput declared inside the
+# Controls tab in ui-tab-umap.R. Every input ID + default is preserved from
+# the previous slot-based Advanced tab, so downstream reactivity is unchanged.
 
-# Slot ID lists for batch clearing
-all_dr_ids      <- paste0("umapFeaturePlotSettingsUI", c(0:10))
-all_dotplot_ids <- paste0("umapFeaturePlotDotPlotUI", 1:8)
-all_violin_ids  <- paste0("umapFeaturePlotViolinUI", 1:6)
-all_heatmap_ids <- paste0("umapFeaturePlotHeatmapUI", 1:6)
-all_ridge_ids   <- paste0("fpRidgePlotUI", 1:2)
-all_nebulosa_ids <- paste0("fpNebulosaOutputUI", 1:2)
-all_barplot_ids <- c(paste0("fpBarplotOptionsUI", 1:3), "fpBarplotOutputUI2")
+# Section header helper — styled to match the Layout tab section dividers
+fp_section_header <- function(label) {
+  tags$h5(label, style = paste(
+    "margin-top: 1rem; margin-bottom: 0.4rem;",
+    "padding-bottom: 0.2rem; border-bottom: 1px solid #ddd;",
+    "font-weight: 600; color: #555;"
+  ))
+}
 
-observeEvent(
-  { input$featurePlotType },
-  ignoreNULL = FALSE,
-  {
-    plot_type <- input$featurePlotType %||% "Feature Plot"
+output$plotTypeControls <- renderUI({
+  plot_type <- input$featurePlotType %||% "Feature Plot"
 
-    # ── Clear all dynamic settings first ─────────────────────────────────
-    clear_ui_elements(c(
-      all_dr_ids, all_dotplot_ids, all_violin_ids,
-      all_heatmap_ids, all_ridge_ids, all_nebulosa_ids,
-      all_barplot_ids, "umapFeaturePlotWarningUI"
-    ))
+  # ── Feature Plot / Nebulosa Plot ───────────────────────────────────────
+  if (plot_type %in% c("Feature Plot", "Nebulosa Plot")) {
+    dr_names <- names(inputDataReactive$Results$umapDFList)
+    fp_dr_default <- dr_names[1]
+    for (pref in c("TSNE", "UMAP", "PaCMAP")) {
+      hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
+      ds_hit <- grep("Downsampled", hit, value = TRUE)
+      if (length(ds_hit) > 0) hit <- ds_hit
+      if (length(hit) > 0) fp_dr_default <- hit[1]
+    }
 
-    # ── Feature Plot / Nebulosa Plot: DR + raster + border settings ──────
-    if (plot_type %in% c("Feature Plot", "Nebulosa Plot")) {
+    tagList(
+      fp_section_header("Dimensionality reduction"),
+      selectInput(
+        inputId = "fpDRToPlot", label = "DR to plot",
+        choices = dr_names, selected = fp_dr_default,
+        multiple = FALSE, width = "85%"
+      ),
 
-      # DR selector
-      create_ui_element("umapFeaturePlotSettingsUI0", {
-        dr_names <- names(inputDataReactive$Results$umapDFList)
-        fp_dr_default <- dr_names[1]
-        for (pref in c("TSNE", "UMAP", "PaCMAP")) {
-          hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
-          ds_hit <- grep("Downsampled", hit, value = TRUE)
-          if (length(ds_hit) > 0) hit <- ds_hit
-          if (length(hit) > 0) fp_dr_default <- hit[1]
-        }
-        selectInput(
-          inputId = "fpDRToPlot", label = "DR to plot",
-          choices = dr_names, selected = fp_dr_default,
-          multiple = FALSE, width = "85%"
-        )
-      })
+      fp_section_header("Points"),
+      sliderInput("pointSizeFP", "Dot size",
+        min = 0.1, max = 4, value = 0.3, step = 0.1,
+        width = "85%", ticks = FALSE),
+      splitLayout(
+        checkboxInput("rasteriseFP", "Rasterise?", value = FALSE),
+        numericInput("rasterFP_DPI", "Raster DPI",
+          value = 1024, min = 0, max = 2000, step = 5, width = "85%")
+      ),
 
-      # Dot settings
-      create_ui_element("umapFeaturePlotSettingsUI1", {
-        sliderInput("pointSizeFP", "Dot size",
-          min = 0.1, max = 4, value = 1, step = 0.1,
-          width = "85%", ticks = FALSE)
-      })
-      create_ui_element("umapFeaturePlotSettingsUI2", {
-        splitLayout(
-          checkboxInput("rasteriseFP", "Rasterise?", value = FALSE),
-          numericInput("rasterFP_DPI", "Raster DPI",
-            value = 1024, min = 0, max = 2000, step = 5, width = "85%")
-        )
-      })
-
-      # Cell borders — grouped together
-      create_ui_element("umapFeaturePlotSettingsUI3", {
-        checkboxInput("cellBordersFP", "Show cell borders?", value = TRUE)
-      })
-      create_ui_element("umapFeaturePlotSettingsUI4", {
+      fp_section_header("Cell borders"),
+      checkboxInput("cellBordersFP", "Show cell borders?", value = TRUE),
+      conditionalPanel(
+        condition = "input.cellBordersFP == true",
         splitLayout(
           sliderInput("borderSizeFP", "Border size",
             min = 1, max = 5, value = 2, step = 0.1,
@@ -186,32 +163,23 @@ observeEvent(
           sliderInput("borderDensityFP", "Border density",
             min = 0.05, max = 1, value = 1, step = 0.05,
             width = "85%", ticks = FALSE)
-        )
-      })
-      create_ui_element("umapFeaturePlotSettingsUI5", {
+        ),
         colourpicker::colourInput("borderColourFP", "Border colour",
           value = "black", showColour = "both", width = "66%")
-      })
+      ),
 
-      # Axes and labels
-      create_ui_element("umapFeaturePlotSettingsUI6", {
-        checkboxInput("fpShowAxes", "Show plot axes?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotSettingsUI7", {
-        checkboxInput("fpShowLabels", "Show cluster labels?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotSettingsUI8", {
-        radioButtons("fpLabelColour", "Colour cluster labels by:",
-          choiceNames = c("Label colour", "Gene median", "Gene mean"),
-          choiceValues = c("label", "median", "mean"),
-          selected = "mean")
-      })
-    }
+      fp_section_header("Axes & labels"),
+      checkboxInput("fpShowAxes", "Show plot axes?", value = FALSE),
+      checkboxInput("fpShowLabels", "Show cluster labels?", value = FALSE),
+      radioButtons("fpLabelColour", "Colour cluster labels by:",
+        choiceNames = c("Label colour", "Gene median", "Gene mean"),
+        choiceValues = c("label", "median", "mean"),
+        selected = "mean"),
 
-    # ── Feature Plot specific: custom min/max ────────────────────────────
-    if (plot_type == "Feature Plot") {
-      create_ui_element("umapFeaturePlotSettingsUI9", {
+      # Feature Plot: custom min/max
+      if (plot_type == "Feature Plot") {
         tagList(
+          fp_section_header("Colour scale"),
           checkboxInput("fpDRCustomMinMax", "Use custom min/max values?", value = FALSE),
           conditionalPanel(
             condition = "input.fpDRCustomMinMax == true",
@@ -223,156 +191,127 @@ observeEvent(
             )
           )
         )
-      })
-    }
+      },
 
-    # ── Nebulosa: joint plot options ─────────────────────────────────────
-    if (plot_type == "Nebulosa Plot") {
-      create_ui_element("fpNebulosaOutputUI1", {
-        checkboxInput("fpNebulosaPlotTogether", "Show joint plot?", value = TRUE)
-      })
-      create_ui_element("fpNebulosaOutputUI2", {
-        checkboxInput("fpNebulosaPlotTogetherOnly", "Show only joint plot?", value = FALSE)
-      })
-    }
-
-    # ── Dot Plot settings ────────────────────────────────────────────────
-    if (plot_type == "Dot Plot") {
-      create_ui_element("umapFeaturePlotDotPlotUI1", {
-        sliderInput("fpDotPlotDotScale", "Dot scale",
-          min = 1, max = 20, value = 10, step = 0.5,
-          width = "85%", ticks = FALSE)
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI2", {
-        checkboxInput("umapFeaturePlotDotplotFlip", "Flip dot plot?", value = TRUE)
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI3", {
-        checkboxInput("fpDotPlotHideBorder", "Hide dot border?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI4", {
-        checkboxInput("fpDotPlotHideLegend", "Hide legend?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI5", {
-        selectInput("fpDotPlotLegendPosition", "Legend position",
-          choices = c("Right" = "right", "Bottom" = "bottom",
-                      "Left" = "left", "Top" = "top"),
-          selected = "right")
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI6", {
-        selectInput("fpDotPlotScaling", "Expression scaling",
-          choices = c("None", "Z-score", "Quantile"),
-          selected = "None")
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI7", {
-        checkboxInput("fpDotPlotUniformSize", "Uniform dot size?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotDotPlotUI8", {
-        selectInput("fpDotPlotScaleBasis", "Scaling basis",
-          choices = c("Cell-level" = "cell", "Group-level" = "group"),
-          selected = "cell")
-      })
-      # "Plot all features" checkbox
-      create_ui_element("umapFeaturePlotHeatmapUI1", {
-        checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE)
-      })
-    }
-
-    # ── Violin Plot settings ─────────────────────────────────────────────
-    if (plot_type == "Violin Plot") {
-      create_ui_element("umapFeaturePlotViolinUI1", {
-        checkboxInput("fpViolinShowBoxplot", "Show boxplot overlay?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotViolinUI2", {
-        sliderInput("fpViolinAxisAngle", "X-axis label angle",
-          min = 0, max = 90, value = 45, step = 5,
-          width = "85%", ticks = FALSE)
-      })
-      create_ui_element("umapFeaturePlotViolinUI3", {
-        checkboxInput("fpViolinTrim", "Trim violin tails?", value = TRUE)
-      })
-      create_ui_element("umapFeaturePlotViolinUI4", {
+      # Nebulosa: joint plot options
+      if (plot_type == "Nebulosa Plot") {
         tagList(
-          checkboxInput("fpViolinShowMedian", "Show median line?", value = FALSE),
-          checkboxInput("fpViolinShowQuartiles", "Show quartile lines?", value = FALSE)
+          fp_section_header("Nebulosa"),
+          checkboxInput("fpNebulosaPlotTogether", "Show joint plot?", value = TRUE),
+          checkboxInput("fpNebulosaPlotTogetherOnly", "Show only joint plot?", value = FALSE)
         )
-      })
-      create_ui_element("umapFeaturePlotViolinUI5", {
+      }
+    )
+
+  # ── Violin Plot ────────────────────────────────────────────────────────
+  } else if (plot_type == "Violin Plot") {
+    tagList(
+      fp_section_header("Violin"),
+      checkboxInput("fpViolinShowBoxplot", "Show boxplot overlay?", value = FALSE),
+      checkboxInput("fpViolinTrim", "Trim violin tails?", value = TRUE),
+
+      fp_section_header("Statistic overlays"),
+      checkboxInput("fpViolinShowMedian", "Show median line?", value = FALSE),
+      checkboxInput("fpViolinShowQuartiles", "Show quartile lines?", value = FALSE),
+
+      fp_section_header("Geometry"),
+      sliderInput("fpViolinAxisAngle", "X-axis label angle",
+        min = 0, max = 90, value = 45, step = 5,
+        width = "85%", ticks = FALSE),
+      splitLayout(
+        sliderInput("fpViolinWidth", "Violin width",
+          min = 0.2, max = 2, value = 0.9, step = 0.1,
+          width = "85%", ticks = FALSE),
+        sliderInput("fpViolinBarWidth", "Boxplot width",
+          min = 0.05, max = 0.5, value = 0.1, step = 0.05,
+          width = "85%", ticks = FALSE)
+      ),
+      sliderInput("fpViolinLineThickness", "Line thickness",
+        min = 0.1, max = 3, value = 0.5, step = 0.1,
+        width = "85%", ticks = FALSE)
+    )
+
+  # ── Dot Plot ───────────────────────────────────────────────────────────
+  } else if (plot_type == "Dot Plot") {
+    tagList(
+      fp_section_header("Dot geometry"),
+      sliderInput("fpDotPlotDotScale", "Dot scale",
+        min = 1, max = 20, value = 10, step = 0.5,
+        width = "85%", ticks = FALSE),
+      checkboxInput("umapFeaturePlotDotplotFlip", "Flip dot plot?", value = TRUE),
+      checkboxInput("fpDotPlotHideBorder", "Hide dot border?", value = FALSE),
+      checkboxInput("fpDotPlotUniformSize", "Uniform dot size?", value = FALSE),
+
+      fp_section_header("Legend"),
+      checkboxInput("fpDotPlotHideLegend", "Hide legend?", value = FALSE),
+      selectInput("fpDotPlotLegendPosition", "Legend position",
+        choices = c("Right" = "right", "Bottom" = "bottom",
+                    "Left" = "left", "Top" = "top"),
+        selected = "right"),
+
+      fp_section_header("Scaling"),
+      selectInput("fpDotPlotScaling", "Expression scaling",
+        choices = c("None", "Z-score", "Quantile"),
+        selected = "None"),
+      selectInput("fpDotPlotScaleBasis", "Scaling basis",
+        choices = c("Cell-level" = "cell", "Group-level" = "group"),
+        selected = "cell"),
+
+      fp_section_header("Features"),
+      checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE)
+    )
+
+  # ── Heatmap per cluster ────────────────────────────────────────────────
+  } else if (plot_type == "Heatmap per cluster") {
+    tagList(
+      fp_section_header("Features"),
+      checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE),
+
+      fp_section_header("Clustering"),
+      checkboxInput("umapFeaturePlotHeatmapCluster", "Cluster heatmap?", value = TRUE),
+      checkboxInput("umapFeaturePlotHeatmapFlip", "Flip heatmap?", value = TRUE),
+
+      fp_section_header("Scaling"),
+      selectInput("umapFeaturePlotHeatmapScaling", "Scaling method",
+        choices = c("None", "Z-score", "Quantile"),
+        selected = "None"),
+      selectInput("umapFeaturePlotHeatmapScaleBasis", "Scaling basis",
+        choices = c("Cell-level" = "cell", "Group-level" = "group"),
+        selected = "cell"),
+
+      fp_section_header("Colour limits"),
+      checkboxInput("heatmapClusterCustomLimits",
+        "Use custom colour limits?", value = FALSE),
+      conditionalPanel(
+        condition = "input.heatmapClusterCustomLimits == true",
         splitLayout(
-          sliderInput("fpViolinWidth", "Violin width",
-            min = 0.2, max = 2, value = 0.9, step = 0.1,
-            width = "85%", ticks = FALSE),
-          sliderInput("fpViolinBarWidth", "Boxplot width",
-            min = 0.05, max = 0.5, value = 0.1, step = 0.05,
-            width = "85%", ticks = FALSE)
+          numericInput("heatmapClusterLimitLow", "Low",
+            value = -2, step = 0.5, width = "66%"),
+          numericInput("heatmapClusterLimitHigh", "High",
+            value = 2, step = 0.5, width = "66%")
         )
-      })
-      create_ui_element("umapFeaturePlotViolinUI6", {
-        sliderInput("fpViolinLineThickness", "Line thickness",
-          min = 0.1, max = 3, value = 0.5, step = 0.1,
-          width = "85%", ticks = FALSE)
-      })
-    }
+      )
+    )
 
-    # ── Heatmap per cluster settings ─────────────────────────────────────
-    if (plot_type == "Heatmap per cluster") {
-      create_ui_element("umapFeaturePlotHeatmapUI1", {
-        checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE)
-      })
-      create_ui_element("umapFeaturePlotHeatmapUI2", {
-        checkboxInput("umapFeaturePlotHeatmapCluster", "Cluster heatmap?", value = TRUE)
-      })
-      create_ui_element("umapFeaturePlotHeatmapUI3", {
-        checkboxInput("umapFeaturePlotHeatmapFlip", "Flip heatmap?", value = TRUE)
-      })
-      create_ui_element("umapFeaturePlotHeatmapUI4", {
-        selectInput("umapFeaturePlotHeatmapScaling", "Scaling method",
-          choices = c("None", "Z-score", "Quantile"),
-          selected = "None")
-      })
-      create_ui_element("umapFeaturePlotHeatmapUI5", {
-        selectInput("umapFeaturePlotHeatmapScaleBasis", "Scaling basis",
-          choices = c("Cell-level" = "cell", "Group-level" = "group"),
-          selected = "cell")
-      })
-      create_ui_element("umapFeaturePlotHeatmapUI6", {
-        tagList(
-          checkboxInput("heatmapClusterCustomLimits",
-            "Use custom colour limits?", value = FALSE),
-          conditionalPanel(
-            condition = "input.heatmapClusterCustomLimits == true",
-            splitLayout(
-              numericInput("heatmapClusterLimitLow", "Low",
-                value = -2, step = 0.5, width = "66%"),
-              numericInput("heatmapClusterLimitHigh", "High",
-                value = 2, step = 0.5, width = "66%")
-            )
-          )
-        )
-      })
-    }
+  # ── Heatmap per cell ───────────────────────────────────────────────────
+  } else if (plot_type == "Heatmap per cell") {
+    tagList(
+      fp_section_header("Features"),
+      checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE)
+    )
 
-    # ── Heatmap per cell: "Plot all features" checkbox ───────────────────
-    if (plot_type == "Heatmap per cell") {
-      create_ui_element("umapFeaturePlotHeatmapUI1", {
-        checkboxInput("fpHeatmapPlotAll", "Plot all available features?", value = FALSE)
-      })
-    }
-
-    # ── Ridge Plot settings ──────────────────────────────────────────────
-    if (plot_type == "Ridge Plot") {
-      create_ui_element("fpRidgePlotUI1", {
-        checkboxInput("fpRidgePlotHideLegend", "Hide legend?", value = TRUE)
-      })
-      create_ui_element("fpRidgePlotUI2", {
-        selectInput("fpRidgePlotLegendPosition", "Legend position",
-          choices = c("Right" = "right", "Bottom" = "bottom",
-                      "Left" = "left", "None" = "none"),
-          selected = "none")
-      })
-    }
-
+  # ── Ridge Plot ─────────────────────────────────────────────────────────
+  } else if (plot_type == "Ridge Plot") {
+    tagList(
+      fp_section_header("Legend"),
+      checkboxInput("fpRidgePlotHideLegend", "Hide legend?", value = TRUE),
+      selectInput("fpRidgePlotLegendPosition", "Legend position",
+        choices = c("Right" = "right", "Bottom" = "bottom",
+                    "Left" = "left", "None" = "none"),
+        selected = "none")
+    )
   }
-)
+})
 
 
 # ── 4. "Plot all features" toggle logic ─────────────────────────────────────
@@ -1019,52 +958,51 @@ observeEvent(
             )
           }
 
-          # Median line
+          # Median / quartile lines — stat_summary inherits the plot's grouping
+          # (x + fill), so the statistic is computed per (group × split) and
+          # position_dodge(0.9) places each bar over its matching violin.
           if (isTRUE(input$fpViolinShowMedian)) {
-            medians <- tapply(cd[[marker]], cd[[fpColumnToPlot]], median, na.rm = TRUE)
-            med_df <- data.frame(
-              group = names(medians),
-              median_val = as.numeric(medians),
-              stringsAsFactors = FALSE
-            )
-            colnames(med_df)[1] <- fpColumnToPlot
-            med_df$xmin <- as.numeric(factor(med_df[[fpColumnToPlot]])) - violin_width / 3
-            med_df$xmax <- as.numeric(factor(med_df[[fpColumnToPlot]])) + violin_width / 3
-            p <- p + geom_segment(
-              data = med_df,
-              aes(x = xmin, xend = xmax, y = median_val, yend = median_val),
-              inherit.aes = FALSE,
-              colour = "black", linewidth = line_thickness * 1.5
+            p <- p + stat_summary(
+              fun.data = function(x) {
+                m <- median(x, na.rm = TRUE)
+                data.frame(y = m, ymin = m, ymax = m)
+              },
+              geom = "errorbar",
+              width = 0.3,
+              colour = "black",
+              linewidth = line_thickness * 1.5,
+              position = position_dodge(width = 0.9),
+              show.legend = FALSE
             )
           }
 
-          # Quartile lines
           if (isTRUE(input$fpViolinShowQuartiles)) {
-            q25 <- tapply(cd[[marker]], cd[[fpColumnToPlot]],
-              function(x) quantile(x, 0.25, na.rm = TRUE))
-            q75 <- tapply(cd[[marker]], cd[[fpColumnToPlot]],
-              function(x) quantile(x, 0.75, na.rm = TRUE))
-            q_df <- data.frame(
-              group = names(q25),
-              q25 = as.numeric(q25),
-              q75 = as.numeric(q75),
-              stringsAsFactors = FALSE
-            )
-            colnames(q_df)[1] <- fpColumnToPlot
-            q_df$xmin <- as.numeric(factor(q_df[[fpColumnToPlot]])) - violin_width / 4
-            q_df$xmax <- as.numeric(factor(q_df[[fpColumnToPlot]])) + violin_width / 4
             p <- p +
-              geom_segment(
-                data = q_df,
-                aes(x = xmin, xend = xmax, y = q25, yend = q25),
-                inherit.aes = FALSE,
-                colour = "grey40", linewidth = line_thickness, linetype = "dashed"
+              stat_summary(
+                fun.data = function(x) {
+                  q <- stats::quantile(x, 0.25, na.rm = TRUE)
+                  data.frame(y = q, ymin = q, ymax = q)
+                },
+                geom = "errorbar",
+                width = 0.25,
+                colour = "grey40",
+                linewidth = line_thickness,
+                linetype = "dashed",
+                position = position_dodge(width = 0.9),
+                show.legend = FALSE
               ) +
-              geom_segment(
-                data = q_df,
-                aes(x = xmin, xend = xmax, y = q75, yend = q75),
-                inherit.aes = FALSE,
-                colour = "grey40", linewidth = line_thickness, linetype = "dashed"
+              stat_summary(
+                fun.data = function(x) {
+                  q <- stats::quantile(x, 0.75, na.rm = TRUE)
+                  data.frame(y = q, ymin = q, ymax = q)
+                },
+                geom = "errorbar",
+                width = 0.25,
+                colour = "grey40",
+                linewidth = line_thickness,
+                linetype = "dashed",
+                position = position_dodge(width = 0.9),
+                show.legend = FALSE
               )
           }
 
