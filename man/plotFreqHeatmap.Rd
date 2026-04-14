@@ -18,7 +18,7 @@ plotFreqHeatmap(
   bars = TRUE,
   perc = FALSE,
   hm_pal = rev(RColorBrewer::brewer.pal(11, "RdBu")),
-  k_pal = CATALYST::.cluster_cols,
+  k_pal = .marmot_cluster_cols,
   m_pal = k_pal
 )
 }
@@ -49,7 +49,7 @@ plotFreqHeatmap(
 
 \item{hm_pal}{Colour palette for heatmap (default: rev(RColorBrewer::brewer.pal(11, "RdBu")))}
 
-\item{k_pal}{Colour palette for cluster annotations (default: CATALYST::.cluster_cols)}
+\item{k_pal}{Colour palette for cluster annotations (default: .marmot_cluster_cols)}
 
 \item{m_pal}{Colour palette for metacluster annotations (default: k_pal)}
 }

@@ -1,12 +1,13 @@
 #' @title shinyMarmot
 #' @description Start the shinyMarmot application locally using results generated from the main MARMOT pipeline.
+#' @param marmot_output Path to the pipeline output directory (R_files folder)
+#' @param demo Logical; if TRUE, launch with bundled demo data (default NA)
 #' @return An interactive shiny app session in console.
 #' @author Peter Leary
 #' @export
-#' @import Rcpp
 #' @examples
 #' \dontrun{
-#' shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
+#' shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
 #' }
 shinyMarmot <- function(marmot_output = NA, demo = NA) {
   
@@ -18,5 +19,5 @@ shinyMarmot <- function(marmot_output = NA, demo = NA) {
     marmot_output <- system.file("examples/R_files/", package = "MARMOT")
   }
   marmot_output <<- tools::file_path_as_absolute(marmot_output)
-  shiny::runApp(appDir = folder)
+  shiny::runApp(appDir = folder, launch.browser = TRUE)
 }

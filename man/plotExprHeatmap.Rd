@@ -24,7 +24,7 @@ plotExprHeatmap(
   perc = FALSE,
   bin_anno = FALSE,
   hm_pal = rev(RColorBrewer::brewer.pal(11, "RdYlBu")),
-  k_pal = CATALYST::.cluster_cols,
+  k_pal = .marmot_cluster_cols,
   m_pal = k_pal,
   distance = c("euclidean", "maximum", "manhattan", "canberra", "binary", "minkowski"),
   linkage = c("average", "ward.D", "single", "complete", "mcquitty", "median",
@@ -70,7 +70,7 @@ plotExprHeatmap(
 
 \item{hm_pal}{Colour palette for heatmap (default: rev(RColorBrewer::brewer.pal(11, "RdYlBu")))}
 
-\item{k_pal}{Colour palette for cluster annotations (default: CATALYST::.cluster_cols)}
+\item{k_pal}{Colour palette for cluster annotations (default: .marmot_cluster_cols)}
 
 \item{m_pal}{Colour palette for metacluster annotations (default: k_pal)}
 

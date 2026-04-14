@@ -6,6 +6,13 @@
 \usage{
 addMetadataToFCSFolder(FCS_folder = ".", name = NULL, overwrite = FALSE)
 }
+\arguments{
+\item{FCS_folder}{Path to the folder containing FCS files (default ".")}
+
+\item{name}{Name suffix for the metadata file (default NULL)}
+
+\item{overwrite}{Logical; overwrite existing file? (default FALSE)}
+}
 \value{
 A message indicating the location of the metadata file.
 }

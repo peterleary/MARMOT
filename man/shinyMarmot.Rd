@@ -6,6 +6,11 @@
 \usage{
 shinyMarmot(marmot_output = NA, demo = NA)
 }
+\arguments{
+\item{marmot_output}{Path to the pipeline output directory (R_files folder)}
+
+\item{demo}{Logical; if TRUE, launch with bundled demo data (default NA)}
+}
 \value{
 An interactive shiny app session in console.
 }
@@ -14,7 +19,7 @@ Start the shinyMarmot application locally using results generated from the main 
 }
 \examples{
 \dontrun{
-shniyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
+shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_2025-03-10_11_01_01/R_files")
 }
 }
 \author{

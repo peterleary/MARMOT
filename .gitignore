@@ -1,0 +1,72 @@
+# R build artifacts
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+src/*.o
+src/*.so
+src/*.dll
+
+# Package build
+*.tar.gz
+*.Rcheck/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.Rproj.user/
+.vscode/
+*.Rproj
+.idea/
+
+# Byte-compiled / optimised
+__pycache__/
+*.py[cod]
+
+# MARMOT GUI binary/app (built from tauri-app)
+/MARMOT
+/MARMOT.exe
+/MARMOT.app
+*.dmg
+
+# Tauri app build artifacts
+tauri-app/node_modules/
+tauri-app/src-tauri/target/
+tauri-app/dist/
+
+# Demo data
+data
+
+# Lab book
+MARMOT_labbook.qmd
+/.quarto/
+
+# Docker test environment (dev playground, not shipped)
+docker-test/
+
+# Synthetic data
+synthetic_v4_test
+synthetic_v5_test
+synthetic_v5e_test
+
+# Phenograph benchmarking
+inst/reports
+
+# R plot artifacts
+Rplots.pdf
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Dev-only artifacts
+dev-to-main-plan.md
+scratch.R
+parc_pacmap_r/inst/benchmarks/
+inst/benchmarks/
+inst/pipeline/test_header.*
+
+# PARC/PacMAP R implenetation testing 
+parc_pacmap_r

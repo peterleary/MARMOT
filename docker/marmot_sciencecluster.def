@@ -1,0 +1,104 @@
+# MARMOT + RStudio Desktop for UZH ScienceCluster
+#
+# Pulls the pre-built MARMOT Docker image (R 4.5.2, all Bioc/CRAN packages,
+# Quarto, Python PARC/PaCMAP) and layers TurboVNC + Xfce + RStudio on top.
+#
+# Build:
+#   apptainer build marmot.sif docker/marmot_sciencecluster.def
+#
+# NOTE: if ghcr.io/peterleary/marmot is private, set credentials first:
+#   export APPTAINER_DOCKER_USERNAME=peterleary
+#   export APPTAINER_DOCKER_PASSWORD=<ghcr-pat>
+
+BootStrap: docker
+From: ghcr.io/peterleary/marmot:latest
+
+%help
+  MARMOT spectral flow cytometry pipeline with RStudio desktop
+  for UZH ScienceCluster (TurboVNC + Xfce).
+
+
+%labels
+  ########
+  # (Optional) change labels if needed
+  Version 1.3.0
+  Author Peter Leary <peter.leary@uzh.ch>
+  #
+  ########
+
+
+%environment
+  export TZ=Europe/Zurich
+  export PATH=/opt/TurboVNC/bin:/opt/miniforge/bin:$PATH
+  ########
+  # (Optional) add your environment variables here
+  export RETICULATE_MINICONDA_PATH=/opt/miniforge
+  #
+  ########
+
+%post
+  # All variables that may need to be updated during an upgrade are collected here
+  vncVer=3.1.3
+
+  export DEBIAN_FRONTEND=noninteractive
+  LANG=C.UTF-8
+  LC_ALL=C.UTF-8
+  export LANG LC_ALL
+
+  # essential packages
+  apt-get -qq update && apt-get -qq install -y --no-install-recommends \
+    tzdata gnupg lsb-release locales curl wget zlib1g-dev less \
+    tar bzip2 gzip xz-utils unzip \
+    ca-certificates xauth \
+    libgl1 \
+    nmap websockify \
+    dbus-x11 xfconf xfce4 xfce4-terminal
+
+  # non-essential packages
+  apt-get -qq install -y --no-install-recommends \
+    xfce4-clipman-plugin xfce4-fsguard-plugin xfce4-genmon-plugin thunar-archive-plugin htop \
+    mousepad evince \
+    ristretto \
+    filezilla \
+    python3 python-is-python3 python3-venv \
+    falkon \
+    xterm
+
+  # Build Swiss locales
+  sed -i -r 's/^# (.._CH.UTF-8 UTF-8)$/\1/' /etc/locale.gen
+  locale-gen && /usr/sbin/update-locale LANG=C.UTF-8
+
+  vncFn=turbovnc_${vncVer}_amd64.deb
+  curl -LO https://github.com/TurboVNC/turbovnc/releases/download/$vncVer/$vncFn
+  apt-get install -y ./$vncFn
+  rm -f ./$vncFn
+  # These files must be owned either by the user or by root. Since we can do neither, we just remove
+  # them. They only contain defaults anyway.
+  rm -f /etc/turbovncserver.conf /etc/turbovncserver-security.conf
+
+  ########
+  # MARMOT customisation:
+  # R 4.5.2, Quarto, all R/Bioc packages (MARMOT + dependencies), and the
+  # Python environment (PARC/PaCMAP via miniforge) are pre-installed in the
+  # base Docker image (ghcr.io/peterleary/marmot). Only RStudio is added here.
+
+  apt -y install gdebi
+  wget https://download1.rstudio.org/electron/jammy/amd64/rstudio-2025.09.2-418-amd64.deb
+  gdebi -n rstudio-2025.09.2-418-amd64.deb
+  rm -f rstudio-2025.09.2-418-amd64.deb
+
+  #
+  ########
+
+  # Clean up
+  apt-get autoremove -qq -y
+  apt-get clean -qq
+  rm -rf /tmp/downloaded_packages/ \
+    /tmp/*.rds \
+    /var/lib/apt/lists/*
+
+  ########
+  # (Optional) add your clean up steps here
+
+  #
+  ########

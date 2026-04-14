@@ -1,49 +1,57 @@
-.skin-yellow .main-header .logo {
-	background-color: #F39C12;
+/* Shiny MARMOT - Crimson Theme CSS */
+
+.rightAlign {
+  float: right;
 }
 
-.skin-yellow .main-header .logo:hover {
-	background-color: #E08E0B;
+.leftAlign {
+  float: left;
 }
 
-.rightAlign{
-	float:right;
-}
-
-.leftAlign{
-	float:left;
-}
-
-#home_get_started{background-color:#ECF0F5}
-
-
-/* Fancy plot */
+/* Fancy plot overlay */
 .pos-relative {
-	position: relative;
+  position: relative;
 }
-                      
+
 .panel .btn-group .btn {
-	min-width: 20px;
+  min-width: 20px;
 }
 
 .plot-btn-group {
-	top: -1px;
-	right: -1px;
+  top: -1px;
+  right: -1px;
 }
 
 .panel-body {
-	overflow: auto;
+  overflow: auto;
 }
 
 .panel-body-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 10px;
-	z-index: 3;
-	padding: 25px;
-	padding-top: 10px;
-	background-color: rgba(255, 255, 255, 0.95);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  z-index: 3;
+  padding: 25px;
+  padding-top: 10px;
+  background-color: rgba(255, 255, 255, 0.95);
 }
 
+/* Loading spinner colour override */
+.la-ball-fading {
+  color: #ef4444 !important;
+}
+
+/* Selectize improvements */
+.selectize-input.focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* DT table header */
+table.dataTable thead th {
+  background: linear-gradient(135deg, #f4f4f5, #e4e4e7);
+  color: #27272a;
+  border-bottom: 2px solid #3f3f46;
+}

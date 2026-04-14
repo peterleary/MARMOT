@@ -17,15 +17,21 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: true
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -70,6 +76,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             MARMOT_REF=${{ steps.ref.outputs.marmot_ref }}
+            CACHEBUST=${{ github.sha }}
           cache-from: type=gha,scope=${{ steps.platform.outputs.pair }}
           cache-to: type=gha,scope=${{ steps.platform.outputs.pair }},mode=max
           labels: ${{ steps.meta.outputs.labels }}
@@ -120,7 +127,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=dev,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ github.event.inputs.ref || 'dev' }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests

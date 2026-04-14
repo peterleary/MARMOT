@@ -1,34 +1,40 @@
 #' @title marmot
 #' @description The main MARMOT pipeline. Use to generate a customised MARMOT pipeline script based on the edited metadata file, and render if required.
+#' @param metadata Path to the MARMOT metadata Excel file (.xlsx)
+#' @param name Name for this analysis run (used in output filenames)
+#' @param render Logical; if TRUE, render the pipeline report (default FALSE)
 #' @return A results folder in the directory of the metadata containing an HTML report, and a folder with all resulting PDFs, Excel files, and R data files.
 #' @author Peter Leary
+#' @importFrom stats na.omit setNames
 #' @export
-#' @import Rcpp
-#' @importFrom Rcpp evalCpp
 #' @examples
 #' \dontrun{
 #' marmot(metadata = "~/Desktop/Flow_Data/MARMOT_metadata.xlsx", name = "Study Name", render = FALSE)
 #' }
 marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
-  suppressPackageStartupMessages({require(tidyverse)})
   if (is.null(metadata)) {
     stop("Oops! You left the metadata argument empty. Please tell me where the Excel Metadata file lives!")
   }
   
   # if the user supplied a relative path, fullpathify it 
   make_absolute_path <- function(path) {
-    if (grepl("^\\~|^\\/|^[A-Za-z]\\:/", path)) return(path) 
+    if (grepl("^\\~|^\\/|^[A-Za-z]\\:/", path)) return(path)
     return(normalizePath(file.path(getwd(), path), winslash = "/", mustWork = FALSE))
   }
   metadata <- make_absolute_path(metadata)
   
   # Get the directory name
-  fp <- dirname(metadata)
-  md_fp <- basename(metadata)
+  fp <- normalizePath(dirname(metadata), mustWork = TRUE, winslash = "/")
+  md_fp <- file.path(fp, basename(metadata))
+
+  # Create results directory early so QMD + header + HTML all live there
+  timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
+  resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
+  dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
   
   # Read Metadata Excel file
-  if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = T))) {
-    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run the getMetadata function again.")
+  if(!any(grepl("pipeline settings", openxlsx::getSheetNames(metadata), ignore.case = TRUE))) {
+    stop("Oops! The marmots can't find a 'Pipeline Settings' tab in your Excel Metadata file. Please run addMetadataToFCSFolder() again.")
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
   
@@ -40,37 +46,46 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   )
   lapply(cantBeBlank, function(p) {
     if (is.na(params_df$Setting[params_df$Variable == p])) {
-      stop(p , " is blank! Please enter a value in the Excel Metadata file.")
+      stop(p, " is blank! Please enter a value in the Excel Metadata file.")
     }
   })
   
+  # Variables where NA in the Excel means "set to NULL" (not "use QMD default")
+  nullable_vars <- c("downsampleTo", "RDataFolder", "excludeTheseSamples")
+  nullable_nas <- params_df$Variable[params_df$Variable %in% nullable_vars &
+                                       is.na(params_df$Setting)]
+
   params_df <- na.omit(params_df)
-  
+
   # Get the list of options chosen
-  params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable) 
+  params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable)
+
+  # Explicitly set nullable variables to NULL when blank in Excel
+  for (v in nullable_nas) params_list[[v]] <- NULL
   
   # Tidy up the params
-  params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, "\\ |\\,|\\,\\ ") %>% unlist %>% as.numeric
+  params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, "\\ |\\,|\\,\\ ") |> unlist() |> as.numeric()
   for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
   }
-  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel")) {
+  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel", "runScGate")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.logical(params_list[[f]])
     }
   }
   params_list[["fp"]] <- fp
   params_list[["md_fp"]] <- md_fp
+  params_list[["resultsDir"]] <- resultsDir
   
-  # Import the template marmot file 
-  rmd_content <- readLines(system.file("pipeline/", "MARMOT_Pipeline.Rmd", package = "MARMOT"))
+  # Import the template marmot file
+  rmd_content <- readLines(system.file("pipeline", "MARMOT_Pipeline.qmd", package = "MARMOT"))
   
   # Replace the markdown title 
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
   
-  # Remap the variables in the template RMD
+  # Remap the variables in the template
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
     
@@ -90,21 +105,39 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     rmd_content <- gsub(pattern, replacement, rmd_content)
   }
   
-  output_rmd <- paste0(fp, "/MARMOT_Pipeline_", name, ".Rmd")
-  writeLines(rmd_content, output_rmd)
-  Sys.sleep(0.2)
+  # Point QMD at the installed header so we don't copy 329KB into the results folder
+  header_src <- system.file("pipeline", "marmot_header.html", package = "MARMOT")
+  if (nzchar(header_src)) {
+    rmd_content <- gsub("- marmot_header.html", paste0("- ", header_src), rmd_content, fixed = TRUE)
+  }
+
+  # Copy metadata into the results folder for reproducibility
+  file.copy(md_fp, file.path(resultsDir, basename(md_fp)), overwrite = TRUE)
+
+  output_qmd <- file.path(resultsDir, paste0("MARMOT_Pipeline_", name, ".qmd"))
+  writeLines(rmd_content, output_qmd)
+
   message("\nGenerated a modified copy of the MARMOT script to the folder. \n")
   if (!render) {
-    message("\nYou chose not to render the HTML report. You can either Knit it yourself in RStudio, or run this function again with `render = TRUE`.\n")
+    message("\nYou chose not to render the HTML report. You can either render it yourself in RStudio, or run this function again with `render = TRUE`.\n")
   }
   if (render) {
+    quarto_bin <- Sys.which("quarto")
+    if (!nzchar(quarto_bin)) {
+      stop(
+        "Quarto is required to render the HTML report but was not found on your system.\n",
+        "Install it from: https://quarto.org/docs/get-started/\n",
+        "Then restart R and try again. You can verify with MARMOT::check_setup().\n",
+        "Your pipeline script has been saved to:\n  ", output_qmd, "\n",
+        "You can render it manually once Quarto is installed.",
+        call. = FALSE
+      )
+    }
     message("Now rendering the HTML report. This can take some time...")
-    output_html <- paste0(fp, "/MARMOT_Pipeline_", name, ".html")
-    invisible(rmarkdown::render(
-      input = output_rmd, output_format = "html_document", 
-      output_file = output_html, output_dir = fp, clean = TRUE))
+    quarto::quarto_render(input = output_qmd,
+                          output_file = paste0("MARMOT_Pipeline_", name, ".html"))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
-    unlink(file.path(fp, "Rplots.pdf"))
+    unlink(file.path(resultsDir, "Rplots.pdf"))
   }
   
 }

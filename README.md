@@ -1,16 +1,12 @@
 # MARMOT
 
-Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
+**M**ultif**a**ceted **R** Pipeline for **M**easuring Spectral Fl**o**w Cytometry Da**t**a
 
 <p align="center">
 <img src="images/MARMOT_Logo_2-min.png" width="150"/>
 </p>
 
-<html>
-
-<hr style="height:5px;border-width:0;color:gray;background-color:gray">
-
-</html>
+---
 
 **If you are using MARMOT in your work, please cite the MARMOT paper:**
 
@@ -20,137 +16,228 @@ Kirsche L, He J, Müller A, Leary P (2025). MARMOT: A multifaceted R pipeline fo
 
 **And feel free to link MARMOT in your methods:** https://github.com/peterleary/MARMOT
 
-For additional information, guidelines, and tips, please refer to the [Wiki](../../wiki) on this GitHub.
+For additional information, guidelines, and tips, please refer to the [Wiki](https://github.com/peterleary/MARMOT/wiki) on this GitHub.
 
-<html>
+---
 
-<hr style="height:5px;border-width:0;color:gray;background-color:gray">
+## GUI App
 
-</html>
+Good news! A new standalone desktop app that can prepare and run the entire MARMOT pipeline — no code required - is here! Download the latest release for your platform from the [GitHub Releases page](https://github.com/peterleary/MARMOT/releases).
 
-## TL;DR
+- **macOS**: Download the `.zip`, unzip, and open MARMOT.app.
+  > **Important — macOS Gatekeeper:** Because the app is not signed with an Apple Developer certificate, macOS will block it on first launch.
+  > See the [Wiki](https://github.com/peterleary/MARMOT/wiki/Opening-the-MARMOT-App-on-macOS) for instructions on how to open it anyway.
+- **Windows**: Download and run the `.msi` installer.
+  > If SmartScreen warns "Windows protected your PC", click **More info** → **Run anyway**.
+  > See the [Wiki](https://github.com/peterleary/MARMOT/wiki/Opening-the-MARMOT-App-on-Windows) for instructions on how to open it anyway.
+- **Linux**: Download and extract the `.tar.gz`. Requires WebKit GTK: `sudo apt install libwebkit2gtk-4.1-0` (Ubuntu/Debian) or equivalent for your distro. Without it the app will not start.
 
-This is all the R code you will need to run the MARMOT pipeline and load the Shiny app.
+Nonetheless, it is still **highly** recommended to run the couple of lines of R code required to install and run the pipeline in R!
 
-```{r eval = F}
-# Step 1. Install and load
-install.packages("devtools")
-devtools::install_github("peterleary/MARMOT")
+---
+
+## Prerequisites
+
+You need **R** (version 4.5+) installed from [cloud.r-project.org](https://cloud.r-project.org/) and **Quarto** from [quarto.org](https://quarto.org/docs/get-started/) (required to render the HTML report). You'll also need a C/C++ compiler so that R packages can be built from source:
+
+- **macOS**: Install Xcode Command Line Tools (open Terminal, run `xcode-select --install`) and [Homebrew](https://brew.sh) (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`). These provide the C compiler and system libraries that many R packages need. Homebrew's installer will also install Xcode CLT if you don't have it yet.
+- **Windows**: Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) — download the version matching your R (e.g. Rtools44 for R 4.4.x, Rtools45 for R 4.5.x).
+- **Linux**: Install build tools and development headers: `sudo apt install build-essential libcurl4-openssl-dev libssl-dev libxml2-dev` (Ubuntu/Debian) or equivalent for your distro.
+
+---
+
+## Install
+
+You have two options to install MARMOT:
+
+1) via the GUI App  
+2) via R (recommended; e.g. using RStudio)
+#
+### 1) GUI App
+
+Go to the **Install** tab in the app. Here you can:
+
+- Click **“Install MARMOT”** to install the pipeline  
+- Click **“Check Setup”** to verify your installation  
+- Optionally install additional features via **“Install Extras”**
+#
+### 2) R Installation
+
+Run the following code in R:
+
+```r
+# Step 1: Install and load MARMOT
+install.packages("pak")
+pak::pkg_install("peterleary/MARMOT")
 library(MARMOT)
 
-# Step 2: Save the template metadata file in a folder with the gated FCS files
+# Step 2: Install additional features (optional but recommended)
+MARMOT::install_marmot_extras()
+
+# Step 3: Verify installation
+MARMOT::check_setup()
+```
+
+
+---
+
+## Run MARMOT
+
+### 1) GUI App
+
+1. **Prepare your metadata**
+   - In the **Welcome** tab, click **“Download Template”**
+   - Either:
+     - Fill in the metadata externally (recommended), or  
+     - Enter metadata directly in the app
+
+2. **Load your data**
+   - Go to the **Pipeline Setup** tab
+   - Click **“Open Metadata”** to load your completed metadata file  
+   - Alternatively, click **“Open FCS Folder”**
+     - This will automatically detect all `.fcs` files and prefill file names and markers  
+     - ⚠️ You must still complete the metadata manually in the app
+
+   💡 *Tip:* Keep your metadata file in the same folder as your `.fcs` files
+
+3. **Adjust settings**
+   - Review and modify:
+     - Study design  
+     - Settings  
+     - File annotations  
+
+4. **Run the pipeline**
+   - Click **“Run Pipeline”** and let MARMOT process your data
+
+
+#
+### 2) R
+
+#### Step 1: Create metadata template
+
+```r
 addMetadataToFCSFolder(FCS_folder = "~/Desktop/Flow_Data/")
-# This will place a copy of the template Excel Metadata file in the folder you specified
+# This creates a template Excel file in your data folder (only needed once).
+```
 
-# Step 3: Fill the metadata file in manually in Excel
 
-# Step 4: Run the pipeline
+#### Step 2: Fill in metadata
+   - Open the Excel file manually
+   - Complete all required fields across the three sheets
+   - Use the included example data as guidance
+
+   💡 Important: The metadata file must be in the same folder as your .fcs file
+
+#### Step 2: Run the pipeline
+
+```r
 marmot(
-  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx", 
-  name = "CD45+ Treated vs Control", 
+  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx",
+  name = "CD45+ Treated vs Control",
   render = TRUE
-  )
+)
 # The marmots will run the pipeline for a while... and generate a results folder
-
-# Step 5: Load the shiny app
-shinyMarmot(marmot_output = "~/Desktop/Flow_Data/Results_Files_2025-03-10_11.19.25/R_files")
 ```
 
-This above instructions will get you up and running with the basic MARMOT pipeline, which includes FlowSOM, Rphenograph, UMAP, and t-SNE.
+---
 
-If you want to install the extra options, namely FastPG, PARC, and PaCMAP, follow the instructions below.
+## Shiny App
 
-<hr>
+After running the pipeline, you can explore your results interactively using the Shiny app.  
 
-## Full Installation Instructions
+The app provides:
+- Dimensionality reduction plots  
+- Feature plots  
+- Violin, dot, and ridge plots  
+- Heatmaps and barplots  
+- Cluster relabelling and cell subsetting  
+- Export options (PDF and FCS)
 
-### Quick Guide
+#
+### 1) GUI App
 
--   Install Rphenograph/FastPG
--   Install conda (even better, mamba)
--   Download PARC/PaCMAP python scripts from Stephan Benke-Bruderer
--   Modify the metadata to include your mamba installation location and location of PARC/PaCMAP scripts
--   Ensure you're running x86 R and mamba if using M-series Mac to ensure compatibility with everything
+- Click the **Shiny link** immediately after the pipeline finishes  
+- Or go to the **Shiny** tab and select your results folder manually  
 
-### Full Installation Guide
+#
+### 2) R
 
-**NOTE**: If you're using an M-series Mac, it is **required** that you install the **x86_64** version of R to ensure compatibility with FastPG, PARC, and PaCMAP.
-
-This means, if you already have the arm64 version installed with lots of packages, you will have to install them all again. We think PARC and PaCMAP are worth it!
-
-#### FastPG
-
-FastPG will need to be installed separately, and can be found [here](https://github.com/sararselitsky/FastPG).
-
-Again, this will not work on M-series Macs using native R (*i.e.*, the arm64 version), you **will need to install the x86 version of R**.
-
-```{r eval = F}
-# In R
-BiocManager::install("sararselitsky/FastPG")
+```r
+# Launch the Shiny app
+# Use the path of your results folder
+shinyMarmot(
+  marmot_output = "~/Desktop/Flow_Data/Results_Files_2026-03-10_11.19.25/R_files")
 ```
 
-#### PARC and PaCMAP Installation
+---
 
-##### Step 1: Install Conda/Mamba
+## Docker & HPC (Apptainer/Singularity)
 
-First you will need to install `conda`, or better still, `mamba`. This is a package/environment manager for python.
+A pre-built Docker image with R, all packages, Quarto, and the Python environment is available on GitHub Container Registry. This is the easiest way to run MARMOT on a server or HPC cluster.
+#
+### Docker
 
-To do this, first go to https://github.com/conda-forge/miniforge and download the appropriate installation script for your system (Figure 1).
-
-![Click to download the appropriate script for your system](images/Mamba_Install_1.png)
-
-**NOTE**: If you're using an M-series Mac, you **will have to install the x86_64 version** of mamba, same as R.
-
-Then, execute the script and follow the instructions, *e.g.*:
-
-```{bash eval = F}
-# In the terminal
-# Assuming you have downloaded the script to the downloads folder 
-~/Downloads/Miniforge3-MacOSX-x86_64.sh
+```bash
+docker pull ghcr.io/peterleary/marmot:latest
 ```
 
-##### Step 2: Install PARC/PaCMAP
+Mount the folder containing your FCS files and metadata Excel into the container with `-v`. Replace the path before the `:` with your actual data folder:
 
-The scripts used to run PARC and PaCMAP were written by Dr. Stephan Benke-Bruderer, and are available at https://github.com/stbenke/p4r (Figure 2).
-
-The following instructions, adapted from https://github.com/stbenke/p4r, assume you have mamba up and running.
-
-```{bash, eval = F}
-# In the terminal
-# updated to newest mamba: 
-mamba update mamba
-
-# created env very explicitly via:
-mamba create -n p4r python=3.9 numpy=1.22.3  
-
-# activate the new environment
-mamba activate p4r
-
-# packages for pacmap:  
-mamba install -c anamamba scikit-learn  
-mamba install -c mamba-forge python-annoy  
-mamba install numba  
-pip install pacmap  
-
-# packages for parc:  
-mamba install -c mamba-forge python-igraph
-mamba install -c mamba-forge leidenalg
-mamba install -c mamba-forge hnswlib
-pip install parc
+```bash
+docker run --rm -it -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:latest
 ```
 
-Then you will need to download the python scripts for PARC and PaCMAP to a folder, and get the full file path of where you've saved the two python scripts. *E.g.*, download them to a folder such as `~/Desktop/MARMOT/parc_pacmap/`. Do not change the name of the individual scripts themselves, *i.e.*, make sure they are named `f_parc.py` and `f_pacmap.py`.
+This opens an interactive R session inside the container. Your data folder is available at `/data`. From here you can verify the setup and run the pipeline:
 
--   Link to the PARC Script: https://github.com/stbenke/p4r/blob/master/f_parc.py
+```r
+library(MARMOT)
+check_setup()
 
--   Link to the PaCMAP Script: https://github.com/stbenke/p4r/blob/master/f_pacmap.py
+# Run the pipeline (your files are mounted at /data)
+marmot(
+  metadata = "/data/MARMOT_Metadata.xlsx",
+  name = "MyRun",
+  render = TRUE
+)
+```
 
-![Click this button to download the script, and save it to a convenient location, ideally with the main MARMOT pipeline script](images/Mamba_Install_2.png)
+Or run the pipeline directly without entering R:
 
-Once you have installed mamba, PARC, and PaCMAP, and have downloaded the two scripts, you will need to modify the MARMOT metadata to tell it where mamba is installed and where the two scripts are placed. This is done on lines 26 and 28 of the main FC pipeline script (*i.e.*, the variables `condaDir` and `parcScriptDir`.)
+```bash
+docker run --rm -v ~/Desktop/Flow_Data:/data ghcr.io/peterleary/marmot:latest \
+  Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
+```
+#
+### Apptainer / Singularity (HPC)
 
-An ideal directory would look like the following:
+Most university clusters don't allow Docker but do support [Apptainer](https://apptainer.org/) (formerly Singularity). Apptainer can pull the Docker image directly:
 
--   The pipeline script
--   A folder containing the f_parc.py and f_pacmap.py scripts
--   A folder containing the FCS files and the Excel metadata file
+```bash
+# Pull once (creates a ~5 GB .sif file)
+apptainer pull docker://ghcr.io/peterleary/marmot:latest
+```
+
+Mount your data folder with `--bind` and run interactively:
+
+```bash
+apptainer shell --bind /path/to/data:/data marmot_latest.sif
+```
+
+This opens a shell inside the container. Start R and run the pipeline as above:
+
+```r
+R
+library(MARMOT)
+check_setup()
+marmot(metadata = "/data/MARMOT_Metadata.xlsx", name = "MyRun", render = TRUE)
+```
+
+Or run non-interactively:
+
+```bash
+apptainer run --bind /path/to/data:/data marmot_latest.sif \
+  Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name="MyRun", render=TRUE)'
+```
+
+---
+
