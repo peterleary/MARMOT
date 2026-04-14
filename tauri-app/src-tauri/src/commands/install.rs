@@ -85,12 +85,12 @@ fn spawn_r_expr(app: AppHandle, rscript_path: String, r_expr: String) {
     );
 }
 
-/// Install the MARMOT R package from GitHub (dev branch).
+/// Install the MARMOT R package from GitHub.
 #[tauri::command]
 pub fn run_install_marmot(app: AppHandle, rscript_path: String) -> Result<(), String> {
     let r_expr = "options(repos=c(CRAN='https://cloud.r-project.org')); \
 if (!requireNamespace('pak',quietly=TRUE)) install.packages('pak'); \
-pak::pkg_install('peterleary/MARMOT@dev',ask=FALSE); \
+pak::pkg_install('peterleary/MARMOT',ask=FALSE); \
 cat('\\nMARMOT installed successfully.\\n')".to_string();
     spawn_r_expr(app, rscript_path, r_expr);
     Ok(())
@@ -120,7 +120,7 @@ MARMOT::install_marmot_extras(include_suggests={suggests},include_python={python
 #[tauri::command]
 pub fn run_check_setup(app: AppHandle, rscript_path: String) -> Result<(), String> {
     spawn_r_expr(app, rscript_path,
-        "if (!requireNamespace('MARMOT', quietly=TRUE)) { cat('MARMOT is not installed yet.\\nClick \"Install Packages\" below to install it.\\n') } else { tryCatch(MARMOT::check_setup(), error = function(e) cat('check_setup() failed:', conditionMessage(e), '\\nYour MARMOT version may be outdated. Try reinstalling:\\n  pak::pkg_install(\"peterleary/MARMOT@dev\")\\n')) }".to_string());
+        "if (!requireNamespace('MARMOT', quietly=TRUE)) { cat('MARMOT is not installed yet.\\nClick \"Install Packages\" below to install it.\\n') } else { tryCatch(MARMOT::check_setup(), error = function(e) cat('check_setup() failed:', conditionMessage(e), '\\nYour MARMOT version may be outdated. Try reinstalling:\\n  pak::pkg_install(\"peterleary/MARMOT\")\\n')) }".to_string());
     Ok(())
 }
 

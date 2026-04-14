@@ -51,6 +51,6 @@ apptainer shell --bind /scratch/data:/data marmot.sif
 ## Building locally
 
 ```bash
-docker build -f docker/Dockerfile --build-arg MARMOT_REF=dev -t marmot-test docker/
+docker build -f docker/Dockerfile --build-arg MARMOT_REF=main -t marmot-test docker/
 docker run --rm marmot-test Rscript -e 'MARMOT::check_setup()'
 ```
