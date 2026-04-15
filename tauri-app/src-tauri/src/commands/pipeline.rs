@@ -1,5 +1,4 @@
 use tauri::{AppHandle, State};
-use crate::process::new_command;
 use crate::process::runner::{self, SharedProcess, SharedShinyProcess};
 
 #[tauri::command]
@@ -51,7 +50,11 @@ pub fn launch_shiny_app(
 
     let enriched_path = runner::enrich_path();
 
-    let mut cmd = new_command(&rscript_path);
+    // NOTE: plain Command::new() (not new_command) for the same reason as
+    // spawn_pipeline — CREATE_NO_WINDOW on a console-subsystem Rscript that
+    // itself spawns a long-running R/Shiny server can break the child
+    // process chain on Windows.
+    let mut cmd = std::process::Command::new(&rscript_path);
     cmd.args(["-e", &r_expr])
         .env("PATH", &enriched_path)
         .stdout(std::process::Stdio::null())

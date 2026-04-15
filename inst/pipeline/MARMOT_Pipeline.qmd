@@ -416,6 +416,20 @@ featureType <- if ("Marker Type" %in% names(smd)) {
   NULL
 }
 
+# Homogeneous panel: missing one of the two marker classes (type or state).
+# Reuses the idiom already used at the marker-pair / heatmap chunks later.
+# When TRUE, clustering and DR override markersToClusterBy / markersToDimRedBy
+# and run on every marker in the panel — the type/state distinction is
+# meaningless here. Defined in the always-running import_metadata chunk so it
+# is available on both fresh and reload paths.
+homogeneousPanel <- !(("type" %in% markerType) && ("state" %in% markerType))
+if (homogeneousPanel) {
+  message(sprintf(
+    "\u2139\ufe0f  Panel is homogeneous \u2014 clustering and DR will run on all %d markers, ignoring markersToClusterBy/markersToDimRedBy.",
+    length(markerType)
+  ))
+}
+
 # Markers to exclude
 removeMarkers <- na.omit(smd$`Markers to exclude completely`)
 
@@ -613,19 +627,6 @@ panel <- param_df |>
   dplyr::filter(!marker_name %in% removeMarkers) |>
   dplyr::filter(marker_name %in% useMarkers) |>
   dplyr::arrange(match(marker_name, useMarkers))
-
-# Homogeneous panel: missing one of the two marker classes (type or state).
-# Reuses the idiom already used at the marker-pair / heatmap chunks below.
-# When TRUE, clustering and DR override markersToClusterBy / markersToDimRedBy
-# and run on every marker in the panel — the type/state distinction is
-# meaningless here.
-homogeneousPanel <- !(("type" %in% markerType) && ("state" %in% markerType))
-if (homogeneousPanel) {
-  message(sprintf(
-    "\u2139\ufe0f  Panel is homogeneous \u2014 clustering and DR will run on all %d markers, ignoring markersToClusterBy/markersToDimRedBy.",
-    length(panel$marker_name)
-  ))
-}
 
 # Sanity check
 missing <- setdiff(useMarkers, panel$marker_name)

@@ -134,8 +134,16 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
       )
     }
     message("Now rendering the HTML report. This can take some time...")
-    quarto::quarto_render(input = output_qmd,
-                          output_file = paste0("MARMOT_Pipeline_", name, ".html"))
+    # Force --embed-resources on the command line as well as in the YAML.
+    # Belt-and-braces: on some Quarto versions (notably 1.9.x on Windows), the
+    # YAML `embed-resources: true` is silently ignored for certain htmlwidget
+    # sidecars, producing a split report with a `*_files/` directory that
+    # breaks when the .html is moved on its own.
+    quarto::quarto_render(
+      input       = output_qmd,
+      output_file = paste0("MARMOT_Pipeline_", name, ".html"),
+      quarto_args = c("--embed-resources")
+    )
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(resultsDir, "Rplots.pdf"))
   }
