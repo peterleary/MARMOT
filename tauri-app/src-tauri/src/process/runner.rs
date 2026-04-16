@@ -349,14 +349,7 @@ pub fn spawn_pipeline(
             safe_name
         );
 
-        // NOTE: deliberately NOT using new_command() here. Rscript is a
-        // console-subsystem app that needs a real console attached so its own
-        // child processes (Quarto, pandoc, deno) behave correctly on Windows.
-        // Applying CREATE_NO_WINDOW to Rscript silently breaks Quarto's
-        // htmlwidget embedding, producing a non-self-contained report with a
-        // `_files/` sidecar. stdio is piped to the GUI log pane, so no
-        // terminal window visibly flashes for Rscript itself.
-        let mut cmd = std::process::Command::new(&rscript_path);
+        let mut cmd = new_command(&rscript_path);
         cmd.args(["-e", &r_expr])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
