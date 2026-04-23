@@ -374,7 +374,109 @@ hmPalToUse <- if (greyscalePlots) {
 }
 ```
 
+```{r diag_helpers, include = FALSE}
+# Pipeline-local diagnostic log helpers. Writes a shape-only JSON at
+# <results>/R_files/marmot_run_log.json so crashes / weird renders can be
+# debugged remotely without the user sharing any cell-level or identifying
+# data. Kept inline (not in R/) so this pipeline file stays self-contained
+# and doesn't need a package rebuild to iterate on.
+.diag_read <- function(path) jsonlite::fromJSON(path, simplifyVector = FALSE)
+.diag_write <- function(path, log) jsonlite::write_json(
+  log, path, pretty = TRUE, auto_unbox = TRUE, null = "null", na = "null"
+)
+.diag_duration <- function(start, end) {
+  s <- tryCatch(as.POSIXct(start, format = "%Y-%m-%dT%H:%M:%S%z"),
+                error = function(e) NA)
+  e <- tryCatch(as.POSIXct(end,   format = "%Y-%m-%dT%H:%M:%S%z"),
+                error = function(e) NA)
+  if (is.na(s) || is.na(e)) return(NA_real_)
+  as.numeric(difftime(e, s, units = "secs"))
+}
+diag_init <- function(path, settings = list()) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  pkgs <- c("MARMOT", "diffcyt", "CATALYST", "flowCore", "anndataR", "quarto",
+            "ggplot2", "SingleCellExperiment", "S4Vectors", "FlowSOM",
+            "limma", "edgeR", "jsonlite", "qs2")
+  pkg_versions <- stats::setNames(lapply(pkgs, function(p) tryCatch(
+    as.character(utils::packageVersion(p)), error = function(e) NA_character_
+  )), pkgs)
+  sysinfo <- Sys.info()
+  .diag_write(path, list(
+    system   = list(r_version = R.version.string,
+                    os = as.character(sysinfo[["sysname"]]),
+                    os_release = as.character(sysinfo[["release"]]),
+                    arch = as.character(sysinfo[["machine"]]),
+                    locale = Sys.getlocale("LC_CTYPE")),
+    packages = pkg_versions,
+    settings = as.list(settings),
+    render   = list(start_time = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+                    end_time = NULL, duration_seconds = NULL,
+                    status = "in_progress", last_completed_chunk = NULL,
+                    crash_chunk = NULL, crash_message = NULL),
+    warnings = list()
+  ))
+  invisible(path)
+}
+diag_record <- function(path, section, values) {
+  if (!file.exists(path)) return(invisible(NULL))
+  log <- .diag_read(path); log[[section]] <- values; .diag_write(path, log)
+  invisible(path)
+}
+diag_checkpoint <- function(path, chunk_label) {
+  if (!file.exists(path)) return(invisible(NULL))
+  log <- .diag_read(path)
+  log$render$last_completed_chunk <- chunk_label
+  .diag_write(path, log); invisible(path)
+}
+diag_success <- function(path) {
+  if (!file.exists(path)) return(invisible(NULL))
+  log <- .diag_read(path)
+  log$render$end_time <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
+  log$render$status <- "success"
+  log$render$duration_seconds <- .diag_duration(log$render$start_time,
+                                                log$render$end_time)
+  .diag_write(path, log); invisible(path)
+}
+```
+
 ```{r import_metadata, results = "hide"}
+
+# ── Initialise run log (marmot_run_log.json) ──────────────────────────────
+# Shape-only diagnostics for remote debugging. Never writes cell-level values
+# or identifying labels. Written progressively so mid-pipeline crashes still
+# leave a useful file.
+log_path <- if (!is.null(RDataFolder)) {
+  file.path(RDataFolder, "marmot_run_log.json")
+} else {
+  # Honour resultsDir set by marmot() (preferred), else construct one.
+  # Matches the fallback logic in the later `output_directories` chunk.
+  rd <- if (exists("resultsDir", inherits = FALSE) && !is.null(resultsDir))
+          resultsDir else file.path(fp, paste0("Results_Files_", timeRun))
+  file.path(rd, "R_files", "marmot_run_log.json")
+}
+.diag_get <- function(name, default = NA) {
+  if (exists(name, envir = .GlobalEnv, inherits = FALSE)) {
+    v <- get(name, envir = .GlobalEnv)
+    if (is.null(v)) default else v
+  } else default
+}
+diag_init(log_path, settings = list(
+  clusteringMethodToUse = as.character(.diag_get("clusteringMethodToUse")),
+  markersToClusterBy    = as.character(.diag_get("markersToClusterBy")),
+  kValuesIWant          = as.character(.diag_get("kValuesIWant")),
+  knn                   = .diag_get("knn"),
+  dimRedMethodToUse     = as.character(.diag_get("dimRedMethodToUse")),
+  markersToDimRedBy     = as.character(.diag_get("markersToDimRedBy")),
+  runQC                 = as.character(.diag_get("runQC")),
+  useQC                 = isTRUE(.diag_get("useQC", FALSE)),
+  runScGate             = isTRUE(.diag_get("runScGate", FALSE)),
+  downsampleTo          = .diag_get("downsampleTo", NA),
+  quantileNormaliseAll  = isTRUE(.diag_get("quantileNormaliseAll", FALSE)),
+  runInParallel         = isTRUE(.diag_get("runInParallel", FALSE)),
+  nCores                = .diag_get("nCores"),
+  ramPerCore            = .diag_get("ramPerCore"),
+  reload                = !is.null(RDataFolder)
+))
 
 # Load metadata
 md  <- readxl::read_xlsx(md_fp, sheet = "File Data")
@@ -465,6 +567,16 @@ if (!is.null(excludeTheseSamples)) {
 md <- md[order(md$condition), ]
 md$patient_id <- factor(md$sample_id, levels = md$sample_id)
 md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
+
+# ── Diagnostic: metadata shape (counts only, no labels) ───────────────────
+diag_record(log_path, "data_shape", list(
+  n_samples    = nrow(md),
+  n_conditions = nlevels(md$condition),
+  n_contrasts  = length(na.omit(smd$`Conditions To Test`)),
+  n_markers_requested = length(useMarkers),
+  homogeneous_panel   = isTRUE(homogeneousPanel)
+))
+diag_checkpoint(log_path, "import_metadata")
 ```
 
 ```{r cluster_colours, results = "hide"}
@@ -527,10 +639,16 @@ conditionCols <- setNames(
 
 message("📥 Scanning FCS files...")
 
-# List all .fcs files (case-insensitive — some cytometers export as .FCS)
-fcs_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = TRUE, ignore.case = TRUE)
-fcs_files <- fcs_files[grep(paste(md$file_name, collapse = "|"), fcs_files, ignore.case = TRUE)]
-fcs_names <- tools::file_path_sans_ext(basename(fcs_files))
+# Match metadata file_name entries to files on disk by strict basename equality.
+# Extra files in fcsDir are ignored; any md$file_name not found on disk is fatal.
+disk_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = FALSE)
+missing <- setdiff(md$file_name, disk_files)
+if (length(missing)) {
+  stop("FCS files listed in metadata not found in ", fcsDir, ":\n  ",
+       paste(missing, collapse = "\n  "))
+}
+fcs_files <- file.path(fcsDir, md$file_name)
+fcs_names <- md$file_name
 
 # ── Header scan — get cell counts without loading data ────────────────────────
 fcs_headers <- sapply(fcs_files, function(f) {
@@ -551,11 +669,23 @@ sys_ram_bytes <- tryCatch({
   } else if (os == "Linux") {
     as.numeric(system("awk '/MemTotal/{print $2 * 1024}' /proc/meminfo", intern = TRUE))
   } else {
-    as.numeric(trimws(system("wmic OS get TotalVisibleMemorySize /value 2>nul", intern = TRUE) |>
-      grep("=", value = TRUE) |> sub(".*=", "", x = _))) * 1024
+    NA_real_   # Windows: cross-version RAM probing is unreliable (wmic deprecated,
+               # PowerShell availability varies); trust user's ramPerCore * nCores.
   }
 }, error = function(e) NA_real_)
 sys_ram_gb <- if (!is.na(sys_ram_bytes)) sys_ram_bytes / 1024^3 else Inf
+
+if (is.na(sys_ram_bytes) && Sys.info()[["sysname"]] == "Windows") {
+  warning(
+    "⚠️  Could not detect system RAM on this Windows machine. ",
+    "Falling back to your declared budget (ramPerCore × nCores = ",
+    sprintf("%.0f GB", ramPerCore * nCores), "). ",
+    "If that exceeds the RAM actually available, the pipeline may run out of ",
+    "memory and crash. Double-check ramPerCore and nCores against your machine's ",
+    "specs before continuing.",
+    call. = FALSE, immediate. = TRUE
+  )
+}
 
 # Available RAM: lower of system RAM and user-declared budget
 user_budget_gb     <- ramPerCore * nCores
@@ -570,8 +700,9 @@ needs_cap       <- total_cells_raw > max_total_cells
 
 message(sprintf("📊 Dataset: %s cells × %d params across %d samples",
                 format(total_cells_raw, big.mark = ","), n_params, n_samples))
-message(sprintf("📊 RAM: %.0f GB system, %.0f GB user budget, %.1f GB pipeline budget (60%%)",
-                sys_ram_gb, user_budget_gb, pipeline_budget_gb))
+message(sprintf("📊 RAM: %s system, %.0f GB user budget, %.1f GB pipeline budget (60%%)",
+                if (is.finite(sys_ram_gb)) sprintf("%.0f GB", sys_ram_gb) else "unknown",
+                user_budget_gb, pipeline_budget_gb))
 
 if (needs_cap) {
   message(sprintf(
@@ -873,6 +1004,18 @@ effective_cells <- sum(sapply(framesList[[1]], nrow))
 message(sprintf("📊 Loaded %s cells (%.1f GB estimated)",
                 format(effective_cells, big.mark = ","),
                 effective_cells * bytes_per_cell / 1024^3))
+
+# ── Diagnostic: FCS load shape (no sample labels) ─────────────────────────
+diag_record(log_path, "fcs_load", list(
+  n_cells_total_raw   = as.integer(total_cells_raw),
+  n_cells_total_used  = as.integer(effective_cells),
+  cells_per_sample    = as.integer(unname(sapply(framesList[[1]], nrow))),
+  n_params            = as.integer(n_params),
+  ram_cap_applied     = isTRUE(needs_cap),
+  per_sample_cap      = as.integer(per_sample_cap),
+  sys_ram_gb_detected = if (is.finite(sys_ram_gb)) sys_ram_gb else NA_real_
+))
+diag_checkpoint(log_path, "import_fcs_load")
 ```
 
 ```{r arcsinh_transform_apply, results = "hide", eval = is.null(RDataFolder)}
@@ -1230,6 +1373,18 @@ if (homogeneousPanel) {
 } else {
   featuresToUmap <- panel$marker_name
 }
+
+# ── Diagnostic: clustering shape (labels are just "1".."N" — safe) ────────
+diag_record(log_path, "clustering", list(
+  method                = as.character(clusteringMethodToUse),
+  selected_k            = knn,
+  n_clusters            = nlevels(kids),
+  cluster_id_levels     = levels(kids),
+  cluster_codes_columns = if (!is.null(metadata(sce)$cluster_codes))
+                            names(metadata(sce)$cluster_codes) else NULL,
+  n_features_dr         = length(featuresToUmap)
+))
+diag_checkpoint(log_path, "derive_cluster_info")
 ```
 
 ```{r dim_reduction, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
@@ -1665,6 +1820,47 @@ if (!is.null(h5ad_save_dir)) {
     MARMOT::save_da_ds_h5ad(h5ad_path, daList, dsList, selectedClustersList, daPValToUse)
   }
 }
+
+# ── Diagnostic: DA / DS shape (positional indexing, no contrast strings) ──
+sce_cluster_levels <- levels(sce$cluster_id)
+da_contrast_shapes <- lapply(seq_along(daList), function(i) {
+  dl <- daList[[i]]
+  cid <- dl$cluster_id
+  values <- as.character(cid)
+  list(
+    index                  = i,
+    rows                   = nrow(dl),
+    columns                = colnames(dl),
+    cluster_id_class       = class(cid)[1],
+    cluster_id_nlevels     = if (is.factor(cid)) nlevels(cid) else NA_integer_,
+    cluster_id_unique_n    = length(unique(values)),
+    levels_match_values    = if (is.factor(cid))
+                               setequal(levels(cid), unique(values)) else NA,
+    missing_clusters_vs_sce = setdiff(sce_cluster_levels, values),
+    extra_clusters_vs_sce   = setdiff(values, sce_cluster_levels),
+    p_adj_na_count         = sum(is.na(dl$p_adj))
+  )
+})
+ds_contrast_shapes <- lapply(seq_along(dsList), function(i) {
+  entry <- dsList[[i]]
+  tbl <- if (is.list(entry) && "tbl_DS" %in% names(entry)) entry$tbl_DS else NULL
+  list(
+    index        = i,
+    has_tbl_DS   = !is.null(tbl),
+    rows         = if (!is.null(tbl)) nrow(tbl) else NA_integer_,
+    columns      = if (!is.null(tbl)) colnames(tbl) else character(0)
+  )
+})
+diag_record(log_path, "da_analysis", list(
+  method_DA  = "diffcyt-DA-edgeR",
+  min_cells  = 5,
+  contrasts  = da_contrast_shapes
+))
+diag_record(log_path, "ds_analysis", list(
+  method_DS  = "diffcyt-DS-limma",
+  contrasts  = ds_contrast_shapes
+))
+diag_checkpoint(log_path, "da_ds_analysis")
 ```
 
 ```{r output_directories, results = "hide"}
@@ -2001,7 +2197,7 @@ if (!is.null(downsampleTo) && exists("originalCellCounts")) {
   cat("\n\nHowever, because you downsampled, here are those numbers for the full dataset. The black line is what you downsampled to.\n\n")
   cat("\n\n")
   originalCellNumbers <- data.frame(
-    file_name = paste0(names(originalCellCounts), ".fcs"),
+    file_name = names(originalCellCounts),
     Cells = as.numeric(originalCellCounts)
   )
   originalCellNumbers <- dplyr::left_join(originalCellNumbers, md, by = "file_name")
@@ -3527,6 +3723,10 @@ if (is.null(RDataFolder)) {
 
 ```{r, label = save_sesh, include = TRUE}
 sessionInfo()
+```
+
+```{r diag_finalise, include = FALSE}
+if (exists("log_path")) diag_success(log_path)
 ```
 
 :::::::::::::
