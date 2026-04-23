@@ -126,54 +126,16 @@ pub fn run_check_setup(app: AppHandle, rscript_path: String) -> Result<(), Strin
 
 /// Quick synchronous check of which optional packages are available.
 /// Returns a JSON object with bool flags for each optional package/feature.
+/// Delegates to `get_r_status` so we only keep one R-probe script — the
+/// version/marmot fields it also returns are discarded here.
 #[tauri::command]
 pub fn query_installed_packages(rscript_path: String) -> serde_json::Value {
     let fallback = serde_json::json!({
         "Rphenograph": false, "PeacoQC": false, "flowAI": false,
         "PARC": false, "pacmap": false
     });
-
-    let r_expr = r#"
-rphenograph <- requireNamespace('Rphenograph', quietly=TRUE)
-peacoqc <- requireNamespace('PeacoQC', quietly=TRUE)
-flow_ai <- requireNamespace('flowAI', quietly=TRUE)
-py <- tryCatch({
-  status <- MARMOT::marmot_python_status()
-  list(PARC = status$available, pacmap = status$available)
-}, error = function(e) list(PARC = FALSE, pacmap = FALSE))
-pairs <- c(
-  paste0('"Rphenograph":', tolower(rphenograph)),
-  paste0('"PeacoQC":', tolower(peacoqc)),
-  paste0('"flowAI":',  tolower(flow_ai)),
-  paste0('"PARC":',    tolower(py$PARC)),
-  paste0('"pacmap":',  tolower(py$pacmap))
-)
-cat('MARMOT_PKG_STATUS:{', paste(pairs, collapse = ','), '}', sep = '')
-"#;
-
-    let enriched_path = enrich_path();
-    let output = new_command(&rscript_path)
-        .args(["-e", r_expr])
-        .env("PATH", &enriched_path)
-        .output();
-
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            // Use the sentinel prefix to locate our JSON reliably,
-            // ignoring any other output R or Python may have written.
-            let sentinel = "MARMOT_PKG_STATUS:";
-            if let Some(pos) = stdout.find(sentinel) {
-                let after = &stdout[pos + sentinel.len()..];
-                if let (Some(s), Some(e)) = (after.find('{'), after.find('}')) {
-                    let json_str = &after[s..=e];
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
-                        return val;
-                    }
-                }
-            }
-            fallback
-        }
+    match crate::process::runner::get_r_status(&rscript_path) {
+        Ok((_, _, pkgs)) => pkgs,
         Err(_) => fallback,
     }
 }

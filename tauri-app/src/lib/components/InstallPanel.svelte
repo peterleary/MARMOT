@@ -47,11 +47,9 @@
       unlistenLog();
       unlistenDone();
       try {
-        if (e.payload.success) {
-          const [, installed] = await invoke("get_r_info", { rscriptPath: $rscriptPath });
-          marmotInstalled.set(installed);
-        }
-        const status = await invoke("query_installed_packages", { rscriptPath: $rscriptPath });
+        // Single R boot for MARMOT presence + optional package status.
+        const [, installed, status] = await invoke("get_r_status", { rscriptPath: $rscriptPath });
+        if (e.payload.success) marmotInstalled.set(installed);
         packageStatus.set(status);
       } catch (_) {}
     });

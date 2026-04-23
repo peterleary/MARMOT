@@ -34,17 +34,17 @@
   async function finishStartup(rPath) {
     rscriptPath.set(rPath);
     splashStatus = "Checking R environment...";
+    // Single Rscript invocation returns R version + MARMOT presence +
+    // optional package availability. Previously two separate boots.
     try {
-      const [version, installed] = await invoke("get_r_info", { rscriptPath: rPath });
+      const [version, installed, status] = await invoke("get_r_status", { rscriptPath: rPath });
       rVersion.set(version);
       marmotInstalled.set(installed);
+      packageStatus.set(status);
     } catch (e) {
-      console.warn("R info check failed:", e);
+      console.warn("R status check failed:", e);
     }
     hideSplash();
-    invoke("query_installed_packages", { rscriptPath: rPath })
-      .then((status) => packageStatus.set(status))
-      .catch(() => {});
   }
 
   /** Called from SplashScreen when user clicks Install for Quarto. */

@@ -32,6 +32,7 @@ pub fn run() {
             commands::rscript::find_rscript,
             commands::rscript::find_rscript_cached,
             commands::rscript::get_r_info,
+            commands::rscript::get_r_status,
             commands::rscript::find_quarto_cached,
             commands::rscript::get_quarto_info,
             commands::install::run_install_marmot,
@@ -42,6 +43,7 @@ pub fn run() {
             commands::pipeline::run_pipeline,
             commands::pipeline::cancel_pipeline,
             commands::pipeline::launch_shiny_app,
+            commands::preflight::check_metadata,
         ])
         // Option A: kill Shiny when the main window is closed
         .on_window_event(move |_window, event| {

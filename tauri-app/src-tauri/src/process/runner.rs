@@ -289,12 +289,34 @@ fn scan_windows_r_dirs() -> Vec<String> {
 /// Single R subprocess returning version string + MARMOT install status.
 /// Saves one full R startup (~500ms) compared to calling get_r_version + check_marmot_installed sequentially.
 pub fn get_r_info(rscript_path: &str) -> Result<(String, bool), String> {
-    let r_expr = concat!(
-        "cat('MARMOT_R_INFO:',",
-        " R.version.string, '|',",
-        " tolower(requireNamespace('MARMOT', quietly=TRUE)),",
-        " '\\n', sep='')"
-    );
+    let (version, marmot, _pkgs) = get_r_status(rscript_path)?;
+    Ok((version, marmot))
+}
+
+/// Combined R status probe — runs a single Rscript invocation that returns
+/// (R version, MARMOT installed, {optional package availability}). Used at
+/// startup to avoid paying the Rscript boot cost twice. `get_r_info` and
+/// the legacy `query_installed_packages` both delegate here.
+///
+/// Output format (single line on stdout):
+///   MARMOT_R_STATUS:<version>|<marmot>|{"Rphenograph":<b>,"PeacoQC":<b>,...}
+pub fn get_r_status(rscript_path: &str) -> Result<(String, bool, serde_json::Value), String> {
+    let r_expr = r#"
+req <- function(pkg) tolower(requireNamespace(pkg, quietly=TRUE))
+py <- tryCatch({
+  status <- MARMOT::marmot_python_status()
+  list(PARC = tolower(status$available), pacmap = tolower(status$available))
+}, error = function(e) list(PARC = "false", pacmap = "false"))
+pairs <- c(
+  paste0('"Rphenograph":', req('Rphenograph')),
+  paste0('"PeacoQC":',     req('PeacoQC')),
+  paste0('"flowAI":',      req('flowAI')),
+  paste0('"PARC":',        py$PARC),
+  paste0('"pacmap":',      py$pacmap)
+)
+cat('MARMOT_R_STATUS:', R.version.string, '|',
+    req('MARMOT'), '|{', paste(pairs, collapse=','), '}\n', sep='')
+"#;
     let output = new_command(rscript_path)
         .args(["-e", r_expr])
         .env("PATH", enrich_path())
@@ -302,15 +324,22 @@ pub fn get_r_info(rscript_path: &str) -> Result<(String, bool), String> {
         .map_err(|e| e.to_string())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let sentinel = "MARMOT_R_INFO:";
+    let sentinel = "MARMOT_R_STATUS:";
+    let fallback_pkgs = serde_json::json!({
+        "Rphenograph": false, "PeacoQC": false, "flowAI": false,
+        "PARC": false, "pacmap": false
+    });
     if let Some(line) = stdout.lines().find(|l| l.starts_with(sentinel)) {
         let rest = &line[sentinel.len()..];
-        let parts: Vec<&str> = rest.splitn(2, '|').collect();
-        if parts.len() == 2 {
-            return Ok((parts[0].trim().to_string(), parts[1].trim() == "true"));
+        let parts: Vec<&str> = rest.splitn(3, '|').collect();
+        if parts.len() == 3 {
+            let version = parts[0].trim().to_string();
+            let marmot_installed = parts[1].trim() == "true";
+            let pkgs = serde_json::from_str(parts[2].trim()).unwrap_or_else(|_| fallback_pkgs.clone());
+            return Ok((version, marmot_installed, pkgs));
         }
     }
-    Ok(("R (version unknown)".to_string(), false))
+    Ok(("R (version unknown)".to_string(), false, fallback_pkgs))
 }
 
 fn rscript_cache_path() -> std::path::PathBuf {

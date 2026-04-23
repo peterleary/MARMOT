@@ -81,12 +81,44 @@ pub struct FcsMarker {
     pub is_scatter: bool,
 }
 
+/// Extended header info — marker list + `$TOT` (event count) + `$PAR`
+/// (channel count). Returned by `peek_fcs_summary`; `peek_fcs_markers`
+/// keeps the old marker-only shape for the existing marker dropdown path.
+#[derive(serde::Serialize, Debug)]
+pub struct FcsSummary {
+    pub markers: Vec<FcsMarker>,
+    pub n_cells: u64,
+    pub n_params: u32,
+}
+
+/// Same parse as `peek_fcs_markers` but also extracts `$TOT`. Used by the
+/// pre-flight check to estimate total cells + peak RAM.
+pub fn read_fcs_summary(path: &str) -> Result<FcsSummary, String> {
+    let (kv, par) = read_fcs_text_segment(path)?;
+    let n_cells: u64 = kv
+        .get("$TOT")
+        .ok_or("FCS TEXT missing required $TOT keyword")?
+        .trim()
+        .parse()
+        .map_err(|e: std::num::ParseIntError| format!("bad $TOT: {}", e))?;
+    let markers = markers_from_kv(&kv, par);
+    Ok(FcsSummary { markers, n_cells, n_params: par as u32 })
+}
+
 /// Parse the TEXT segment of an FCS 2.0/3.0/3.1 file and return one entry
 /// per parameter ($P1..$PnN/$PnS). Reads only the header + TEXT segment,
 /// never loads the DATA segment — cheap even on multi-GB FCS files.
 #[tauri::command]
 pub fn peek_fcs_markers(path: String) -> Result<Vec<FcsMarker>, String> {
-    let mut f = fs::File::open(&path)
+    let (kv, par) = read_fcs_text_segment(&path)?;
+    Ok(markers_from_kv(&kv, par))
+}
+
+/// Parse the fixed 58-byte FCS header + the TEXT segment into a keyword map
+/// and return `(kv, par)`. Shared helper used by both the marker-only and
+/// the summary-with-cell-count entry points.
+pub fn read_fcs_text_segment(path: &str) -> Result<(HashMap<String, String>, usize), String> {
+    let mut f = fs::File::open(path)
         .map_err(|e| format!("Cannot open '{}': {}", path, e))?;
 
     // FCS header is 58 bytes fixed:
@@ -131,9 +163,6 @@ pub fn peek_fcs_markers(path: String) -> Result<Vec<FcsMarker>, String> {
     f.read_exact(&mut text)
         .map_err(|e| format!("TEXT read: {}", e))?;
 
-    // First byte of the TEXT segment is the keyword/value delimiter.
-    // The segment then holds: delim keyword1 delim value1 delim ... delim
-    // (We ignore the rare escaped-delimiter case of two delimiters in a row.)
     if text.is_empty() {
         return Err("Empty TEXT segment".into());
     }
@@ -156,24 +185,18 @@ pub fn peek_fcs_markers(path: String) -> Result<Vec<FcsMarker>, String> {
         .parse()
         .map_err(|e: std::num::ParseIntError| format!("bad $PAR: {}", e))?;
 
+    Ok((kv, par))
+}
+
+pub fn markers_from_kv(kv: &HashMap<String, String>, par: usize) -> Vec<FcsMarker> {
     let mut markers = Vec::with_capacity(par);
     for n in 1..=par {
-        let short = kv
-            .get(&format!("$P{}N", n))
-            .cloned()
-            .unwrap_or_default();
-        let long = kv
-            .get(&format!("$P{}S", n))
-            .cloned()
-            .unwrap_or_default();
+        let short = kv.get(&format!("$P{}N", n)).cloned().unwrap_or_default();
+        let long = kv.get(&format!("$P{}S", n)).cloned().unwrap_or_default();
         let is_scatter = is_non_marker_channel(&short, &long);
-        markers.push(FcsMarker {
-            short_name: short,
-            long_name: long,
-            is_scatter,
-        });
+        markers.push(FcsMarker { short_name: short, long_name: long, is_scatter });
     }
-    Ok(markers)
+    markers
 }
 
 /// Decide whether a given FCS channel is a scatter / time / metadata
@@ -379,6 +402,42 @@ mod tests {
         assert!(is_non_marker_channel("Residual", ""));
         assert!(is_non_marker_channel("Event_length", ""));
         assert!(is_non_marker_channel("Cell_length", ""));
+    }
+
+    /// Benchmark: time `peek_fcs_markers` across every .fcs file in a folder.
+    /// Set MARMOT_BENCH_DIR to a folder path. Run with:
+    ///   MARMOT_BENCH_DIR=/path/to/fcs cargo test --release --lib -- \
+    ///     --ignored --nocapture peek_all_in_dir
+    #[test]
+    #[ignore]
+    fn peek_all_in_dir() {
+        let Ok(dir) = std::env::var("MARMOT_BENCH_DIR") else {
+            println!("Set MARMOT_BENCH_DIR to a folder of .fcs files");
+            return;
+        };
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .expect("read_dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().map(|e| e.eq_ignore_ascii_case("fcs")).unwrap_or(false))
+            .collect();
+        files.sort();
+        println!("\n=== {} — {} files ===", dir, files.len());
+        let start = std::time::Instant::now();
+        let mut total_channels = 0usize;
+        for f in &files {
+            let t0 = std::time::Instant::now();
+            let markers = peek_fcs_markers(f.to_string_lossy().to_string())
+                .expect("peek failed");
+            let dt = t0.elapsed();
+            total_channels += markers.len();
+            println!("  {:>8.2} ms  {} ({} chans)", dt.as_secs_f64() * 1000.0,
+                f.file_name().unwrap().to_string_lossy(), markers.len());
+        }
+        let total = start.elapsed();
+        println!("TOTAL: {:.2} ms for {} files ({} channels parsed overall, mean {:.2} ms/file)",
+            total.as_secs_f64() * 1000.0, files.len(), total_channels,
+            total.as_secs_f64() * 1000.0 / files.len().max(1) as f64);
     }
 
     #[test]
