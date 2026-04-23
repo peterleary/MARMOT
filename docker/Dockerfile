@@ -2,7 +2,7 @@
 # Everything baked in: R, Bioc packages, Quarto, Python (PARC/PaCMAP)
 #
 # Build:
-#   docker build -f docker/Dockerfile --build-arg MARMOT_REF=dev -t marmot-prod docker/
+#   docker build -f docker/Dockerfile --build-arg MARMOT_REF=main -t marmot-prod docker/
 #
 # Run:
 #   docker run --rm -v /path/to/data:/data marmot-prod \

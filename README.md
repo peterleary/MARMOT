@@ -1,6 +1,5 @@
 # MARMOT
-
-**M**ultif**a**ceted **R** Pipeline for **M**easuring Spectral Fl**o**w Cytometry Da**t**a
+ A Multifaceted R Pipeline for Analysing Spectral Flow Cytometry Data
 
 <p align="center">
 <img src="images/MARMOT_Logo_2-min.png" width="150"/>
