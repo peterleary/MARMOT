@@ -60,7 +60,7 @@ Call `visualize:show_widget` with the three parameters below.
 
 <h2 class="sr-only">MARMOT welcome: a hexagonal badge of mAIrmot, the package mascot, followed by six journey-stage cards spanning FCS export through troubleshooting.</h2>
 
-<img class="marmot-hero" src="https://cdn.jsdelivr.net/gh/peterleary/MARMOT@dev/inst/skill-assets/mairmot.png" alt="mAIrmot — the MARMOT mascot, a bespectacled marmot in a sweater-vest and bow tie, framed in a teal-and-coral hexagonal badge.">
+<img class="marmot-hero" src="https://cdn.jsdelivr.net/gh/peterleary/MARMOT@main/inst/skill-assets/mairmot.png" alt="mAIrmot — the MARMOT mascot, a bespectacled marmot in a sweater-vest and bow tie, framed in a teal-and-coral hexagonal badge.">
 
 <div class="title-block">
   <h2>MARMOT</h2>
