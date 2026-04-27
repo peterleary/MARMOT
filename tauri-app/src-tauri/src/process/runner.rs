@@ -301,22 +301,24 @@ pub fn get_r_info(rscript_path: &str) -> Result<(String, bool), String> {
 /// Output format (single line on stdout):
 ///   MARMOT_R_STATUS:<version>|<marmot>|{"Rphenograph":<b>,"PeacoQC":<b>,...}
 pub fn get_r_status(rscript_path: &str) -> Result<(String, bool, serde_json::Value), String> {
-    let r_expr = r#"
-req <- function(pkg) tolower(requireNamespace(pkg, quietly=TRUE))
-py <- tryCatch({
-  status <- MARMOT::marmot_python_status()
-  list(PARC = tolower(status$available), pacmap = tolower(status$available))
-}, error = function(e) list(PARC = "false", pacmap = "false"))
-pairs <- c(
-  paste0('"Rphenograph":', req('Rphenograph')),
-  paste0('"PeacoQC":',     req('PeacoQC')),
-  paste0('"flowAI":',      req('flowAI')),
-  paste0('"PARC":',        py$PARC),
-  paste0('"pacmap":',      py$pacmap)
-)
-cat('MARMOT_R_STATUS:', R.version.string, '|',
-    req('MARMOT'), '|{', paste(pairs, collapse=','), '}\n', sep='')
-"#;
+    // Single-line expression. On Windows, Rscript.exe with a multi-line
+    // `-e` argument can get truncated/misparsed during CreateProcess
+    // argument quoting — the pre-merge get_r_info was a one-liner built
+    // with concat! for exactly this reason. Keep this shape.
+    let r_expr = concat!(
+        "req<-function(p)tolower(requireNamespace(p,quietly=TRUE));",
+        "py<-tryCatch({s<-MARMOT::marmot_python_status();",
+            "list(PARC=tolower(s$available),pacmap=tolower(s$available))},",
+            "error=function(e)list(PARC='false',pacmap='false'));",
+        "pairs<-c(",
+            "paste0('\"Rphenograph\":',req('Rphenograph')),",
+            "paste0('\"PeacoQC\":',req('PeacoQC')),",
+            "paste0('\"flowAI\":',req('flowAI')),",
+            "paste0('\"PARC\":',py$PARC),",
+            "paste0('\"pacmap\":',py$pacmap));",
+        "cat('MARMOT_R_STATUS:',R.version.string,'|',",
+            "req('MARMOT'),'|{',paste(pairs,collapse=','),'}\\n',sep='')"
+    );
     let output = new_command(rscript_path)
         .args(["-e", r_expr])
         .env("PATH", enrich_path())

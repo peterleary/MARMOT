@@ -34,7 +34,7 @@
       <span class="status-warn">not installed</span>
     {/if}
   </div>
-  <span class="attribution">made by the marmots in Switzerland&nbsp; 🇨🇭 🥕 🐿️ 🏔️</span>
+  <span class="attribution">made by the marmots in Switzerland&nbsp; <span class="swiss-flag" aria-label="Switzerland">+</span> 🥕 🐿️ 🏔️</span>
   <div class="status-state" style="color: {stateColor}">
     {stateLabel}
   </div>
@@ -87,6 +87,24 @@
     font-style: italic;
     letter-spacing: 0.01em;
     white-space: nowrap;
+  }
+  /* Hand-drawn Swiss flag — Windows Segoe UI Emoji doesn't ship country flags
+     (shows ISO code "CH" instead), so we paint one from CSS. Portable and
+     guaranteed to render identically on every platform. */
+  .swiss-flag {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    background: #d52b1e;
+    color: #ffffff;
+    font-weight: 900;
+    font-style: normal;
+    font-size: 0.75em;
+    line-height: 0.9em;
+    text-align: center;
+    border-radius: 1px;
+    vertical-align: -1px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
   .status-state {
     font-weight: 600;
