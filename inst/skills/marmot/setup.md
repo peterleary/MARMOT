@@ -133,7 +133,7 @@ Have them run, in R:
 
 ```r
 library(MARMOT)
-packageVersion("MARMOT")    # should be ≥ 1.3.1
+packageVersion("MARMOT")    # should be ≥ 1.3.2
 ```
 
 If that loads without errors, they're ready to move on to `metadata-sheet.md`.

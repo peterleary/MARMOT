@@ -9,7 +9,7 @@
       "name": "marmot",
       "source": "./inst/skills/marmot",
       "description": "Expert assistant for the MARMOT R package — spectral flow cytometry analysis pipeline. Helps users install MARMOT, fill in the metadata Excel, run the pipeline, interpret the HTML report and Shiny exploration app, and debug failures.",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "author": {
         "name": "Peter Leary",
         "email": "peter.leary@uzh.ch"

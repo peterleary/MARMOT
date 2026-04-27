@@ -104,7 +104,7 @@ Call `visualize:show_widget` with the three parameters below.
 
 <div class="footer-quote">
   Built at UZH/FGCZ by Lydia Kirsche &amp; Peter Leary.
-  <span class="version-badge">v1.3.1 · Marmotterhorn</span>
+  <span class="version-badge">v1.3.2 · Marmotterhorn</span>
 </div>
 ```
 

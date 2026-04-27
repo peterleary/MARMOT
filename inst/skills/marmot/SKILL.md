@@ -66,4 +66,4 @@ This skill is a distillation of the MARMOT package, the templated pipeline (`MAR
 - Don't run `R CMD INSTALL` or anything that builds/installs the package itself for them — point them at `install_marmot_extras()` or the Tauri app's install panel.
 - Don't push, commit, or modify their git repo. Most users won't have one.
 - Don't guess at their FCS panel composition. Ask them to share their `Study Data` sheet (or the relevant marker columns) or read it from a file.
-- Don't claim a feature exists in a version you haven't checked. The current release is **v1.3.1 ("Marmotterhorn")**; if they're on something older, behaviour may differ.
+- Don't claim a feature exists in a version you haven't checked. The current release is **v1.3.2 ("Marmotterhorn")**; if they're on something older, behaviour may differ.
