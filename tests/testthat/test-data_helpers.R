@@ -1,59 +1,5 @@
 # Tests for inst/app/helpers/data_helpers.R
 
-test_that("detect_data_format identifies h5ad", {
-  tmp <- withr::local_tempdir()
-  file.create(file.path(tmp, "marmot_results.h5ad"))
-
-  expect_equal(detect_data_format(tmp), "h5ad")
-})
-
-test_that("detect_data_format errors when only qs files present", {
-  tmp <- withr::local_tempdir()
-  file.create(file.path(tmp, "sce.qs"))
-
-  expect_error(detect_data_format(tmp), "No MARMOT data found")
-})
-
-test_that("detect_data_format errors on empty directory", {
-  tmp <- withr::local_tempdir()
-
-  expect_error(detect_data_format(tmp), "No MARMOT data found")
-})
-
-test_that("extract_marker_data returns correct columns", {
-  sce <- make_mock_sce()
-  df <- make_mock_umap_df(sce)
-
-  result <- extract_marker_data(df, c("Marker1", "Marker2"))
-  expect_true(all(c("x", "y", "Marker1", "Marker2") %in% colnames(result)))
-  expect_equal(nrow(result), nrow(df))
-})
-
-test_that("extract_marker_data returns NULL for missing markers", {
-  sce <- make_mock_sce()
-  df <- make_mock_umap_df(sce)
-
-  result <- extract_marker_data(df, c("NOTAMARKER", "ALSO_NO"))
-  expect_null(result)
-})
-
-test_that("extract_marker_data handles partial overlap", {
-  sce <- make_mock_sce()
-  df <- make_mock_umap_df(sce)
-
-  result <- extract_marker_data(df, c("Marker1", "NOTAMARKER"))
-  expect_true("Marker1" %in% colnames(result))
-  expect_false("NOTAMARKER" %in% colnames(result))
-})
-
-test_that("extract_marker_data includes metadata_cols", {
-  sce <- make_mock_sce()
-  df <- make_mock_umap_df(sce)
-
-  result <- extract_marker_data(df, "Marker1", metadata_cols = c("cluster_id", "sample_id"))
-  expect_true(all(c("cluster_id", "sample_id") %in% colnames(result)))
-})
-
 test_that("compute_label_positions gives correct medians", {
   sce <- make_mock_sce()
   df <- make_mock_umap_df(sce)
@@ -378,4 +324,72 @@ test_that("sample_cells_by_group: returns character vector of cell IDs", {
   expect_true(is.character(result))
   expect_equal(length(result), 1)
   expect_true(result %in% c("cell_1", "cell_2"))
+})
+
+# ── extract_expr_matrix ─────────────────────────────────────────────────────
+
+test_that("extract_expr_matrix: NULL markers returns full assay", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, "exprsTransformed", markers = NULL)
+
+  expect_true(is.matrix(result))
+  expect_equal(nrow(result), nrow(sce))
+  expect_equal(ncol(result), ncol(sce))
+  expect_equal(rownames(result), rownames(sce))
+})
+
+test_that("extract_expr_matrix: subsetting by marker preserves order", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, "exprsTransformed",
+                                markers = c("Marker3", "Marker1"))
+
+  expect_equal(rownames(result), c("Marker3", "Marker1"))
+  expect_equal(ncol(result), ncol(sce))
+})
+
+test_that("extract_expr_matrix: missing assay falls back to first", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, assay_name = "no_such_assay",
+                                markers = "Marker1")
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(rownames(result), "Marker1")
+})
+
+test_that("extract_expr_matrix: unmatched markers dropped silently", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, "exprsTransformed",
+                                markers = c("Marker1", "NOTAMARKER"))
+
+  expect_equal(rownames(result), "Marker1")
+  expect_equal(nrow(result), 1L)
+})
+
+test_that("extract_expr_matrix: all markers unmatched returns empty (not full) matrix", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, "exprsTransformed",
+                                markers = c("NOTAMARKER", "ALSO_NO"))
+
+  # Critical: must NOT silently return the full matrix
+  expect_equal(nrow(result), 0L)
+  expect_equal(ncol(result), ncol(sce))
+})
+
+test_that("extract_expr_matrix: hyphen/underscore substitution finds markers", {
+  sce <- make_mock_sce()
+  # Add a marker with hyphenated name to the row dimnames
+  rownames(sce)[1] <- "Marker_1"
+  result <- extract_expr_matrix(sce, "exprsTransformed",
+                                markers = "Marker-1")
+
+  expect_equal(rownames(result), "Marker_1")
+  expect_equal(nrow(result), 1L)
+})
+
+test_that("extract_expr_matrix: values match the underlying assay", {
+  sce <- make_mock_sce()
+  result <- extract_expr_matrix(sce, "exprsTransformed", markers = "Marker2")
+  expected <- as.matrix(SummarizedExperiment::assay(sce, "exprsTransformed"))["Marker2", , drop = FALSE]
+
+  expect_equal(unname(result), unname(expected))
 })

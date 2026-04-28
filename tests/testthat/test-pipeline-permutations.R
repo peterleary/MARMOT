@@ -24,6 +24,11 @@ test_that("pipeline: Rphenograph + UMAP", {
   cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("k10" %in% colnames(cell_meta))
   expect_true(is.character(cell_meta$cluster_id) || is.factor(cell_meta$cluster_id))
+
+  # REGRESSION (Feb 2026): cluster_id values are bare integers, not "k1"/"k2"/...
+  cid_chars <- as.character(cell_meta$cluster_id)
+  expect_true(all(grepl("^[0-9]+$", cid_chars)),
+              info = "Rphenograph cluster_id must be bare integers (no 'k' prefix)")
 })
 
 test_that("pipeline: PARC + UMAP", {
@@ -47,6 +52,11 @@ test_that("pipeline: PARC + UMAP", {
   # Ensure no zero-indexed clusters (PARC Python is 0-based, pipeline adds +1)
   cluster_vals <- as.integer(as.character(cell_meta$cluster_id))
   expect_true(all(cluster_vals >= 1, na.rm = TRUE))
+
+  # REGRESSION (Feb 2026): cluster_id values are bare integers, not "p1"/"p2"/...
+  cid_chars <- as.character(cell_meta$cluster_id)
+  expect_true(all(grepl("^[0-9]+$", cid_chars)),
+              info = "PARC cluster_id must be bare integers (no 'p' prefix)")
 })
 
 test_that("pipeline: MfastPG + UMAP", {
@@ -63,6 +73,11 @@ test_that("pipeline: MfastPG + UMAP", {
   # MfastPG uses "k" prefix columns (same as Rphenograph/Mphenograph)
   cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("k10" %in% colnames(cell_meta))
+
+  # REGRESSION (Feb 2026): cluster_id values are bare integers, not "k1"/"k2"/...
+  cid_chars <- as.character(cell_meta$cluster_id)
+  expect_true(all(grepl("^[0-9]+$", cid_chars)),
+              info = "MfastPG cluster_id must be bare integers (no 'k' prefix)")
 })
 
 # ── DR Methods ───────────────────────────────────────────────────────────────────
@@ -290,6 +305,13 @@ test_that("pipeline: multiple k values", {
   cell_meta <- as.data.frame(SummarizedExperiment::colData(reconstruct_sce_from_h5ad(result$h5ad_path)))
   expect_true("meta10" %in% colnames(cell_meta))
   expect_true("meta20" %in% colnames(cell_meta))
+
+  # REGRESSION (Feb 2026): cluster_id and per-k columns are bare integers
+  for (col in c("cluster_id", "meta10", "meta20")) {
+    vals <- as.character(cell_meta[[col]])
+    expect_true(all(grepl("^[0-9]+$", vals)),
+                info = paste("FlowSOM", col, "must be bare integers"))
+  }
 })
 
 test_that("pipeline: type markers only", {

@@ -916,6 +916,43 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
   html_files <- list.files(result$results_path, pattern = "\\.html$")
   expect_true(length(html_files) >= 1)
 
+  # qs2 sidecars produced by fresh runs (skipped on RDataFolder reloads).
+  # framesList.qs2 carries flowFrame objects (CATALYST input); da_ds_results.qs2
+  # carries S4 differential-analysis structures that don't round-trip through h5ad.
+  r_files_dir <- dirname(h5ad_path)
+  framesList_path  <- file.path(r_files_dir, "framesList.qs2")
+  da_ds_path       <- file.path(r_files_dir, "da_ds_results.qs2")
+  expect_true(file.exists(framesList_path),
+              info = "framesList.qs2 sidecar should exist after fresh pipeline run")
+  expect_true(file.exists(da_ds_path),
+              info = "da_ds_results.qs2 sidecar should exist after fresh pipeline run")
+
+  if (requireNamespace("qs2", quietly = TRUE) && file.exists(framesList_path)) {
+    fl <- qs2::qs_read(framesList_path, nthreads = 1)
+    expect_true(is.list(fl), info = "framesList must be a list")
+    # Pipeline names the active QC frames slot ("FlowAI"/"PeacoQC"/"Untransformed")
+    expect_true(length(fl) >= 1, info = "framesList must have at least one frame group")
+
+    # CATALYST matching invariant: frame names within each group end in .fcs
+    # (Feb 2026 fix — names are *.fcs, not bare sample IDs)
+    first_group <- fl[[1]]
+    if (length(first_group) > 0) {
+      nms <- names(first_group)
+      expect_true(!is.null(nms) && all(nzchar(nms)),
+                  info = "framesList entries must be named")
+      expect_true(all(grepl("\\.fcs$", nms, ignore.case = TRUE)),
+                  info = "framesList names must end in .fcs (CATALYST matching)")
+    }
+  }
+
+  if (requireNamespace("qs2", quietly = TRUE) && file.exists(da_ds_path)) {
+    da_ds <- qs2::qs_read(da_ds_path, nthreads = 1)
+    expect_true(is.list(da_ds))
+    # Expected slots written by the QMD (write_results_to_file chunk)
+    expect_true(all(c("daList", "dsList", "selectedClustersList",
+                      "clustersToMapList", "daPValToUse") %in% names(da_ds)))
+  }
+
   invisible(sce)
 }
 
@@ -993,6 +1030,17 @@ validate_marker_type_output <- function(result, expected_marker_classes,
     for (name in names(da_results)) {
       da_df <- as.data.frame(da_results[[name]])
       expect_true("p_adj" %in% colnames(da_df), info = paste("p_adj in", name))
+
+      # Contrast name must parse via " over " (or its h5ad-sanitized form
+      # "_over_", since save_h5ad_data replaces non-alnum chars with underscores)
+      # into exactly two non-empty sides. Guards against regressions where the
+      # contrast key drops the "over" delimiter entirely (e.g. ".vs.", "-").
+      sep <- if (grepl(" over ", name, fixed = TRUE)) " over " else "_over_"
+      sides <- strsplit(name, sep, fixed = TRUE)[[1]]
+      expect_equal(length(sides), 2L,
+                   info = paste("contrast", shQuote(name), "must split on '(_)over(_)' into 2"))
+      expect_true(all(nzchar(sides)),
+                  info = paste("contrast sides for", shQuote(name), "must be non-empty"))
     }
   }
 
