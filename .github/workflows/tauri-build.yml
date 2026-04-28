@@ -104,8 +104,24 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}.tar.gz
 
+  skill_zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build MARMOT Claude Skill zip
+        run: |
+          cd inst/skills
+          zip -r "${GITHUB_WORKSPACE}/marmot-skill.zip" marmot -x '*.DS_Store'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marmot-skill
+          path: marmot-skill.zip
+
   release:
-    needs: build
+    needs: [build, skill_zip]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -123,8 +139,14 @@ jobs:
           body: |
             ## Installation
 
-            **macOS**: Download the `.zip` for your architecture, unzip, then **right-click** the app and choose **Open** (required on first launch for unsigned apps). If you see "damaged" instead, run in Terminal: `xattr -cr MARMOT.app`
+            **MARMOT desktop app:**
 
-            **Windows**: Download and run the `.msi` installer.
+            - **macOS**: Download the `.zip` for your architecture, unzip, then **right-click** the app and choose **Open** (required on first launch for unsigned apps). If you see "damaged" instead, run in Terminal: `xattr -cr MARMOT.app`
+            - **Windows**: Download and run the `.msi` installer.
+            - **Linux**: Extract the `.tar.gz` and run `./marmot-gui`.
 
-            **Linux**: Extract the `.tar.gz` and run `./marmot-gui`.
+            **MARMOT Claude Skill (`marmot-skill.zip`):**
+
+            - **Claude Code**: `/plugin marketplace add peterleary/MARMOT` then `/plugin install marmot@marmot` (no zip needed).
+            - **Claude desktop / claude.ai**: download `marmot-skill.zip` above, then **Customize → Skills → "+" → Upload a skill**.
+            - **From R**: `MARMOT::install_claude_skill()` (Claude Code) or `MARMOT::export_claude_skill()` (desktop/web).
