@@ -78,8 +78,52 @@ fi
 echo "    branch:  main (clean, up to date)"
 echo "    bumping: $OLD_VERSION -> $NEW_VERSION"
 
+# --- Files we bump. Used for pre/post checks and (with directory expansion) for git ops below. ---
+BUMPED_FILES=(
+  DESCRIPTION
+  .claude-plugin/marketplace.json
+  inst/skills/marmot/SKILL.md
+  inst/skills/marmot/welcome-widget.md
+  inst/skills/marmot/setup.md
+  tauri-app/src-tauri/tauri.conf.json
+  tauri-app/src-tauri/Cargo.toml
+  tauri-app/package.json
+  tauri-app/package-lock.json
+)
+
+# --- Helper: count lines containing $1 in the first 15 lines of file $2 (for package-lock.json) ---
+count_in_lockfile_top() {
+  awk 'NR<=15' "$2" | grep -c -F "$1" || true
+}
+
+# --- Helper: assert a file is at $expected_version (or, for the lockfile, at it twice in the top) ---
+file_has_version() {
+  local file="$1" expected="$2"
+  if [[ "$file" == "tauri-app/package-lock.json" ]]; then
+    [[ "$(count_in_lockfile_top "$expected" "$file")" -ge 2 ]]
+  else
+    grep -qF "$expected" "$file"
+  fi
+}
+
+# --- Pre-flight: every file must currently contain OLD_VERSION (catches drift) ---
+echo "==> Pre-flight: verify all ${#BUMPED_FILES[@]} files are at $OLD_VERSION"
+DRIFT=""
+for f in "${BUMPED_FILES[@]}"; do
+  if ! file_has_version "$f" "$OLD_VERSION"; then
+    DRIFT="${DRIFT}  $f does not contain '$OLD_VERSION'"$'\n'
+  fi
+done
+if [[ -n "$DRIFT" ]]; then
+  echo "ERROR: version files are out of sync with DESCRIPTION ($OLD_VERSION):"
+  printf "%s" "$DRIFT"
+  echo
+  echo "Manually bump the out-of-sync files to $OLD_VERSION first, then re-run."
+  exit 1
+fi
+
 # --- Bump in 9 files (perl -i for cross-platform: works on mac BSD + GNU sed boxes) ---
-echo "==> Bumping version in 9 files"
+echo "==> Bumping version in ${#BUMPED_FILES[@]} files"
 # R package + skill artifacts (5)
 perl -i -pe "s/^Version: \Q$OLD_VERSION\E\$/Version: $NEW_VERSION/" DESCRIPTION
 perl -i -pe "s/\"version\": \"\Q$OLD_VERSION\E\"/\"version\": \"$NEW_VERSION\"/" .claude-plugin/marketplace.json
@@ -93,31 +137,20 @@ perl -i -pe "s/\"version\": \"\Q$OLD_VERSION\E\"/\"version\": \"$NEW_VERSION\"/"
 # package-lock.json: project version lives on lines 3 and 9; restrict to top of file to avoid touching deps
 perl -i -pe "s/\"version\": \"\Q$OLD_VERSION\E\"/\"version\": \"$NEW_VERSION\"/ if \$. <= 15" tauri-app/package-lock.json
 
-# --- Verify the bumped files no longer contain the old version ---
-# Note: package-lock.json is intentionally excluded — it contains many transitive dep
-# versions, any of which could legitimately match $OLD_VERSION as a coincidence.
-echo "==> Verifying no stale '$OLD_VERSION' refs in the bumped files"
-STALE="$(grep -n -F "$OLD_VERSION" \
-  DESCRIPTION \
-  .claude-plugin/marketplace.json \
-  inst/skills/marmot/SKILL.md \
-  inst/skills/marmot/welcome-widget.md \
-  inst/skills/marmot/setup.md \
-  tauri-app/src-tauri/tauri.conf.json \
-  tauri-app/src-tauri/Cargo.toml \
-  tauri-app/package.json 2>/dev/null || true)"
-if [[ -n "$STALE" ]]; then
-  echo "ERROR: bumped files still mention '$OLD_VERSION':"
-  echo "$STALE"
+# --- Post-bump: every file must now contain NEW_VERSION (catches silent regex misses) ---
+echo "==> Verifying every bumped file now contains $NEW_VERSION"
+MISSING=""
+for f in "${BUMPED_FILES[@]}"; do
+  if ! file_has_version "$f" "$NEW_VERSION"; then
+    MISSING="${MISSING}  $f did NOT pick up '$NEW_VERSION'"$'\n'
+  fi
+done
+if [[ -n "$MISSING" ]]; then
+  echo "ERROR: bump didn't take effect in some files:"
+  printf "%s" "$MISSING"
   echo
-  echo "Investigate, fix manually, then re-run."
-  exit 1
-fi
-# Also sanity-check package-lock.json lines 3 and 9 specifically
-LOCK_STALE="$(awk 'NR==3 || NR==9' tauri-app/package-lock.json | grep -F "$OLD_VERSION" || true)"
-if [[ -n "$LOCK_STALE" ]]; then
-  echo "ERROR: tauri-app/package-lock.json lines 3 or 9 still mention '$OLD_VERSION':"
-  echo "$LOCK_STALE"
+  echo "Likely a regex mismatch. Check the perl patterns against the actual file contents."
+  echo "Working tree is dirty (partial bumps applied). Run \`git restore .\` to undo."
   exit 1
 fi
 
