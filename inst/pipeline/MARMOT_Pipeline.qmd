@@ -1779,7 +1779,7 @@ for (i in seq_along(contrasts)) {
   selectedClustersList[[idx_down]] <- down_clusters
   
   names_list[idx_up] <- paste0("Contrast ", i, ": ", contrast_conditions[1], " Up")
-  names_list[idx_down] <- paste0("Contrast ", i, ": ", contrast_conditions[2], " Down")
+  names_list[idx_down] <- paste0("Contrast ", i, ": ", contrast_conditions[2], " Up")
 }
 
 names(selectedClustersList) <- names_list
@@ -2103,6 +2103,10 @@ if (exists("qc_skip_reason")) {
 ```
 
 ### Cofactor Histograms
+
+::: {.callout-tip collapse="true" title="About these plots"}
+The red dotted line marks the mean value across all cells, and is purely informational, rather than to aid cofactor selection. 
+:::
 
 :::::::: panel-tabset
 
