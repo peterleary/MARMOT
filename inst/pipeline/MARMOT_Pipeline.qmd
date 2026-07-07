@@ -2813,6 +2813,40 @@ if (gimmePDFs) {
 }
 ```
 
+```{r, label = "export cluster boxplot values", include = FALSE}
+
+# Normalized values shown in the cluster boxplots
+cluster_boxplot_values_export <- clusterBoxPlotsDF |>
+  dplyr::select(
+    sample_id,
+    condition,
+    dplyr::all_of(as.character(levels(kids)))
+  )
+
+# P-values used for the cluster boxplot annotations
+cluster_boxplot_pvalues_export <- dplyr::bind_rows(
+  clusterPvalues,
+  .id = "cluster_id"
+) |>
+  dplyr::select(
+    cluster_id,
+    group1,
+    group2,
+    p,
+    p.signif
+  )
+
+# Export both tables into one Excel file with two sheets
+openxlsx::write.xlsx(
+  x = list(
+    "Normalized_values" = cluster_boxplot_values_export,
+    "P_values" = cluster_boxplot_pvalues_export
+  ),
+  file = file.path(excelDir, "Cluster_Boxplot_values_with_pvalues.xlsx")
+)
+```
+
+
 ### Markers per Condition
 
 ```{r, label = "generate marker tables"}
