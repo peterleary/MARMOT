@@ -463,3 +463,17 @@ test_that("filter_da_clusters: a cluster listed as both up and down does not bre
   result <- filter_da_clusters(df, list(c("c1", "c2"), c("c2")), mode = "All")
   expect_equal(levels(result$umap_df$cluster_id), c("c1", "c2", "Other"))
 })
+
+test_that("aggregate_expression: the positive share uses the given values and threshold", {
+  # Displayed values are all above zero (as quantile-normalised values are);
+  # positivity is judged on separate values against a threshold of 1.
+  shown    <- data.frame(M = c(0.1, 0.2, 0.9, 0.8, 0.5, 0.6), group = rep(c("a", "b"), each = 3))
+  positive <- data.frame(M = c(0.2, 0.5, 2.0, 3.0, 1.5, 0.9))
+  res <- aggregate_expression(shown, "M", "group", positive_df = positive, threshold = 1)
+  expect_equal(unname(res$pct_expr[, "M"]), c(100 / 3, 200 / 3))
+  expect_equal(unname(res$avg_expr[, "M"]), c(mean(c(0.1, 0.2, 0.9)), mean(c(0.8, 0.5, 0.6))))
+  # Scaling the displayed values must not move the percentage
+  shown$M <- as.numeric(scale(shown$M))
+  expect_equal(aggregate_expression(shown, "M", "group", positive_df = positive, threshold = 1)$pct_expr,
+               res$pct_expr)
+})

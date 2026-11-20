@@ -233,7 +233,8 @@ make_violin_plot <- function(df, marker, group_col, split_col = NULL,
 
 #' Create a dot plot (replaces SCpubr::do_DotPlot)
 #' @param avg_expr Matrix: groups x markers (mean expression)
-#' @param pct_expr Matrix: groups x markers (percent expressed)
+#' @param pct_expr Matrix: groups x markers (percentage of cells above the
+#'   positivity threshold, from aggregate_expression())
 #' @param palette Colour palette name
 #' @param direction Palette direction
 #' @param dot_scale Scaling factor for dot size
@@ -245,12 +246,14 @@ make_violin_plot <- function(df, marker, group_col, split_col = NULL,
 #' @param uniform_size Logical: if TRUE all dots same size (ignore pct_expr)
 #' @param hide_legend Logical: if TRUE suppress legend
 #' @param legend_position Legend position string
+#' @param size_name Title of the dot-size legend
 #' @return A ggplot object
 make_dot_plot <- function(avg_expr, pct_expr, palette = "viridis", direction = 1,
                           dot_scale = 10, flip = TRUE, base_size = 14,
                           scaling = "none", scale_basis = "cells",
                           hide_border = FALSE, uniform_size = FALSE,
-                          hide_legend = FALSE, legend_position = "right") {
+                          hide_legend = FALSE, legend_position = "right",
+                          size_name = "% of cells\nabove threshold") {
   # Apply expression scaling
   if (scaling == "zscore") {
     for (m in colnames(avg_expr)) {
@@ -295,7 +298,7 @@ make_dot_plot <- function(avg_expr, pct_expr, palette = "viridis", direction = 1
       colour = .data[["avg_expr"]]
     )) +
       geom_point(shape = if (hide_border) 20 else 21) +
-      scale_size_continuous(range = c(0, dot_scale), name = "% Expressing") +
+      scale_size_continuous(range = c(0, dot_scale), name = size_name) +
       theme_classic(base_size = base_size)
   }
 

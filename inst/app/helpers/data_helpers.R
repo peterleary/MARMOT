@@ -95,8 +95,19 @@ get_plottable_columns <- function(sce) {
 #' @param expr_df Data frame: rows=cells, columns include markers + group_col
 #' @param markers Character vector of marker column names
 #' @param group_col Name of the grouping column
-#' @return List with avg_expr (matrix) and pct_expr (matrix)
-aggregate_expression <- function(expr_df, markers, group_col) {
+#' @param positive_df Optional data frame of the values that decide whether a
+#'   cell counts as positive for a marker: same rows as `expr_df`, one column
+#'   per marker. Defaults to `expr_df` itself. Pass the arcsinh-transformed
+#'   values here when `expr_df` has been normalised or scaled for display, so
+#'   the percentage does not change with a display option.
+#' @param threshold A cell is positive for a marker when its value is above
+#'   this. There is no natural zero in cytometry (every cell has some signal
+#'   for every marker), so callers should set it deliberately.
+#' @return List with avg_expr (matrix) and pct_expr (matrix: the percentage of
+#'   cells in each group above `threshold`)
+aggregate_expression <- function(expr_df, markers, group_col,
+                                 positive_df = NULL, threshold = 0) {
+  if (is.null(positive_df)) positive_df <- expr_df
   groups <- sort(unique(expr_df[[group_col]]))
   avg_mat <- matrix(NA, nrow = length(groups), ncol = length(markers),
                     dimnames = list(groups, markers))
@@ -106,7 +117,7 @@ aggregate_expression <- function(expr_df, markers, group_col) {
   for (m in markers) {
     vals <- expr_df[[m]]
     avg_mat[, m] <- tapply(vals, group_factor, mean, na.rm = TRUE)
-    pct_mat[, m] <- 100 * tapply(vals > 0, group_factor, mean, na.rm = TRUE)
+    pct_mat[, m] <- 100 * tapply(positive_df[[m]] > threshold, group_factor, mean, na.rm = TRUE)
   }
 
   list(avg_expr = avg_mat, pct_expr = pct_mat)

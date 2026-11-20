@@ -241,6 +241,9 @@ output$plotTypeControls <- renderUI({
       checkboxInput("umapFeaturePlotDotplotFlip", "Flip dot plot?", value = TRUE),
       checkboxInput("fpDotPlotHideBorder", "Hide dot border?", value = FALSE),
       checkboxInput("fpDotPlotUniformSize", "Uniform dot size?", value = FALSE),
+      numericInput("fpDotPlotPositiveThreshold",
+        "Dot size: % of cells above this arcsinh-transformed value",
+        value = 1, step = 0.25, width = "85%"),
 
       fp_section_header("Legend"),
       checkboxInput("fpDotPlotHideLegend", "Hide legend?", value = FALSE),
@@ -385,6 +388,7 @@ fp_inputs_raw <- reactive({
     ),
     "Dot Plot" = list(
       input$umapFeaturePlotDotplotFlip, input$fpDotPlotDotScale,
+      input$fpDotPlotPositiveThreshold,
       input$fpDotPlotHideBorder, input$fpDotPlotHideLegend,
       input$fpDotPlotLegendPosition, input$fpDotPlotScaling,
       input$fpDotPlotUniformSize, input$fpDotPlotScaleBasis
@@ -1049,6 +1053,12 @@ observeEvent(
         expr_df[[fpColumnToPlot]] <- cd[[fpColumnToPlot]]
         markers_in_df <- rownames(expr_mat)[rownames(expr_mat) %in% colnames(expr_df)]
 
+        # Dot size is the share of cells above a threshold on the arcsinh-
+        # transformed values, whichever assay and scaling are being displayed.
+        positive_threshold <- input$fpDotPlotPositiveThreshold %||% 1
+        if (is.na(positive_threshold)) positive_threshold <- 1
+        positive_df <- as.data.frame(t(extract_expr_matrix(sce, "exprsTransformed", fpFeaturesToPlot)))
+
         # Scaling (cell-level or group-level)
         scaling_method <- input$fpDotPlotScaling %||% "None"
         scale_basis <- input$fpDotPlotScaleBasis %||% "cell"
@@ -1067,7 +1077,8 @@ observeEvent(
           }
         }
 
-        agg <- aggregate_expression(expr_df, markers_in_df, fpColumnToPlot)
+        agg <- aggregate_expression(expr_df, markers_in_df, fpColumnToPlot,
+                                    positive_df = positive_df, threshold = positive_threshold)
 
         # Group-level scaling applied post-aggregation
         if (scaling_method == "Z-score" && scale_basis == "group") {
@@ -1116,7 +1127,8 @@ observeEvent(
             colour = .data[["avg_expr"]]
           )) +
             geom_point(stroke = if (hide_border) 0 else 0.5) +
-            scale_size_continuous(range = c(0, dot_scale), name = "% Expressing")
+            scale_size_continuous(range = c(0, dot_scale),
+                                  name = paste0("% of cells\nabove ", positive_threshold))
         }
 
         p <- p +
