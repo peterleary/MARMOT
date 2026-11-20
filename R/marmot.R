@@ -134,6 +134,20 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
       )
     }
     message("Now rendering the HTML report. This can take some time...")
+    # Condition and marker names may contain Greek letters, superscripts and
+    # the like. Under a plain "C" language setting (the norm in Docker and in
+    # scripts) R writes those into the report as <U+03B1>. Switch only the
+    # character type to UTF-8 for the render: sorting order, and so the
+    # results, stay exactly as they are.
+    if (!isTRUE(l10n_info()[["UTF-8"]]) && !nzchar(Sys.getenv("LC_ALL"))) {
+      utf8_ctype <- .find_utf8_ctype()
+      if (nzchar(utf8_ctype)) {
+        old_ctype <- Sys.getenv("LC_CTYPE", unset = NA)
+        Sys.setenv(LC_CTYPE = utf8_ctype)
+        on.exit(if (is.na(old_ctype)) Sys.unsetenv("LC_CTYPE") else Sys.setenv(LC_CTYPE = old_ctype),
+                add = TRUE)
+      }
+    }
     # FlowAI writes its own QC reports with rmarkdown, which needs pandoc.
     # Outside RStudio and Positron there is often none on the search path, so
     # lend it the one that ships with Quarto for the length of the render.
@@ -173,4 +187,15 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   if (machine == "arm64") machine <- "aarch64"
   same_machine <- found[basename(dirname(found)) == machine]
   dirname(if (length(same_machine) > 0) same_machine[1] else found[1])
+}
+
+# Find a UTF-8 character type this machine offers. Returns "" if there is none.
+.find_utf8_ctype <- function(candidates = c("en_US.UTF-8", "C.UTF-8", "UTF-8")) {
+  current <- Sys.getlocale("LC_CTYPE")
+  on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", current)), add = TRUE)
+  for (candidate in candidates) {
+    set <- suppressWarnings(Sys.setlocale("LC_CTYPE", candidate))
+    if (nzchar(set) && isTRUE(l10n_info()[["UTF-8"]])) return(candidate)
+  }
+  ""
 }

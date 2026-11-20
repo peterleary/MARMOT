@@ -182,3 +182,13 @@ test_that(".find_quarto_pandoc finds the pandoc that ships with Quarto", {
   }
   expect_equal(basename(find_quarto_pandoc(quarto)), machine)
 })
+
+test_that(".find_utf8_ctype finds a UTF-8 character type and leaves the session alone", {
+  find_utf8_ctype <- getFromNamespace(".find_utf8_ctype", "MARMOT")
+  before <- Sys.getlocale("LC_CTYPE")
+  found <- find_utf8_ctype()
+  expect_identical(Sys.getlocale("LC_CTYPE"), before)
+  expect_equal(find_utf8_ctype(candidates = "no_SUCH.locale"), "")
+  skip_if(!nzchar(found), "this machine offers no UTF-8 character type")
+  withr::with_locale(c(LC_CTYPE = found), expect_true(l10n_info()[["UTF-8"]]))
+})
