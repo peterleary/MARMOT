@@ -74,7 +74,9 @@ natural_order <- function(...) {
       out
     }, character(1), USE.NAMES = FALSE)
   }
-  do.call(order, lapply(keys, pad))
+  # method = "radix" orders by byte value, so the result does not depend on the
+  # language setting R is running under.
+  do.call(order, c(lapply(keys, pad), list(method = "radix")))
 }
 
 named_list <- function(x) {
@@ -120,6 +122,10 @@ withCallingHandlers(
   },
   message = function(m) invokeRestart("muffleMessage")
 )
+# A warning may quote the path of the results folder, timestamp and all. Leave
+# the path out, so the same warning from two runs counts as the same warning.
+warn_msgs <- gsub("[^' ]*/Results_Files_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}/",
+                  "<results>/", warn_msgs)
 sce <- env$sce
 if (is.null(sce)) fail("no SingleCellExperiment could be reconstructed from: ", h5ad_path)
 
@@ -290,7 +296,7 @@ excel_dir <- file.path(results_dir, "Excel_Files")
 big_bytes <- 20e6
 excel <- list()
 if (dir.exists(excel_dir)) {
-  xfiles <- sort(list.files(excel_dir, pattern = "\\.xlsx$", full.names = TRUE))
+  xfiles <- sort(list.files(excel_dir, pattern = "\\.xlsx$", full.names = TRUE), method = "radix")
   for (f in xfiles) {
     sheets <- openxlsx::getSheetNames(f)
     node <- list(sheets = I(sheets))
