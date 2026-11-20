@@ -178,16 +178,20 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
     uns$cluster_codes <- cc_save
   }
 
-  # DR data frames (umapDFList)
+  # Plotting tables (umapDFList). Everything in them is already in the SCE, so
+  # only the record of which cells each holds is saved, and they are rebuilt
+  # on loading (see R/dr_frames.R). A table that could not be rebuilt exactly
+  # from the SCE is saved whole instead.
   umapDFList <- safe_get("umapDFList")
   if (!is.null(umapDFList) && is.list(umapDFList)) {
+    umapDFList <- Filter(is.data.frame, umapDFList)
+    rebuildable <- .rebuildable_dr_frames(sce, umapDFList, safe_get("clusteringMethodToUse"))
+    index <- .dr_frame_index(umapDFList[rebuildable])
+    if (!is.null(index)) uns$dr_frames <- index
     dr_list <- list()
-    for (name in names(umapDFList)) {
-      df <- umapDFList[[name]]
-      if (is.data.frame(df)) {
-        safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-        dr_list[[safe_name]] <- df
-      }
+    for (name in setdiff(names(umapDFList), rebuildable)) {
+      safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
+      dr_list[[safe_name]] <- umapDFList[[name]]
     }
     if (length(dr_list) > 0) uns$dr_dataframes <- dr_list
   }
@@ -398,12 +402,8 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   if (!is.null(sce)) assign("sce", sce, envir = envir)
 
   # -- umapDFList --
-  if (!is.null(uns$dr_dataframes) && is.list(uns$dr_dataframes)) {
-    umapDFList <- lapply(uns$dr_dataframes, as.data.frame)
-    # Restore dots in names (e.g., "Downsampled_UMAP" -> "Downsampled.UMAP")
-    names(umapDFList) <- gsub("_", ".", names(umapDFList))
-    assign("umapDFList", umapDFList, envir = envir)
-  }
+  umapDFList <- .load_dr_frames(uns, sce, uns$pipeline_settings$clusteringMethodToUse)
+  if (!is.null(umapDFList)) assign("umapDFList", umapDFList, envir = envir)
 
   # -- Colours (reconstruct named vectors from 2-col data.frames) --
   if (!is.null(uns$colours) && is.list(uns$colours)) {
@@ -509,10 +509,8 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   }
 
   # umapDFList
-  if (!is.null(uns$dr_dataframes) && is.list(uns$dr_dataframes)) {
-    files$umapDFList <- lapply(uns$dr_dataframes, as.data.frame)
-    names(files$umapDFList) <- gsub("_", ".", names(files$umapDFList))
-  }
+  umapDFList <- .load_dr_frames(uns, files$sce, uns$pipeline_settings$clusteringMethodToUse)
+  if (!is.null(umapDFList)) files$umapDFList <- umapDFList
 
   # Colours (reconstruct named vectors)
   if (!is.null(uns$colours) && is.list(uns$colours)) {
