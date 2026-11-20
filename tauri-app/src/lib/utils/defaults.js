@@ -17,7 +17,7 @@ export const FIELD_DEFINITIONS = {
     type: "text",
     label: "Clustering levels",
     lockedOnReload: true,
-    placeholder: "e.g. 20, 40",
+    placeholder: "e.g. 20, 40, 60",
     info: "Run multiple values to see how cell clustering is affected. Use odd numbers for Rphenograph/MfastPG/PARC, even numbers for FlowSOM. Values between 10\u2013100.",
   },
   knn: {
@@ -54,7 +54,8 @@ export const FIELD_DEFINITIONS = {
   downsampleTo: {
     type: "number",
     label: "Downsample To",
-    placeholder: "Leave blank = no downsampling",
+    placeholder: "Blank = every cell (slower)",
+    info: "Cells to take from each FCS file. 10000 gives a quick first look; clear it to use every cell once you are happy.",
     allowEmpty: true,
     lockedOnReload: true,
   },
@@ -71,10 +72,6 @@ export const FIELD_DEFINITIONS = {
     label: "Quantile Normalise",
     lockedOnReload: true,
   },
-  runInParallel: {
-    type: "checkbox",
-    label: "Run in Parallel",
-  },
   runScGate: {
     type: "checkbox",
     label: "Run scGate",
@@ -90,11 +87,6 @@ export const FIELD_DEFINITIONS = {
     label: "RAM per Core (GB)",
     min: 1,
   },
-  themeToUse: {
-    type: "dropdown",
-    options: ["prism", "classic", "bw", "minimal", "void", "light", "dark"],
-    label: "Plot Theme",
-  },
   viridisColour: {
     type: "grouped-dropdown",
     options: {
@@ -104,6 +96,13 @@ export const FIELD_DEFINITIONS = {
       "Fun": ["Marmot", "Swiss", "Lucky"],
     },
     label: "Colour Palette",
+  },
+  excludeTheseSamples: {
+    type: "text",
+    label: "Samples to leave out",
+    placeholder: "e.g. S001, S026 (blank = none)",
+    info: "Sample IDs to leave out of the analysis, separated by commas.",
+    lockedOnReload: true,
   },
   RDataFolder: {
     type: "folder",
@@ -138,14 +137,14 @@ export const SETTING_GROUPS = [
   },
   {
     label: "Preprocessing",
-    fields: ["downsampleTo", "quantileNormaliseAll", "RDataFolder"],
+    fields: ["downsampleTo", "excludeTheseSamples", "quantileNormaliseAll", "RDataFolder"],
   },
   {
-    label: "Parallelism",
-    fields: ["runInParallel", "nCores", "ramPerCore"],
+    label: "Resources",
+    fields: ["nCores", "ramPerCore"],
   },
   {
     label: "Output & Aesthetics",
-    fields: ["gimmePDFs", "greyscalePlots", "themeToUse", "viridisColour"],
+    fields: ["gimmePDFs", "greyscalePlots", "viridisColour"],
   },
 ];

@@ -9,7 +9,8 @@
 
   let currentMetadata = $derived($metadata);
   let groupedFields = $derived(SETTING_GROUPS.flatMap(g => g.fields));
-  const LEGACY_FIELDS = new Set(["condaDir", "parcScriptDir"]);
+  // Settings older MARMOT versions had; hidden if an old sheet still carries them
+  const LEGACY_FIELDS = new Set(["condaDir", "parcScriptDir", "runInParallel", "themeToUse", "drCellCount"]);
   let ungrouped = $derived(currentMetadata.pipeline_settings.filter(s => !groupedFields.includes(s.variable) && !LEGACY_FIELDS.has(s.variable)));
 
   // Auto-inject missing defined fields so they always appear in the UI,

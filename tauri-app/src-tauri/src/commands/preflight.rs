@@ -103,7 +103,6 @@ const CLUSTER_METHOD_ALLOWED: &[&str] = &["FlowSOM", "MfastPG", "Mphenograph", "
 const DIM_RED_ALLOWED: &[&str] = &["UMAP", "TSNE", "Mpacmap", "pacmap"];
 const MARKERS_ROLE_ALLOWED: &[&str] = &["all", "type", "state"];
 const RUN_QC_ALLOWED: &[&str] = &["FlowAI", "PeacoQC", "None"];
-const THEME_ALLOWED: &[&str] = &["prism", "classic", "bw", "minimal", "void", "light", "dark"];
 
 // Separator patterns we accept for contrast parsing. The canonical form is
 // `" over "` (what the Tauri UI writes), but hand-edited Excels often drift.
@@ -711,17 +710,6 @@ fn check_coherence_qc(metadata: &MetadataFile) -> CheckResult {
     }
 }
 
-fn check_coherence_parallel(metadata: &MetadataFile) -> CheckResult {
-    let in_parallel = get_setting(metadata, "runInParallel").map(truthy).unwrap_or(false);
-    let n_cores = get_setting(metadata, "nCores").and_then(parse_positive_int).unwrap_or(0);
-    if in_parallel && n_cores <= 1 {
-        CheckResult::warn("coherence_parallel", "Parallel settings coherent", 1,
-            "runInParallel=TRUE but nCores ≤ 1 — no parallel benefit", vec![])
-    } else {
-        CheckResult::pass("coherence_parallel", "Parallel settings coherent", 1, "OK")
-    }
-}
-
 fn check_markers_role_has_matches(metadata: &MetadataFile, var: &str, label: &str) -> CheckResult {
     let id = format!("role_{}", var);
     let Some(role) = get_setting(metadata, var) else {
@@ -1096,7 +1084,6 @@ pub fn check_metadata(metadata: MetadataFile, fcs_folder: String) -> Result<Pref
     checks.push(check_enum(&metadata, "runQC", RUN_QC_ALLOWED, "QC method valid"));
     checks.push(check_enum(&metadata, "markersToClusterBy", MARKERS_ROLE_ALLOWED, "markersToClusterBy valid"));
     checks.push(check_enum(&metadata, "markersToDimRedBy", MARKERS_ROLE_ALLOWED, "markersToDimRedBy valid"));
-    checks.push(check_enum(&metadata, "themeToUse", THEME_ALLOWED, "Theme valid"));
 
     // Numeric sanity
     checks.push(check_numeric(&metadata, "nCores", false, "nCores is a positive integer"));
@@ -1105,7 +1092,6 @@ pub fn check_metadata(metadata: MetadataFile, fcs_folder: String) -> Result<Pref
 
     // Cross-field coherence
     checks.push(check_coherence_qc(&metadata));
-    checks.push(check_coherence_parallel(&metadata));
     checks.push(check_markers_role_has_matches(&metadata, "markersToClusterBy", "markersToClusterBy has matching markers"));
     checks.push(check_markers_role_has_matches(&metadata, "markersToDimRedBy", "markersToDimRedBy has matching markers"));
     checks.push(check_reload_folder(&metadata));
@@ -1153,10 +1139,8 @@ mod tests {
                 mk_setting("useQC", "FALSE"),
                 mk_setting("markersToClusterBy", "all"),
                 mk_setting("markersToDimRedBy", "all"),
-                mk_setting("themeToUse", "prism"),
                 mk_setting("nCores", "4"),
                 mk_setting("ramPerCore", "6"),
-                mk_setting("runInParallel", "TRUE"),
             ],
             study_data: SheetData {
                 headers: vec![
@@ -1460,13 +1444,6 @@ mod tests {
         m.pipeline_settings.iter_mut().find(|s| s.variable == "useQC").unwrap().setting = "TRUE".into();
         m.pipeline_settings.iter_mut().find(|s| s.variable == "runQC").unwrap().setting = "None".into();
         assert_eq!(check_coherence_qc(&m).status, Status::Fail);
-    }
-
-    #[test]
-    fn parallel_with_1_core_warns() {
-        let mut m = base_metadata();
-        m.pipeline_settings.iter_mut().find(|s| s.variable == "nCores").unwrap().setting = "1".into();
-        assert_eq!(check_coherence_parallel(&m).status, Status::Warn);
     }
 
     #[test]
