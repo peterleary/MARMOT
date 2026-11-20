@@ -79,8 +79,9 @@ umapReactive <- eventReactive(
       da_mode   <- inputs$umapDAFilter %||% "None"
       contrast  <- inputs$umapContrast %||% "None"
 
-      if (da_mode != "None" && contrast != "None" &&
-          !is.null(res$selectedClustersList)) {
+      # No check for a missing list here: a run with nothing significant has
+      # none, and the user is then told so instead of the filter doing nothing.
+      if (da_mode != "None" && contrast != "None") {
         # Looked up by name, never by position (see get_da_clusters)
         clusters_to_plot <- unname(get_da_clusters(
           res$selectedClustersList, res$smd$`Conditions To Test`, contrast))

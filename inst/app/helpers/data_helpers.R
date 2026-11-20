@@ -195,9 +195,18 @@ get_da_clusters <- function(selected_clusters_list, contrasts, contrast) {
   i <- match(tidy_contrasts(contrast), contrasts)
   if (length(i) != 1 || is.na(i)) return(none)
 
-  conditions <- strsplit(contrasts[i], " over ")[[1]]
+  entry <- function(condition) paste0("Contrast ", i, ": ", condition, " Up")
+  # A condition name may itself contain " over ", so try each place the
+  # contrast could be cut and keep the first whose entries exist.
+  # (The look-ahead finds every " over ", including ones that share a space.)
+  cuts <- gregexpr("(?= over )", contrasts[i], perl = TRUE)[[1]]
+  pairs <- lapply(cuts, function(cut) {
+    c(substr(contrasts[i], 1, cut - 1), substr(contrasts[i], cut + 6, nchar(contrasts[i])))
+  })
+  found <- vapply(pairs, function(pair) any(entry(pair) %in% names(selected_clusters_list)), logical(1))
+  conditions <- pairs[[if (any(found)) which(found)[1] else 1]]
   lookup <- function(condition) {
-    clusters <- selected_clusters_list[[paste0("Contrast ", i, ": ", condition, " Up")]]
+    clusters <- selected_clusters_list[[entry(condition)]]
     if (is.null(clusters)) character(0) else as.character(clusters)
   }
   list(up = lookup(conditions[1]), down = lookup(conditions[2]))
@@ -218,7 +227,8 @@ filter_da_clusters <- function(umap_df, clusters_to_plot, mode = "None") {
   warning_msg <- NULL
 
   if (mode == "All") {
-    ctp <- unlist(clusters_to_plot)
+    # unique(): a cluster with logFC exactly 0 is listed as both up and down
+    ctp <- unique(unlist(clusters_to_plot))
     if (length(ctp) < 1) {
       warning_msg <- "There are no DA clusters in this contrast!"
       umap_df$cluster_id <- factor(umap_df$cluster_id,

@@ -55,7 +55,9 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   nullable_nas <- params_df$Variable[params_df$Variable %in% nullable_vars &
                                        is.na(params_df$Setting)]
 
-  params_df <- na.omit(params_df)
+  # Keep every row that names a setting and gives it a value. (A blank Info
+  # cell must not drop the setting: it would silently fall back to the default.)
+  params_df <- params_df[!is.na(params_df$Variable) & !is.na(params_df$Setting), , drop = FALSE]
 
   # Get the list of options chosen
   params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable)
@@ -64,7 +66,8 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   for (v in nullable_nas) params_list[[v]] <- NULL
   
   # Tidy up the params
-  params_list$kValuesIWant <- strsplit(params_list$kValuesIWant, "\\ |\\,|\\,\\ ") |> unlist() |> as.numeric()
+  kValues <- strsplit(as.character(params_list$kValuesIWant), "[ ,]+") |> unlist()
+  params_list$kValuesIWant <- as.numeric(kValues[nzchar(kValues)])
   for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
@@ -86,6 +89,12 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   rmd_content <- gsub("{{PIPELINE_NAME}}", name, rmd_content, fixed = TRUE)
   
   # Remap the variables in the template
+  # Text values are written into the QMD as R strings, so a backslash or a
+  # quote in one (a Windows path, say) has to be escaped to survive.
+  as_r_string <- function(x) {
+    x <- gsub("\\", "\\\\", x, fixed = TRUE)
+    gsub("'", "\\'", x, fixed = TRUE)
+  }
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
     
@@ -93,16 +102,18 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
       if (is.numeric(params_list[[var_name]]) | is.logical(params_list[[var_name]])) {
         replacement <- paste0(var_name, " <- ", paste(params_list[[var_name]]))
       } else if (is.character(params_list[[var_name]])) {
-        replacement <- paste0(var_name, " <- '", paste(params_list[[var_name]]), "'")
+        replacement <- paste0(var_name, " <- '", as_r_string(paste(params_list[[var_name]])), "'")
       }
     } else {
       if (is.numeric(params_list[[var_name]]) | is.logical(params_list[[var_name]])) {
         replacement <- paste0(var_name, " <- c(", paste(params_list[[var_name]], collapse = ","), ")")
       } else if (is.character(params_list[[var_name]])) {
-        replacement <- paste0(var_name, " <- c('", paste(params_list[[var_name]], collapse = "','"), "')")
+        replacement <- paste0(var_name, " <- c('", paste(as_r_string(params_list[[var_name]]), collapse = "','"), "')")
       }
     }
-    rmd_content <- gsub(pattern, replacement, rmd_content)
+    # Replace whole lines by position: gsub() would read backslashes in the
+    # replacement as its own escapes and strip them.
+    rmd_content[grepl(pattern, rmd_content)] <- replacement
   }
   
   # Point QMD at the installed header so we don't copy 329KB into the results folder

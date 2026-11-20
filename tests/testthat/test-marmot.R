@@ -192,3 +192,48 @@ test_that(".find_utf8_ctype finds a UTF-8 character type and leaves the session 
   skip_if(!nzchar(found), "this machine offers no UTF-8 character type")
   withr::with_locale(c(LC_CTYPE = found), expect_true(l10n_info()[["UTF-8"]]))
 })
+
+# Minimal metadata workbook for the settings tests below
+make_settings_workbook <- function(dir, settings, info = "note") {
+  tmpl <- system.file("pipeline", "MARMOT_Metadata.xlsx", package = "MARMOT")
+  wb <- openxlsx::loadWorkbook(tmpl)
+  ps <- openxlsx::read.xlsx(wb, sheet = "Pipeline Settings")
+  for (v in names(settings)) {
+    row <- match(v, ps$Variable) + 1L
+    openxlsx::writeData(wb, "Pipeline Settings", settings[[v]], startCol = 2, startRow = row, colNames = FALSE)
+    if (is.na(info)) openxlsx::deleteData(wb, "Pipeline Settings", cols = 3, rows = row, gridExpand = TRUE)
+  }
+  path <- file.path(dir, "meta.xlsx")
+  openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  path
+}
+run_copy <- function(dir) {
+  qmd <- list.files(dir, pattern = "\\.qmd$", recursive = TRUE, full.names = TRUE)
+  readLines(qmd[1])
+}
+
+test_that("marmot: a blank Info cell does not drop the setting", {
+  d <- withr::local_tempdir()
+  md <- make_settings_workbook(d, list(knn = "35", kValuesIWant = "35 50"), info = NA)
+  suppressMessages(marmot(metadata = md, name = "InfoTest", render = FALSE))
+  lines <- run_copy(d)
+  expect_true(any(grepl("^knn <- 35$", lines)))
+  expect_true(any(grepl("^kValuesIWant <- c\\(35,50\\)$", lines)))
+})
+
+test_that("marmot: backslashes and quotes in a value survive into the run copy", {
+  d <- withr::local_tempdir()
+  md <- make_settings_workbook(d, list(RDataFolder = "C:\\Users\\me\\O'Brien\\R_files"))
+  suppressMessages(marmot(metadata = md, name = "PathTest", render = FALSE))
+  line <- grep("^RDataFolder <- ", run_copy(d), value = TRUE)
+  expect_length(line, 1)
+  value <- eval(parse(text = sub("^RDataFolder <- ", "", line)))
+  expect_identical(value, "C:\\Users\\me\\O'Brien\\R_files")
+})
+
+test_that("marmot: k values may be separated by commas, spaces or both", {
+  d <- withr::local_tempdir()
+  md <- make_settings_workbook(d, list(kValuesIWant = "20, 40,60", knn = "20"))
+  suppressMessages(marmot(metadata = md, name = "KTest", render = FALSE))
+  expect_true(any(grepl("^kValuesIWant <- c\\(20,40,60\\)$", run_copy(d))))
+})

@@ -213,3 +213,36 @@ test_that("round-trip: a QC table with '/' in a column name survives", {
   expect_equal(as.character(loaded$`Increasing/Decreasing channel`), c("No", "Yes"))
   expect_equal(as.numeric(loaded$`% Full analysis`), c(1.5, 2.5))
 })
+
+test_that("round-trip: contrasts whose names collapse to the same key are all kept, with their real names", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env_save <- new.env(parent = emptyenv())
+  env_save$sce <- sce
+  env_save$md <- S4Vectors::metadata(sce)$experiment_info
+  env_save$smd <- data.frame(study = "test", stringsAsFactors = FALSE)
+  env_save$umapDFList <- list(All = make_mock_umap_df(sce))
+  env_save$coloursList <- make_mock_colours(sce)
+  tab <- function(v) data.frame(cluster_id = c("1", "2"), logFC = c(v, -v), p_adj = c(0.01, 0.5))
+  # "+" and "-" both become "_" in the stored key; Z sorts last but was saved first
+  env_save$daList <- list("Z+ over B" = tab(3), "A+ over B" = tab(1), "A- over B" = tab(2))
+  env_save$dsList <- list("A+ over B" = list(tbl_DS = tab(4)), "A- over B" = tab(5))
+
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  env_load <- new.env(parent = emptyenv())
+  suppressWarnings(load_h5ad_to_env(h5ad_path, envir = env_load))
+  da <- get("daList", envir = env_load)
+  expect_equal(names(da), c("Z+ over B", "A+ over B", "A- over B"))
+  expect_equal(da[["A+ over B"]]$logFC, c(1, -1))
+  expect_equal(da[["A- over B"]]$logFC, c(2, -2))
+  ds <- get("dsList", envir = env_load)
+  expect_equal(names(ds), c("A+ over B", "A- over B"))
+  expect_equal(ds[["A- over B"]]$logFC, c(5, -5))
+
+  shiny <- suppressWarnings(load_h5ad_for_shiny(h5ad_path))
+  expect_equal(names(shiny$daList), c("Z+ over B", "A+ over B", "A- over B"))
+  expect_equal(shiny$daList[["A- over B"]]$logFC, c(2, -2))
+})

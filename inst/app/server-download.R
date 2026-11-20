@@ -142,6 +142,23 @@ output$downloadFCS <- downloadHandler(
     umap_a <- inputDataReactive$Results$umapDFList[["All"]]
     codes  <- build_cluster_codes(umap_a)
 
+    # Clusters and coordinates can only be attached to an FCS file if the
+    # results hold exactly the cells of that file, in the same number. With
+    # downsampling or QC they do not, and there is no record of which original
+    # event each cell was, so say so instead of failing part-way.
+    export_matches <- !is.null(flist$Untransformed) && all(vapply(levels(md$sample_id), function(s) {
+      fr <- flist$Untransformed[[md$file_name[md$sample_id == s][[1]]]]
+      !is.null(fr) && nrow(fr) == sum(umap_a$sample_id == s)
+    }, logical(1)))
+    if (!export_matches) {
+      showNotification(
+        paste("FCS export isn't available for this run. The results hold a downsampled or QC-filtered",
+              "set of cells, which can't be matched back to the events in the original FCS files."),
+        type = "error", duration = 12
+      )
+      return(invisible())
+    }
+
     temp_dir <- file.path(tempdir(), as.integer(Sys.time()))
     dir.create(temp_dir, recursive = TRUE)
     on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)

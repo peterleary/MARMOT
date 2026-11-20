@@ -501,8 +501,7 @@ observeEvent(
       # ── DA cluster filtering ───────────────────────────────────────────
       da_mode  <- input$fpDAFilter %||% "None"
       contrast <- input$fpContrast %||% "None"
-      if (da_mode != "None" && contrast != "None" &&
-          !is.null(inputDataReactive$Results$selectedClustersList)) {
+      if (da_mode != "None" && contrast != "None") {
         # Looked up by name, never by position (see get_da_clusters)
         da <- get_da_clusters(
           inputDataReactive$Results$selectedClustersList,

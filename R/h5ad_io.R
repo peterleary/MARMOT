@@ -1,3 +1,35 @@
+# Tables are stored in the h5ad file under keys built from their names, with
+# anything but letters, digits, '.', '_' and '-' turned into '_'. Two names can
+# turn into the same key ("A+ over B" and "A- over B"), so keys are made unique,
+# and the real name behind each key is stored beside the tables.
+.h5ad_keyed_tables <- function(tables) {
+  keys <- make.unique(gsub("[^a-zA-Z0-9._-]", "_", names(tables)), sep = "_")
+  list(tables = stats::setNames(tables, keys),
+       names  = data.frame(key = keys, name = names(tables), stringsAsFactors = FALSE))
+}
+
+# Give loaded tables their real names back, in the order they were saved.
+# Files written before the names were stored are returned as they are.
+.h5ad_restore_names <- function(tables, key_table) {
+  if (is.null(key_table)) return(tables)
+  key_table <- as.data.frame(key_table, stringsAsFactors = FALSE)
+  known <- as.character(key_table$key)[as.character(key_table$key) %in% names(tables)]
+  restored <- tables[known]
+  names(restored) <- as.character(key_table$name)[match(known, as.character(key_table$key))]
+  c(restored, tables[setdiff(names(tables), known)])
+}
+
+# Reduce a DS list to plain tables: an entry is either a table or a list
+# holding one as `tbl_DS`.
+.ds_tables <- function(dsList) {
+  tabs <- lapply(dsList, function(x) {
+    if (is.data.frame(x)) x
+    else if (is.list(x) && !is.null(x$tbl_DS)) as.data.frame(x$tbl_DS)
+    else NULL
+  })
+  Filter(Negate(is.null), tabs)
+}
+
 #' @title h5ad I/O Functions for MARMOT
 #' @description Save and load pipeline results as h5ad (AnnData HDF5) files.
 #' Uses anndataR for pure-R h5ad read/write — no Python required.
@@ -112,29 +144,19 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   # DA/DS results
   .pack_da_ds <- function(daList, dsList, selectedClustersList, daPValToUse) {
     if (!is.null(daList) && is.list(daList)) {
-      da_list <- list()
-      for (name in names(daList)) {
-        df <- daList[[name]]
-        if (is.data.frame(df)) {
-          safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-          da_list[[safe_name]] <- df
-        }
+      keyed <- .h5ad_keyed_tables(Filter(is.data.frame, daList))
+      if (length(keyed$tables) > 0) {
+        uns$da_results <<- keyed$tables
+        uns$da_result_names <<- keyed$names
       }
-      if (length(da_list) > 0) uns$da_results <<- da_list
     }
 
     if (!is.null(dsList) && is.list(dsList)) {
-      ds_list <- list()
-      for (name in names(dsList)) {
-        df <- dsList[[name]]
-        safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-        if (is.data.frame(df)) {
-          ds_list[[safe_name]] <- df
-        } else if (is.list(df) && !is.null(df$tbl_DS)) {
-          ds_list[[safe_name]] <- as.data.frame(df$tbl_DS)
-        }
+      keyed <- .h5ad_keyed_tables(.ds_tables(dsList))
+      if (length(keyed$tables) > 0) {
+        uns$ds_results <<- keyed$tables
+        uns$ds_result_names <<- keyed$names
       }
-      if (length(ds_list) > 0) uns$ds_results <<- ds_list
     }
 
     if (!is.null(selectedClustersList) && is.list(selectedClustersList)) {
@@ -214,30 +236,20 @@ save_da_ds_h5ad <- function(h5ad_path, daList = NULL, dsList = NULL,
 
   # DA results
   if (!is.null(daList) && is.list(daList)) {
-    da_list <- list()
-    for (name in names(daList)) {
-      df <- daList[[name]]
-      if (is.data.frame(df)) {
-        safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-        da_list[[safe_name]] <- df
-      }
+    keyed <- .h5ad_keyed_tables(Filter(is.data.frame, daList))
+    if (length(keyed$tables) > 0) {
+      uns$da_results <- keyed$tables
+      uns$da_result_names <- keyed$names
     }
-    if (length(da_list) > 0) uns$da_results <- da_list
   }
 
   # DS results
   if (!is.null(dsList) && is.list(dsList)) {
-    ds_list <- list()
-    for (name in names(dsList)) {
-      df <- dsList[[name]]
-      safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-      if (is.data.frame(df)) {
-        ds_list[[safe_name]] <- df
-      } else if (is.list(df) && !is.null(df$tbl_DS)) {
-        ds_list[[safe_name]] <- as.data.frame(df$tbl_DS)
-      }
+    keyed <- .h5ad_keyed_tables(.ds_tables(dsList))
+    if (length(keyed$tables) > 0) {
+      uns$ds_results <- keyed$tables
+      uns$ds_result_names <- keyed$names
     }
-    if (length(ds_list) > 0) uns$ds_results <- ds_list
   }
 
   # Selected clusters
@@ -334,7 +346,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
 
   # -- DA results --
   if (!is.null(uns$da_results) && is.list(uns$da_results)) {
-    daList <- lapply(uns$da_results, as.data.frame)
+    daList <- .h5ad_restore_names(lapply(uns$da_results, as.data.frame), uns$da_result_names)
     assign("daList", daList, envir = envir)
   }
 
@@ -347,7 +359,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
 
   # -- DS results --
   if (!is.null(uns$ds_results) && is.list(uns$ds_results)) {
-    dsList <- lapply(uns$ds_results, as.data.frame)
+    dsList <- .h5ad_restore_names(lapply(uns$ds_results, as.data.frame), uns$ds_result_names)
     assign("dsList", dsList, envir = envir)
   }
 
@@ -440,7 +452,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
 
   # DA results
   if (!is.null(uns$da_results) && is.list(uns$da_results)) {
-    files$daList <- lapply(uns$da_results, as.data.frame)
+    files$daList <- .h5ad_restore_names(lapply(uns$da_results, as.data.frame), uns$da_result_names)
   }
 
   # Selected clusters
@@ -451,7 +463,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
 
   # DS results
   if (!is.null(uns$ds_results) && is.list(uns$ds_results)) {
-    files$dsList <- lapply(uns$ds_results, as.data.frame)
+    files$dsList <- .h5ad_restore_names(lapply(uns$ds_results, as.data.frame), uns$ds_result_names)
   }
 
   files

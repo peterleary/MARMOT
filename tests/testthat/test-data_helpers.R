@@ -451,3 +451,15 @@ test_that("get_da_clusters: numbering ignores rows the pipeline ignores", {
   scl <- list("Contrast 2: C Up" = "4")
   expect_equal(get_da_clusters(scl, contrasts, "C over A")$up, "4")
 })
+
+test_that("get_da_clusters: a condition whose name contains ' over ' is split correctly", {
+  scl <- list("Contrast 1: left over Up" = "1", "Contrast 1: ctrl Up" = c("2", "3"))
+  expect_equal(get_da_clusters(scl, "left over over ctrl", "left over over ctrl"),
+               list(up = "1", down = c("2", "3")))
+})
+
+test_that("filter_da_clusters: a cluster listed as both up and down does not break 'All'", {
+  df <- data.frame(cluster_id = c("c1", "c2", "c3"), x = 1:3, y = 1:3, stringsAsFactors = FALSE)
+  result <- filter_da_clusters(df, list(c("c1", "c2"), c("c2")), mode = "All")
+  expect_equal(levels(result$umap_df$cluster_id), c("c1", "c2", "Other"))
+})
