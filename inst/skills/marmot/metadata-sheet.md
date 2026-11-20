@@ -23,7 +23,7 @@ A three-column key-value table: `Variable` | `Setting` | `Info`. The `Info` colu
 
 | Variable | Typical value | Notes |
 |---|---|---|
-| `downsampleTo` | `1000` | Cells per FCS to keep. The shipped template default is 1000 — **far too low for most real analyses** (it's there so the template renders quickly as a smoke test). Recommend the user raise this for real runs (or leave blank for "use all, subject to RAM cap"). |
+| `downsampleTo` | `10000` | Cells per FCS file to keep. The default of 10000 is for a quick first look while settings, cofactors and clusters are checked; the report says at the top when a run was downsampled. Leave blank to use every cell for the final analysis (slower). |
 | `clusteringMethodToUse` | `FlowSOM` | One of: `FlowSOM`, `Rphenograph`, `Mphenograph`, `MfastPG`, `PARC`, `Mparc`. See the `Options` sheet for the full list. |
 | `markersToClusterBy` | `all` | `all`, `type`, or `state`. Auto-overridden to `all` if the panel is homogeneous. |
 | `kValuesIWant` | `20 40 60` | Space-separated integers — k values for FlowSOM metaclusters / kmeans. |
@@ -32,7 +32,7 @@ A three-column key-value table: `Variable` | `Setting` | `Info`. The `Info` colu
 | `markersToDimRedBy` | `type` | `all`, `type`, or `state`. Note the template default here is `type`, not `all`. |
 | `runQC` | `PeacoQC` | `None`, `FlowAI`, or `PeacoQC`. |
 
-Other parameters (`RAMBudgetGB`, `excludeTheseSamples`, `RDataFolder`) can be passed directly to `marmot()` from R rather than the sheet — the sheet covers the most-edited settings.
+The sheet also has `useQC`, `runScGate`, `gimmePDFs`, `greyscalePlots`, `quantileNormaliseAll`, `nCores`, `ramPerCore`, `viridisColour` (default `lapaz`), `excludeTheseSamples` (sample IDs separated by commas) and `RDataFolder`. A setting whose row is missing takes MARMOT's default. Settings from older versions (`runInParallel`, `themeToUse`, `condaDir`, `parcScriptDir`) are ignored with a message. `marmot()` itself takes only `metadata`, `name` and `render`.
 
 ## `Study Data` sheet
 
