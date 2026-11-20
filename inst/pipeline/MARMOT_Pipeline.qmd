@@ -547,12 +547,26 @@ contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest)]
 contrastsToTestS <- paste(contrastsToTest, collapse = ",")
 cTTForPlots <- contrastsToTest
 
-# Subsampling settings
-raw_subsamp <- na.omit(smd$`Cells per condition in UMAPs etc.`)
-drCellPerCondition <- setNames(
-  vapply(raw_subsamp, function(expr) as.numeric(eval(parse(text = expr))), numeric(1)),
-  conditionOrder
-)
+# Subsampling settings: how many cells per sample to show in UMAPs etc., given
+# per condition on the same row as its entry in 'Conditions Order'. An entry is
+# a number or simple arithmetic such as 12000/6. Leave the whole column blank
+# to show every cell.
+raw_subsamp <- as.character(smd$`Cells per condition in UMAPs etc.`[!is.na(smd$`Conditions Order`)])
+if (all(is.na(raw_subsamp))) {
+  drCellPerCondition <- NULL
+} else {
+  # Only numbers and arithmetic are accepted, since the entry is evaluated as R code
+  notArithmetic <- is.na(raw_subsamp) | !grepl("^[0-9eE+*/(). -]+$", raw_subsamp)
+  if (any(notArithmetic)) {
+    stop("❌ 'Cells per condition in UMAPs etc.' needs a number, or simple arithmetic such as 12000/6, ",
+         "for every condition (no thousands separators), or the whole column left blank to show every cell. ",
+         "Please check: ", paste(conditionOrder[notArithmetic], collapse = ", "))
+  }
+  drCellPerCondition <- setNames(
+    vapply(raw_subsamp, function(expr) as.numeric(eval(parse(text = expr))), numeric(1)),
+    conditionOrder
+  )
+}
 
 # Identify all condition columns
 conditions <- c("condition", setdiff(names(md), c("file_name", "sample_id", "condition")))
