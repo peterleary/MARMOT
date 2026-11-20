@@ -1221,6 +1221,8 @@ sce <- CATALYST::prepData(
   transform = FALSE,
   md_cols = list(factors = conditions)
 )
+# Record which event of its original FCS file each cell is
+sce <- MARMOT::record_event_numbers(sce, fsToUse, md)
 # exprs and exprsTransformed are identical to counts at this stage (transformation
 # was applied at the flowFrame level, before prepData).  Share the same matrix
 # object to avoid tripling memory — R's copy-on-modify means no duplication until
