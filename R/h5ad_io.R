@@ -37,6 +37,40 @@
 #' @name h5ad_io
 NULL
 
+# Move the main expression matrix into X and drop the layers that are exact
+# copies of it. `ad` is changed in place. Returns a table of every assay and
+# where it is stored ("X" or its own layer name), or NULL if nothing was done.
+.pack_assays <- function(ad, assay_names) {
+  main <- intersect(c("exprs", "exprsTransformed", "counts"), names(ad$layers))
+  if (length(main) == 0 || !is.null(ad$X)) return(NULL)
+  main <- main[1]
+  x <- ad$layers[[main]]
+  same_as_x <- vapply(names(ad$layers), function(n) identical(ad$layers[[n]], x), logical(1))
+  ad$X <- x
+  ad$layers <- ad$layers[!same_as_x]
+  data.frame(
+    assay     = assay_names,
+    stored_as = ifelse(assay_names %in% names(same_as_x)[same_as_x], "X", assay_names),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Give the SCE back the assays it was saved with, in their original order.
+# Assays that were stored once as X share one matrix again.
+.unpack_assays <- function(sce, assay_layout) {
+  if (is.null(assay_layout)) return(sce)
+  layout <- as.data.frame(assay_layout)
+  stored <- SummarizedExperiment::assays(sce)
+  missing_assays <- setdiff(layout$stored_as, names(stored))
+  if (length(missing_assays) > 0) {
+    stop("The results file is missing expression data: ", paste(missing_assays, collapse = ", "))
+  }
+  restored <- lapply(as.character(layout$stored_as), function(n) stored[[n]])
+  names(restored) <- as.character(layout$assay)
+  SummarizedExperiment::assays(sce) <- restored
+  sce
+}
+
 # One row per original FCS file: its name, MD5 checksum and number of events.
 .source_files_table <- function(fcs_files) {
   data.frame(
@@ -84,8 +118,16 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   # Each cell's event number in its original FCS file (kept out of colData)
   if (!is.null(event_numbers(sce))) ad$obs$event_number <- event_numbers(sce)
 
+  # One copy of the expression data, in the standard place. The pipeline's
+  # `counts`, `exprs` and `exprsTransformed` are the same arcsinh matrix; it
+  # is stored once, as X, where any AnnData reader looks for it. The table
+  # records which assay names to give back on loading.
+  assay_layout <- .pack_assays(ad, SummarizedExperiment::assayNames(sce))
+
   # -- Populate uns with MARMOT metadata --
   uns <- list()
+
+  if (!is.null(assay_layout)) uns$assay_layout <- assay_layout
 
   # Manifest
   format_stamp <- .results_format_stamp()
@@ -522,6 +564,8 @@ reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
   sce <- ad$as_SingleCellExperiment()
   uns <- ad$uns
   if (is.null(uns)) uns <- list()
+
+  sce <- .unpack_assays(sce, uns$assay_layout)
 
   # Event numbers go back where the pipeline keeps them, out of colData
   if ("event_number" %in% colnames(SummarizedExperiment::colData(sce))) {

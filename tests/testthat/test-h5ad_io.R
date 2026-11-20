@@ -279,3 +279,50 @@ test_that("round-trip: the original FCS files are recorded with checksum and eve
   expect_identical(as.character(load_h5ad_for_shiny(file.path(out2, "marmot_results.h5ad"))$sourceFiles$md5),
                    unname(tools::md5sum(paths)))
 })
+
+test_that("the arcsinh matrix is stored once, as X, and every assay comes back as it was", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  # As in the pipeline: three names for one matrix, plus two derived layers
+  main <- SummarizedExperiment::assay(sce, "exprsTransformed")
+  SummarizedExperiment::assays(sce) <- list(
+    counts = main, exprs = main, exprsTransformed = main,
+    exprsQuantNorm = SummarizedExperiment::assay(sce, "exprsQuantNorm"), norm = main * 2)
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  stored <- rhdf5::h5ls(h5ad_path, recursive = 2)
+  rhdf5::h5closeAll()
+  expect_true("X" %in% stored$name[stored$group == "/"])
+  expect_setequal(stored$name[stored$group == "/layers"], c("exprsQuantNorm", "norm"))
+
+  back <- reconstruct_sce_from_h5ad(h5ad_path)
+  expect_identical(SummarizedExperiment::assayNames(back), SummarizedExperiment::assayNames(sce))
+  for (a in SummarizedExperiment::assayNames(sce)) {
+    expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, a))),
+                     unname(as.matrix(SummarizedExperiment::assay(sce, a))), info = a)
+    expect_identical(dimnames(SummarizedExperiment::assay(back, a)), dimnames(SummarizedExperiment::assay(sce, a)), info = a)
+  }
+  expect_identical(SummarizedExperiment::assayNames(load_h5ad_for_shiny(h5ad_path)$sce),
+                   SummarizedExperiment::assayNames(sce))
+})
+
+test_that("an assay that differs from the main matrix by one value keeps its own layer", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  main <- SummarizedExperiment::assay(sce, "exprsTransformed")
+  nearly <- main; nearly[1, 1] <- nearly[1, 1] + 1e-12
+  SummarizedExperiment::assays(sce) <- list(counts = nearly, exprs = main, exprsTransformed = main)
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  back <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
+  expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "counts"))), unname(as.matrix(nearly)))
+  expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "exprs"))), unname(as.matrix(main)))
+})
