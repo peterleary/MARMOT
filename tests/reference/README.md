@@ -67,6 +67,7 @@ repository, alongside the data, and never commit them.
 ## Which methods should match
 
 Two runs with the same settings should give identical fingerprints for FlowSOM
-and for MARMOT's own methods (MfastPG, Mphenograph, Mparc, Mpacmap). The
-Python versions of PARC and PaCMAP do not fully respect seeds, so their
-results can differ between runs.
+and for MARMOT's own methods (MfastPG, Mphenograph, Mparc, Mpacmap). In our
+tests the Python PARC also repeated, and the Python PaCMAP repeats now that
+the pipeline sets its seed. Both depend on the installed Python packages, so
+check them again if those change.
