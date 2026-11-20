@@ -1463,7 +1463,7 @@ message("    done (", format(round(Sys.time() - t0, 1)), ")")
 # (pure R) if the p4r conda env is missing or the subprocess errors.
 if (dimRedMethodToUse == "pacmap") {
   es <- as.matrix(t(assay(sce, exprsToUse)[featuresToUmap, ]))
-  embedding <- MARMOT:::run_pacmap_subprocess(es, apply_pca = FALSE, verbose = TRUE)
+  embedding <- MARMOT:::run_pacmap_subprocess(es, apply_pca = FALSE, random_state = 2L, verbose = TRUE)
   if (is.null(embedding)) {
     message("PaCMAP failed -- falling back to Mpacmap (R).")
     dimRedMethodToUse <- "Mpacmap"
@@ -2363,7 +2363,7 @@ if(length(kValuesIWant) >= 2) {
 ```
 
 ```{r, label = "marker pair scatterplots", results = 'asis', fig.height=5, fig.width=5}
-runMarkerPairPlots <- ("type" %in% markerType) && ("state" %in% markerType) && ("Marker Pairs" %in% colnames(smd))
+runMarkerPairPlots <- ("type" %in% markerType) && ("state" %in% markerType) && !is.null(parse_marker_pairs(smd))
 if (runMarkerPairPlots) {
   cat("\n\n")
   cat("### Marker-Pair Scatterplots \n\n")
