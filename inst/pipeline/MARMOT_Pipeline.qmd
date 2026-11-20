@@ -103,17 +103,17 @@ options(bitmapType = "cairo", kableExtra_view_html = FALSE)
 fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/"      # Folder with all FCS files
 md_fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
 ## 🧪 Preprocessing
-downsampleTo <- NULL  # e.g. 1000 to downsample each FCS file, NULL = no downsampling
+downsampleTo <- 10000  # Cells to take from each FCS file, for a quick first look. NULL = use every cell
 
 ## 🔍 Clustering
 clusteringMethodToUse <- "FlowSOM"   # One of: "MfastPG", "Mphenograph", "Mparc", "Rphenograph", "PARC", "FlowSOM"
 markersToClusterBy <- "all"       # One of: "all", "type", "state"
-kValuesIWant <- c(20, 40)
+kValuesIWant <- c(20, 40, 60)
 knn <- 20          # Must be in kValuesIWant
 
 ## 📉 Dimension Reduction
 dimRedMethodToUse <- "UMAP"   # One of: "TSNE", "UMAP", "Mpacmap", "pacmap"
-markersToDimRedBy <- "all"   # One of: "all", "type", "state"
+markersToDimRedBy <- "type"   # One of: "all", "type", "state"
 
 ## 🧼 QC
 runQC <- "PeacoQC"      # One of: "FlowAI", "PeacoQC", or "None" to skip
@@ -131,8 +131,7 @@ nCores <- 4
 ramPerCore <- 6
 
 ## 🎨 Aesthetics
-themeToUse <- "prism"    # ggplot2 theme
-viridisColour <- "lisbon"   # Viridis, Scico, RColorBrewer Diverging, or Fun (Marmot, Swiss, Lucky)
+viridisColour <- "lapaz"   # Viridis, Scico, RColorBrewer Diverging, or Fun (Marmot, Swiss, Lucky)
 
 ## 🌉 scGate (optional)
 runScGate <- FALSE    # Set TRUE to run scGate marker-pair gating (requires scGate, UCell, Seurat)
@@ -163,7 +162,7 @@ required_vars <- c(
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "nCores", "themeToUse", "viridisColour"
+  "nCores", "viridisColour"
 )
 
 missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
@@ -472,7 +471,6 @@ diag_init(log_path, settings = list(
   runScGate             = isTRUE(.diag_get("runScGate", FALSE)),
   downsampleTo          = .diag_get("downsampleTo", NA),
   quantileNormaliseAll  = isTRUE(.diag_get("quantileNormaliseAll", FALSE)),
-  runInParallel         = isTRUE(.diag_get("runInParallel", FALSE)),
   nCores                = .diag_get("nCores"),
   ramPerCore            = .diag_get("ramPerCore"),
   reload                = !is.null(RDataFolder)
@@ -748,6 +746,22 @@ if (needs_cap) {
     format(max_total_cells, big.mark = ","),
     sys_ram_gb, pipeline_budget_gb,
     format(per_sample_cap, big.mark = ",")))
+}
+```
+
+```{r downsample_notice, results = "asis", eval = is.null(RDataFolder)}
+if (!is.null(downsampleTo)) {
+  cat(sprintf(
+    paste0("::: {.callout-warning title='Quick look: downsampled run'}\n",
+           "This run took at most **%s cells** from each FCS file ",
+           "(%d of your %d files had more than that). ",
+           "That keeps things quick while you check your settings, cofactors and clusters.\n\n",
+           "Clustering, dimensionality reduction and all the statistics use only those cells. ",
+           "When you are happy, clear `downsampleTo` in the Pipeline Settings sheet and run again to use every cell. ",
+           "It will take longer, and the numbers in this report will change.\n",
+           ":::\n"),
+    format(downsampleTo, big.mark = ","),
+    sum(originalCellCounts > downsampleTo), length(originalCellCounts)))
 }
 ```
 
@@ -1995,7 +2009,6 @@ settings_list <- list(
   quantileNormaliseAll  = toupper(as.character(quantileNormaliseAll)),
   gimmePDFs             = toupper(as.character(gimmePDFs)),
   greyscalePlots        = toupper(as.character(greyscalePlots)),
-  themeToUse            = as.character(themeToUse),
   viridisColour         = as.character(viridisColour),
   nCores                = as.character(nCores)
 )

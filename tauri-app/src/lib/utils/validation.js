@@ -9,10 +9,8 @@ const REQUIRED_FIELDS = [
   "useQC",
   "gimmePDFs",
   "quantileNormaliseAll",
-  "runInParallel",
   "nCores",
   "ramPerCore",
-  "themeToUse",
   "viridisColour",
 ];
 

@@ -46,24 +46,23 @@ pub fn create_new_metadata() -> MetadataFile {
     use crate::excel::types::{PipelineSetting, SheetData};
 
     let default_settings = vec![
-        ("clusteringMethodToUse", "MfastPG", "Clustering algorithm: FlowSOM, MfastPG, Mphenograph, Mparc (always available); Rphenograph, PARC (require extras)"),
+        ("clusteringMethodToUse", "FlowSOM", "Clustering algorithm: FlowSOM, MfastPG, Mphenograph, Mparc (always available); Rphenograph, PARC (require extras)"),
         ("markersToClusterBy", "all", "Which markers to cluster by: all, type, or state"),
-        ("kValuesIWant", "20, 40", "Comma-separated k values for clustering"),
+        ("kValuesIWant", "20, 40, 60", "Comma-separated k values for clustering"),
         ("knn", "20", "k-nearest neighbours value (must be in kValuesIWant)"),
         ("dimRedMethodToUse", "UMAP", "Dimension reduction: UMAP, TSNE, Mpacmap (always available); pacmap (requires Python extras)"),
-        ("markersToDimRedBy", "all", "Which markers for dim. reduction: all, type, or state"),
+        ("markersToDimRedBy", "type", "Which markers for dim. reduction: all, type, or state"),
         ("runQC", "PeacoQC", "QC method: FlowAI, PeacoQC, or None"),
         ("useQC", "FALSE", "Whether to keep only QC-passed cells"),
-        ("downsampleTo", "", "Number of cells to downsample to per file, or leave blank for no downsampling"),
+        ("downsampleTo", "10000", "Cells to take from each FCS file, for a quick first look. Leave blank to use every cell (slower)"),
         ("gimmePDFs", "FALSE", "Export plots as PDFs"),
         ("greyscalePlots", "FALSE", "Use greyscale for plots"),
         ("quantileNormaliseAll", "FALSE", "Apply quantile normalisation to all markers"),
         ("runScGate", "FALSE", "Run scGate marker-pair gating (requires scGate, UCell, Seurat)"),
-        ("runInParallel", "TRUE", "Run pipeline in parallel"),
         ("nCores", "4", "Number of CPU cores for parallel execution"),
         ("ramPerCore", "6", "RAM (GB) allocated per core"),
-        ("themeToUse", "prism", "ggplot2 theme: prism, classic, bw, minimal, void, light, dark"),
-        ("viridisColour", "lisbon", "Colour palette. Viridis: magma, inferno, plasma, viridis, cividis, rocket, mako, turbo. Scico: bam, berlin, brocO, corkO, lapaz, lisbon, romaO, vikO. Diverging: BrBG, PiYG, PRGn, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral. Fun: Marmot, Swiss, Lucky"),
+        ("viridisColour", "lapaz", "Colour palette. Viridis: magma, inferno, plasma, viridis, cividis, rocket, mako, turbo. Scico: bam, berlin, brocO, corkO, lapaz, lisbon, romaO, vikO. Diverging: BrBG, PiYG, PRGn, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral. Fun: Marmot, Swiss, Lucky"),
+        ("excludeTheseSamples", "", "Sample IDs to leave out of the analysis, separated by commas. Leave blank to include every sample"),
         ("RDataFolder", "", "Path to previous R_files folder to reload (leave blank for fresh run)"),
     ];
 
