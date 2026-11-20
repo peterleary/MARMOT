@@ -326,3 +326,23 @@ test_that("an assay that differs from the main matrix by one value keeps its own
   expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "counts"))), unname(as.matrix(nearly)))
   expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "exprs"))), unname(as.matrix(main)))
 })
+
+test_that("round-trip: a panel with FCS-style 'AsIs' columns reads back, without warnings", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  # As the pipeline builds it: columns taken from flowCore's parameter table
+  env$panel <- data.frame(fcs_colname = I(c("FJComp-A", "FJComp-B")), marker_name = I(c("CD4", "CD8")),
+                          marker_class = c("type", "state"), stringsAsFactors = FALSE)
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  loaded <- new.env()
+  expect_no_warning(load_h5ad_to_env(h5ad_path, envir = loaded))
+  expect_identical(as.character(loaded$panel$fcs_colname), c("FJComp-A", "FJComp-B"))
+  expect_identical(as.character(loaded$panel$marker_name), c("CD4", "CD8"))
+  expect_no_warning(load_h5ad_for_shiny(h5ad_path))
+})

@@ -71,6 +71,18 @@ NULL
   sce
 }
 
+# A data frame with plain columns only. Columns read from an FCS file's
+# parameter table are of class "AsIs", which cannot be written to an h5ad
+# properly: the table then fails to read back, with a warning on every load.
+.plain_table <- function(x) {
+  x <- as.data.frame(x)
+  for (col in names(x)) {
+    if (inherits(x[[col]], "AsIs")) class(x[[col]]) <- setdiff(class(x[[col]]), "AsIs")
+    if (!is.factor(x[[col]])) x[[col]] <- unname(as.vector(x[[col]]))
+  }
+  x
+}
+
 # One row per original FCS file: its name, MD5 checksum and number of events.
 .source_files_table <- function(fcs_files) {
   data.frame(
@@ -146,7 +158,7 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   if (!is.null(smd)) uns$study_metadata <- as.data.frame(smd)
 
   panel <- safe_get("panel")
-  if (!is.null(panel)) uns$panel <- as.data.frame(panel)
+  if (!is.null(panel)) uns$panel <- .plain_table(panel)
 
   # The original FCS files: name, checksum and number of events. With each
   # cell's event number, this is what lets cells be traced back to them.
