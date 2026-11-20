@@ -60,8 +60,7 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     choices = c(
       "Quantile Normalised" = "exprsQuantNorm",
       "Arcsinh Transformed" = "exprsTransformed",
-      "Z-Scaled"            = "norm",
-      "Raw Counts"          = "counts"
+      "Z-Scaled"            = "norm"
     ),
     selected = "exprsQuantNorm")
 

@@ -325,9 +325,8 @@ tabItem(
               label = "Select counts to plot",
               choices = c(
                 "Quantile Normalised" = "exprsQuantNorm",
-                "Transformed"         = "exprsTransformed",
-                "Scaled Counts"       = "norm",
-                "Raw Counts"          = "counts"
+                "Arcsinh Transformed" = "exprsTransformed",
+                "Z-Scaled"            = "norm"
               ),
               selected = "exprsQuantNorm"
             ),

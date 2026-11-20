@@ -38,8 +38,7 @@ observeEvent(input$analysisPlotType, {
         assay_labels <- c(
           "exprsTransformed" = "Arcsinh Transformed",
           "exprsQuantNorm"   = "Quantile Normalised",
-          "norm"             = "Z-Scaled",
-          "counts"           = "Raw Counts"
+          "norm"             = "Z-Scaled"
         )
         available <- intersect(names(assay_labels), assay_choices)
         choices   <- setNames(available, assay_labels[available])
@@ -128,8 +127,7 @@ observeEvent(input$analysisPlotType, {
         assay_labels <- c(
           "exprsTransformed" = "Arcsinh Transformed",
           "exprsQuantNorm"   = "Quantile Normalised",
-          "norm"             = "Z-Scaled",
-          "counts"           = "Raw Counts"
+          "norm"             = "Z-Scaled"
         )
         available <- intersect(names(assay_labels), assay_choices)
         choices   <- setNames(available, assay_labels[available])
