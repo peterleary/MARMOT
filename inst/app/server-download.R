@@ -125,13 +125,16 @@ output$downloadFCS <- downloadHandler(
     paste0("MARMOT_FCS_export_", Sys.Date(), ".zip")
   },
   content = function(file) {
-    flist <- inputDataReactive$Results$framesList
-    md    <- inputDataReactive$Results$md
+    res <- inputDataReactive$Results
+    md  <- res$md
 
-    if (is.null(flist)) {
+    # Event numbers tie each cell back to its row in the original FCS file
+    event_nums <- MARMOT::event_numbers(res$sce)
+    if (is.null(event_nums)) {
       showNotification(
-        "No FCS frames available for export. The pipeline was run without FCS sidecar data.",
-        type = "error", duration = 8
+        paste("These results cannot export FCS files: they do not record which event of the",
+              "original FCS file each cell came from. Re-run the pipeline with the current MARMOT."),
+        type = "error", duration = 12
       )
       return(invisible())
     }
@@ -139,24 +142,29 @@ output$downloadFCS <- downloadHandler(
     req(!is.null(md$sample_id))
 
     # Build cluster code lookup from the full DR data frame
-    umap_a <- inputDataReactive$Results$umapDFList[["All"]]
+    umap_a <- res$umapDFList[["All"]]
     codes  <- build_cluster_codes(umap_a)
 
-    # Clusters and coordinates can only be attached to an FCS file if the
-    # results hold exactly the cells of that file, in the same number. With
-    # downsampling or QC they do not, and there is no record of which original
-    # event each cell was, so say so instead of failing part-way.
-    export_matches <- !is.null(flist$Untransformed) && all(vapply(levels(md$sample_id), function(s) {
-      fr <- flist$Untransformed[[md$file_name[md$sample_id == s][[1]]]]
-      !is.null(fr) && nrow(fr) == sum(umap_a$sample_id == s)
-    }, logical(1)))
-    if (!export_matches) {
-      showNotification(
-        paste("FCS export isn't available for this run. The results hold a downsampled or QC-filtered",
-              "set of cells, which can't be matched back to the events in the original FCS files."),
-        type = "error", duration = 12
-      )
-      return(invisible())
+    # One row per cell in the report, with the columns to append
+    cells <- data.frame(
+      file_name        = md$file_name[match(umap_a$sample_id, md$sample_id)],
+      sample_id        = as.character(umap_a$sample_id),
+      event_number     = event_nums[umap_a$sce_idx],
+      umap_x           = umap_a$x,
+      umap_y           = umap_a$y,
+      cluster_id_codes = codes$cluster_id_codes[match(umap_a$cluster_id, codes$cluster_ids)],
+      stringsAsFactors = FALSE
+    )
+    # If relabelled clusters exist, include those codes too
+    if ("relabelled_clusters" %in% colnames(umap_a)) {
+      cells$new_cluster_codes <- codes$new_cluster_codes[match(umap_a$cluster_id, codes$cluster_ids)]
+    }
+
+    # The original FCS files normally sit above the results folder
+    fcs_dir <- if (nzchar(trimws(input$fcsFolder %||% ""))) {
+      trimws(input$fcsFolder)
+    } else {
+      dirname(dirname(res$dataDir))
     }
 
     temp_dir <- file.path(tempdir(), as.integer(Sys.time()))
@@ -164,38 +172,24 @@ output$downloadFCS <- downloadHandler(
     on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
     # Write one .fcs per sample with appended DR coords + cluster codes
-    lapply(levels(md$sample_id), function(s) {
-      umap_s <- umap_a[umap_a$sample_id == s, , drop = FALSE]
-
-      # Columns to append: DR coordinates + numeric cluster code
-      appended <- data.frame(
-        umap_x          = umap_s$x,
-        umap_y          = umap_s$y,
-        cluster_id_codes = codes$cluster_id_codes[
-          match(umap_s$cluster_id, codes$cluster_ids)
-        ]
-      )
-
-      # If relabelled clusters exist, include those codes too
-      if ("relabelled_clusters" %in% colnames(umap_s)) {
-        appended$new_cluster_codes <- codes$new_cluster_codes[
-          match(umap_s$cluster_id, codes$cluster_ids)
-        ]
+    failed <- FALSE
+    tryCatch(
+      MARMOT::write_annotated_fcs(cells, fcs_dir = fcs_dir, out_dir = temp_dir,
+                                  source_files = res$sourceFiles),
+      marmot_fcs_not_found = function(e) {
+        failed <<- TRUE
+        showNotification(
+          paste0("Can't find the original FCS files in ", fcs_dir,
+                 ". If they have moved, type their folder into the box under the FCS files button."),
+          type = "error", duration = 12
+        )
+      },
+      marmot_fcs_changed = function(e) {
+        failed <<- TRUE
+        showNotification(conditionMessage(e), type = "error", duration = 12)
       }
-
-      # Resolve original filename and write modified frame
-      fn_orig <- md$file_name[md$sample_id == s][[1]]
-      fn_out  <- file.path(temp_dir, paste0(s, "_modified.fcs"))
-
-      flowCore::write.FCS(
-        x = flowCore::fr_append_cols(
-          fr   = flist$Untransformed[[fn_orig]],
-          cols = as.matrix(appended)
-        ),
-        filename  = fn_out,
-        delimiter = "#"
-      )
-    })
+    )
+    if (failed) return(invisible())
 
     # Bundle cluster codes Excel into the zip as well
     codes_path <- file.path(temp_dir, "cluster_codes.xlsx")
