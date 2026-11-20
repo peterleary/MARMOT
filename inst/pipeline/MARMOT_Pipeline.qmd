@@ -1059,7 +1059,9 @@ message("📉 Generating cofactor histograms for visualising transformations..."
 
 cofactorsToTry <- c(5, 50, 500, 1000, 2500, 5000, 10000, 15000)
 
-# Aggressively downsample (use whatever data was loaded — raw or QC'd)
+# Aggressively downsample (use whatever data was loaded — raw or QC'd).
+# QC'd data are already arcsinh-transformed by this point; raw data are not.
+histosAlreadyTransformed <- !"Untransformed" %in% names(framesList)
 framesList[["Marker Histos"]] <- lapply(framesList[[1]], function(fcs) {
   if (nrow(fcs) > 1000) {
     set.seed(2)
@@ -1084,6 +1086,8 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
   
   # Flat vector of expression values
   expr_vec <- unlist(marker_expr)
+  # Undo the arcsinh on QC'd data, so the histograms start from raw values
+  if (histosAlreadyTransformed) expr_vec <- sinh(expr_vec) * cf[[colname]]
   sample_vec <- rep(names(marker_expr), times = purrr::map_int(marker_expr, length))
   cond_vec <- md$condition[match(gsub("\\.fcs$", "", sample_vec), gsub("\\.fcs$", "", md$file_name))]
 
