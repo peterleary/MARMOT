@@ -37,6 +37,18 @@
 #' @name h5ad_io
 NULL
 
+# One row per original FCS file: its name, MD5 checksum and number of events.
+.source_files_table <- function(fcs_files) {
+  data.frame(
+    file_name = basename(fcs_files),
+    md5       = unname(tools::md5sum(fcs_files)),
+    events    = vapply(fcs_files, function(f) {
+      as.integer(flowCore::read.FCSheader(f, keyword = "$TOT")[[1]][["$TOT"]])
+    }, integer(1), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Save All Pipeline Data to h5ad
 #'
 #' Packs all pipeline R objects into a single h5ad file using the AnnData format.
@@ -93,6 +105,15 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
 
   panel <- safe_get("panel")
   if (!is.null(panel)) uns$panel <- as.data.frame(panel)
+
+  # The original FCS files: name, checksum and number of events. With each
+  # cell's event number, this is what lets cells be traced back to them.
+  fcs_files <- safe_get("fcs_files")
+  if (is.character(fcs_files) && length(fcs_files) > 0 && all(file.exists(fcs_files))) {
+    uns$source_files <- .source_files_table(fcs_files)
+  } else if (is.data.frame(safe_get("sourceFiles"))) {
+    uns$source_files <- as.data.frame(safe_get("sourceFiles"))
+  }
 
   # Pipeline settings (key-value as named list of strings)
   settings_vars <- c("clusteringMethodToUse", "dimRedMethodToUse", "knn",
@@ -306,6 +327,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   if (!is.null(uns$sample_metadata)) assign("md", as.data.frame(uns$sample_metadata), envir = envir)
   if (!is.null(uns$study_metadata)) assign("smd", as.data.frame(uns$study_metadata), envir = envir)
   if (!is.null(uns$panel)) assign("panel", as.data.frame(uns$panel), envir = envir)
+  if (!is.null(uns$source_files)) assign("sourceFiles", as.data.frame(uns$source_files), envir = envir)
 
   # -- Pipeline settings --
   if (!is.null(uns$pipeline_settings)) {
@@ -415,6 +437,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   # Metadata
   if (!is.null(uns$sample_metadata)) files$md <- as.data.frame(uns$sample_metadata)
   if (!is.null(uns$study_metadata)) files$smd <- as.data.frame(uns$study_metadata)
+  if (!is.null(uns$source_files)) files$sourceFiles <- as.data.frame(uns$source_files)
 
   # Pipeline settings
   if (!is.null(uns$pipeline_settings)) {

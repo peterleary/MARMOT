@@ -248,3 +248,34 @@ test_that("round-trip: contrasts whose names collapse to the same key are all ke
   expect_equal(names(shiny$daList), c("Z+ over B", "A+ over B", "A- over B"))
   expect_equal(shiny$daList[["A- over B"]]$logFC, c(2, -2))
 })
+
+test_that("round-trip: the original FCS files are recorded with checksum and event count", {
+  skip_if_not_installed("anndataR")
+  d <- withr::local_tempdir()
+  paths <- file.path(d, c("b.fcs", "a.fcs"))
+  suppressWarnings(flowCore::write.FCS(flowCore::flowFrame(cbind(A = 1:30, B = 30:1)), paths[1]))
+  suppressWarnings(flowCore::write.FCS(flowCore::flowFrame(cbind(A = 1:7, B = 7:1)), paths[2]))
+
+  sce <- make_mock_sce()
+  out <- file.path(d, "R_files"); dir.create(out)
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  env$fcs_files <- paths
+  save_h5ad_data(out, envir = env)
+  h5ad_path <- file.path(out, "marmot_results.h5ad")
+
+  for (source_files in list(load_h5ad_for_shiny(h5ad_path)$sourceFiles,
+                            { e <- new.env(); load_h5ad_to_env(h5ad_path, envir = e); e$sourceFiles })) {
+    expect_identical(as.character(source_files$file_name), c("b.fcs", "a.fcs"))
+    expect_identical(as.character(source_files$md5), unname(tools::md5sum(paths)))
+    expect_equal(as.integer(source_files$events), c(30L, 7L))
+  }
+
+  # Saved again from reloaded results, where the FCS paths are gone, it is kept
+  e <- new.env(); load_h5ad_to_env(h5ad_path, envir = e)
+  out2 <- file.path(d, "again"); dir.create(out2)
+  save_h5ad_data(out2, envir = e)
+  expect_identical(as.character(load_h5ad_for_shiny(file.path(out2, "marmot_results.h5ad"))$sourceFiles$md5),
+                   unname(tools::md5sum(paths)))
+})
