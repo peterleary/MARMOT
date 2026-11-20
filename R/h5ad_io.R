@@ -69,6 +69,9 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
 
   ad <- anndataR::as_AnnData(sce)
 
+  # Each cell's event number in its original FCS file (kept out of colData)
+  if (!is.null(event_numbers(sce))) ad$obs$event_number <- event_numbers(sce)
+
   # -- Populate uns with MARMOT metadata --
   uns <- list()
 
@@ -496,6 +499,12 @@ reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
   sce <- ad$as_SingleCellExperiment()
   uns <- ad$uns
   if (is.null(uns)) uns <- list()
+
+  # Event numbers go back where the pipeline keeps them, out of colData
+  if ("event_number" %in% colnames(SummarizedExperiment::colData(sce))) {
+    SingleCellExperiment::int_colData(sce)$event_number <- as.integer(sce$event_number)
+    sce$event_number <- NULL
+  }
 
   # Restore factor columns in rowData
   rd <- as.data.frame(SummarizedExperiment::rowData(sce))

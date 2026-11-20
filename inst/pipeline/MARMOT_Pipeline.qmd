@@ -885,11 +885,21 @@ if (runQC == "FlowAI") {
       flow_auto_qc(
         fcsfiles       = ff,
         folder_results = qc_dir,
-        remove_from    = metricsQC,
-        fcs_highQ      = "_QC_highQ",
-        fcs_lowQ       = "_QC_lowQ"
+        remove_from    = metricsQC
       )
-      rm(ff); invisible(gc())
+      # FlowAI decides which cells to remove, but its own "high quality" file
+      # is not used: it clips bright values at the channel's declared range
+      # and rewrites Time. FlowAI's `_QC.fcs` holds every event, in order, with
+      # a flag (below 10,000 = keep). The kept cells are taken from the
+      # original file with that flag, and numbered so each can be traced back.
+      flagged <- flowCore::read.FCS(
+        file.path(qc_dir, sub("\\.fcs$", "_QC.fcs", basename(fcs_files[i]))),
+        transformation = FALSE, truncate_max_range = FALSE)
+      keep <- flowCore::exprs(flagged)[, paste0("remove_from_", metricsQC)] < 10000
+      stopifnot(length(keep) == nrow(ff))
+      flowCore::write.FCS(MARMOT::add_event_numbers(ff)[keep, ],
+                          file.path(qc_dir, sub("\\.fcs$", "_QC_highQ.fcs", basename(fcs_files[i]))))
+      rm(ff, flagged, keep); invisible(gc())
     }
     MARMOT::qc_cache_write_stamp(qc_dir, qc_stamp)
   }
@@ -962,6 +972,7 @@ if (runQC == "PeacoQC") {
 
       # PeacoQC judges the transformed data, but the cells it keeps are saved
       # untransformed (as FlowAI's are), so no cofactor is baked into the files.
+      # They are numbered first, so each can be traced back to the original file.
       peaco <- PeacoQC::PeacoQC(
         ff = ff_t, channels = fluor_channels,
         plot = TRUE, save_fcs = FALSE,
@@ -970,7 +981,7 @@ if (runQC == "PeacoQC") {
       )
       qc_fcs_dir <- file.path(qc_dir, fcs_name, "fcs_files")
       dir.create(qc_fcs_dir, showWarnings = FALSE, recursive = TRUE)
-      flowCore::write.FCS(ff[peaco$GoodCells, ],
+      flowCore::write.FCS(MARMOT::add_event_numbers(ff)[peaco$GoodCells, ],
                           file.path(qc_fcs_dir, gsub("\\.fcs$", "_QC.fcs", fcs_name)))
       rm(ff, ff_t, peaco); invisible(gc())
     }
@@ -1005,9 +1016,12 @@ if (runQC == "PeacoQC") {
 
 message("📥 Loading FCS data into memory...")
 
-# Helper: read one FCS file and apply RAM cap if needed
-read_and_cap <- function(f) {
+# Helper: read one FCS file and apply RAM cap if needed.
+# Original files have their events numbered here, before any are dropped, so
+# each cell can be traced back. QC'd files were numbered when QC wrote them.
+read_and_cap <- function(f, number_events = FALSE) {
   ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  if (number_events) ff <- MARMOT::add_event_numbers(ff)
   if (needs_cap && nrow(ff) > per_sample_cap) {
     set.seed(2)
     ff <- ff[sort(sample(nrow(ff), per_sample_cap)), ]
@@ -1044,7 +1058,7 @@ if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
 
 } else {
   # useQC=FALSE or no QC: load raw files → build Transformed
-  frames <- setNames(lapply(fcs_files, read_and_cap), fcs_names)
+  frames <- setNames(lapply(fcs_files, read_and_cap, number_events = TRUE), fcs_names)
   if (!is.null(excludeTheseSamples)) {
     keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
     frames <- frames[keep_samples]
