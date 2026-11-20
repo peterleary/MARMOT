@@ -21,7 +21,9 @@ test_that("save_h5ad_data creates expected file", {
 
   # Check manifest via uns
   ad <- anndataR::read_h5ad(h5ad_path)
-  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-results")
+  expect_equal(as.integer(ad$uns$marmot_manifest$schema_version), 2L)
+  expect_true(file.exists(file.path(tmp, "marmot_format.json")))
 })
 
 test_that("round-trip: metadata survives save/load", {

@@ -73,11 +73,12 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   uns <- list()
 
   # Manifest
+  format_stamp <- .results_format_stamp()
   uns$marmot_manifest <- list(
-    schema_version = 1L,
-    pipeline_version = as.character(utils::packageVersion("MARMOT")),
-    timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S"),
-    format = "marmot-h5ad-v1"
+    schema_version = format_stamp$format_version,
+    pipeline_version = format_stamp$marmot_version,
+    timestamp = format_stamp$timestamp,
+    format = format_stamp$format
   )
 
   # Small metadata tables
@@ -208,6 +209,7 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   # Write
   h5ad_path <- file.path(output_dir, "marmot_results.h5ad")
   anndataR::write_h5ad(ad, h5ad_path, compression = "gzip", mode = "w")
+  write_results_format(output_dir, format_stamp)
 
   message("h5ad data saved to: ", h5ad_path)
   invisible(h5ad_path)
@@ -291,6 +293,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   requireNamespace("anndataR", quietly = TRUE)
 
   if (!file.exists(h5ad_path)) stop("h5ad file not found: ", h5ad_path)
+  check_results_format(h5ad_path)
 
   ad <- anndataR::read_h5ad(h5ad_path)
   uns <- ad$uns
@@ -398,6 +401,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   requireNamespace("anndataR", quietly = TRUE)
 
   if (!file.exists(h5ad_path)) stop("h5ad file not found: ", h5ad_path)
+  check_results_format(h5ad_path)
 
   ad <- anndataR::read_h5ad(h5ad_path)
   uns <- ad$uns
@@ -485,7 +489,10 @@ reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
 
   if (!file.exists(h5ad_path)) return(NULL)
 
-  if (is.null(ad)) ad <- anndataR::read_h5ad(h5ad_path)
+  if (is.null(ad)) {
+    check_results_format(h5ad_path)
+    ad <- anndataR::read_h5ad(h5ad_path)
+  }
   sce <- ad$as_SingleCellExperiment()
   uns <- ad$uns
   if (is.null(uns)) uns <- list()
