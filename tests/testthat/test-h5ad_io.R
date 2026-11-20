@@ -183,3 +183,33 @@ test_that("save_h5ad_data handles empty coloursList entries without crashing", {
   expect_true(length(colour_keys) >= 2)  # cluster_id + condition, not empty_entry
   expect_false("empty_entry" %in% colour_keys)
 })
+
+test_that("round-trip: a QC table with '/' in a column name survives", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+
+  tmp <- withr::local_tempdir()
+  env_save <- new.env(parent = emptyenv())
+  env_save$sce <- sce
+  env_save$md <- S4Vectors::metadata(sce)$experiment_info
+  env_save$smd <- data.frame(study = "test", stringsAsFactors = FALSE)
+  env_save$umapDFList <- list(All = make_mock_umap_df(sce))
+  env_save$coloursList <- make_mock_colours(sce)
+  # Column names as PeacoQC writes them
+  env_save$QCmini <- data.frame(
+    Filename = c("a.fcs", "b.fcs"),
+    `% Full analysis` = c(1.5, 2.5),
+    `Increasing/Decreasing channel` = c("No", "Yes"),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  env_load <- new.env(parent = emptyenv())
+  expect_no_warning(load_h5ad_to_env(h5ad_path, envir = env_load), message = "qc_summary")
+  loaded <- get("QCmini", envir = env_load)
+  expect_equal(names(loaded), names(env_save$QCmini))
+  expect_equal(as.character(loaded$`Increasing/Decreasing channel`), c("No", "Yes"))
+  expect_equal(as.numeric(loaded$`% Full analysis`), c(1.5, 2.5))
+})

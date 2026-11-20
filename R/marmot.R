@@ -134,6 +134,16 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
       )
     }
     message("Now rendering the HTML report. This can take some time...")
+    # FlowAI writes its own QC reports with rmarkdown, which needs pandoc.
+    # Outside RStudio and Positron there is often none on the search path, so
+    # lend it the one that ships with Quarto for the length of the render.
+    if (!nzchar(Sys.getenv("RSTUDIO_PANDOC")) && !nzchar(Sys.which("pandoc"))) {
+      pandoc_dir <- .find_quarto_pandoc(quarto_bin)
+      if (nzchar(pandoc_dir)) {
+        Sys.setenv(RSTUDIO_PANDOC = pandoc_dir)
+        on.exit(Sys.unsetenv("RSTUDIO_PANDOC"), add = TRUE)
+      }
+    }
     # Force --embed-resources on the command line as well as in the YAML.
     # Belt-and-braces: on some Quarto versions (notably 1.9.x on Windows), the
     # YAML `embed-resources: true` is silently ignored for certain htmlwidget
@@ -148,4 +158,19 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     unlink(file.path(resultsDir, "Rplots.pdf"))
   }
   
+}
+
+# Find the folder holding the pandoc that ships with Quarto.
+# Quarto keeps it in <quarto>/bin/tools/, or in a folder per processor type
+# below that. Returns "" if none is found.
+.find_quarto_pandoc <- function(quarto_bin) {
+  if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) return("")
+  tools_dir <- file.path(dirname(normalizePath(quarto_bin)), "tools")
+  found <- list.files(tools_dir, pattern = "^pandoc(\\.exe)?$",
+                      recursive = TRUE, full.names = TRUE)
+  if (length(found) == 0) return("")
+  machine <- Sys.info()[["machine"]]
+  if (machine == "arm64") machine <- "aarch64"
+  same_machine <- found[basename(dirname(found)) == machine]
+  dirname(if (length(same_machine) > 0) same_machine[1] else found[1])
 }

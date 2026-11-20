@@ -156,3 +156,29 @@ test_that("marmot: concrete nullable params get substituted correctly", {
   expect_true(any(grepl("^downsampleTo\\s*<-\\s*1500\\b", content)))
   expect_true(any(grepl("^excludeTheseSamples\\s*<-\\s*'Sample_001'", content)))
 })
+
+test_that(".find_quarto_pandoc finds the pandoc that ships with Quarto", {
+  find_quarto_pandoc <- getFromNamespace(".find_quarto_pandoc", "MARMOT")
+  d <- withr::local_tempdir()
+  bin <- file.path(d, "bin"); dir.create(bin)
+  quarto <- file.path(bin, "quarto"); file.create(quarto)
+
+  # No tools folder, or no quarto at all: nothing found
+  expect_equal(find_quarto_pandoc(quarto), "")
+  expect_equal(find_quarto_pandoc(""), "")
+
+  # Older layout: bin/tools/pandoc
+  dir.create(file.path(bin, "tools"))
+  file.create(file.path(bin, "tools", "pandoc"))
+  expect_equal(normalizePath(find_quarto_pandoc(quarto)), normalizePath(file.path(bin, "tools")))
+
+  # Newer layout: one folder per processor type; this machine's is preferred
+  unlink(file.path(bin, "tools", "pandoc"))
+  machine <- Sys.info()[["machine"]]
+  if (machine == "arm64") machine <- "aarch64"
+  for (m in unique(c("aaa_other", machine))) {
+    dir.create(file.path(bin, "tools", m))
+    file.create(file.path(bin, "tools", m, "pandoc"))
+  }
+  expect_equal(basename(find_quarto_pandoc(quarto)), machine)
+})

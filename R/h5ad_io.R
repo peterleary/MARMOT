@@ -161,7 +161,12 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   # QC data
   QCmini <- safe_get("QCmini")
   if (!is.null(QCmini) && is.data.frame(QCmini)) {
-    qc <- list(qc_summary = QCmini)
+    # A "/" in a column name is read as a folder separator inside the h5ad
+    # file and makes the table unreadable (PeacoQC has such a column). Store
+    # safe names, and keep the real ones alongside to restore on loading.
+    qc_summary <- as.data.frame(QCmini, check.names = FALSE)
+    names(qc_summary) <- make.unique(gsub("/", "_", names(QCmini), fixed = TRUE))
+    qc <- list(qc_summary = qc_summary, qc_summary_colnames = names(QCmini))
     cf2 <- safe_get("cf2")
     if (!is.null(cf2)) {
       if (is.data.frame(cf2)) {
@@ -349,7 +354,10 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   # -- QC --
   if (!is.null(uns$qc)) {
     if (!is.null(uns$qc$qc_summary)) {
-      assign("QCmini", as.data.frame(uns$qc$qc_summary), envir = envir)
+      QCmini <- as.data.frame(uns$qc$qc_summary, check.names = FALSE)
+      real_names <- as.character(unlist(uns$qc$qc_summary_colnames))
+      if (length(real_names) == ncol(QCmini)) names(QCmini) <- real_names
+      assign("QCmini", QCmini, envir = envir)
     }
     if (!is.null(uns$qc$cofactors)) {
       cofactors <- as.data.frame(uns$qc$cofactors)
