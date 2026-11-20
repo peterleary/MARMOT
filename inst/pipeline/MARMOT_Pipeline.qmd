@@ -1666,24 +1666,16 @@ message("🚀 Starting differential abundance (DA) and differential state (DS) a
 daPValToUse <- "p_adj"
 
 # ───────────────────────────────────────────────────────
-# 🧹 Tidy condition names and prepare design matrix
+# 🏷️ Give each condition a code and prepare design matrix
+# edgeR and limma only need to know which samples belong together, so they are
+# given a code per condition (cond1, cond2, ...) and never the names themselves.
+# Condition names can therefore contain anything: Greek letters, subscripts,
+# superscripts, +, -, / or spaces.
 ei <- metadata(sce)$experiment_info
-ei$condition <- gsub(" ", ".", ei$condition)
 
-ei$conditionToTest <- ei$condition |>
-  gsub(pattern = " ", replacement = ".", x = _) |>
-  gsub(pattern = "-", replacement = "0", x = _) |>
-  gsub(pattern = "\\+", replacement = "1", x = _) |>
-  gsub(pattern = "/", replacement = "", x = _) |>
-  as.factor()
-
-cTTforEdgeR <- contrastsToTest |>
-  gsub(pattern = " ", replacement = ".", x = _) |>
-  gsub(pattern = "-", replacement = "0", x = _) |>
-  gsub(pattern = "\\+", replacement = "1", x = _) |>
-  gsub(pattern = "\\.over\\.", replacement = "-", x = _) |>
-  gsub(pattern = "\\.vs\\.", replacement = "-", x = _) |>
-  gsub(pattern = "/", replacement = "", x = _)
+conditionNames <- levels(droplevels(as.factor(ei$condition)))
+conditionCodes <- setNames(paste0("cond", seq_along(conditionNames)), conditionNames)
+ei$conditionToTest <- factor(conditionCodes[as.character(ei$condition)], levels = conditionCodes)
 
 cTTForPlots <- contrastsToTest
 
@@ -1691,11 +1683,28 @@ design <- model.matrix(~0 + conditionToTest, data = ei)
 colnames(design) <- gsub("conditionToTest", "", colnames(design))
 
 # ───────────────────────────────────────────────────────
-# ✍️ Create contrast matrix
+# ✍️ Create contrasts
 message("🧮 Constructing contrasts for edgeR...")
-contrasts <- setNames(lapply(cTTforEdgeR, \(ctr) {
-  eval(parse(text = paste0("limma::makeContrasts(", ctr, ", levels = design)")))
-}), cTTforEdgeR)
+
+# Split each "A over B" into its two conditions. Both must be conditions from
+# the File Data sheet; spacing is tidied the same way as for the contrasts.
+tidyConditionNames <- gsub("\\s+", " ", trimws(conditionNames))
+contrastConditions <- lapply(contrastsToTest, function(ctr) {
+  for (cut in gregexpr(" over ", ctr, fixed = TRUE)[[1]]) {
+    pair <- c(substr(ctr, 1, cut - 1), substr(ctr, cut + 6, nchar(ctr)))
+    if (all(pair %in% tidyConditionNames) && pair[1] != pair[2]) return(pair)
+  }
+  stop("❌ The contrast '", ctr, "' does not match your conditions. ",
+       "It should read '<condition> over <condition>', using two different ",
+       "conditions from the File Data sheet: ", paste(conditionNames, collapse = ", "))
+})
+
+# "A over B" is +1 for A's column of the design and -1 for B's (0 for any
+# other column): a positive logFC means higher in A.
+contrasts <- lapply(contrastConditions, function(pair) {
+  codes <- conditionCodes[match(pair, tidyConditionNames)]
+  createContrast((colnames(design) == codes[1]) - (colnames(design) == codes[2]))
+})
 
 # ───────────────────────────────────────────────────────
 # 📊 Differential abundance analysis (DA)
@@ -1788,7 +1797,7 @@ selectedClustersList <- vector("list", length(contrasts) * 2)
 names_list <- character(length(contrasts) * 2)
 
 for (i in seq_along(contrasts)) {
-  contrast_conditions <- strsplit(contrastsToTest[i], " over ")[[1]]
+  contrast_conditions <- contrastConditions[[i]]
   da_table <- daList[[i]]
   
   # Filter for complete cases and significant results
