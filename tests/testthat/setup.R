@@ -889,7 +889,7 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
 
   # Read and check manifest
   ad <- anndataR::read_h5ad(h5ad_path)
-  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-results")
 
   # Cell count
   if (!is.null(expected_cells)) {
