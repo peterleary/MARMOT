@@ -2284,7 +2284,7 @@ invisible(lapply(names(mdsList), function(x) {
 ```{r, label = "save mds plots", include = FALSE}
 if (gimmePDFs) {
   lapply(names(mdsList), function(x) {
-    pdf(file = file.path(pdfDir, paste0(x, "_MDS.pdf")), width = 7, height = 5, bg = "transparent")
+    pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(x), "_MDS.pdf")), width = 7, height = 5, bg = "transparent")
     print(mdsList[[x]])
     dev.off()
   })
@@ -2438,7 +2438,7 @@ if (runMarkerPairPlots) {
 if (gimmePDFs && exists("markerPairsList")) {
   lapply(names(markerPairsList), function(x) {
     lapply(names(markerPairsList[[x]]), function(y) {
-      pdf(file = file.path(pdfDir, paste0(y, "_scatter.pdf")), width = 5, height = 5, bg = "transparent")
+      pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(y), "_scatter.pdf")), width = 5, height = 5, bg = "transparent")
       print(markerPairsList[[x]][[y]][[1]])
       if (length(markerPairsList[[x]][[y]]) == 2)
         print(markerPairsList[[x]][[y]][[2]])
@@ -2538,7 +2538,7 @@ if("type" %in% markerType && "state" %in% markerType) {
 if (gimmePDFs) {
   if (length(heatmapsList) == 2) {
     for (n in names(heatmapsList)) {
-      pdf(file = file.path(pdfDir, paste0(n, "_Marker_Heatmap.pdf")), height = max(6, ceiling(length(numbersOfClusters)/2.5)), width = max(8, ceiling(length(useMarkers)/3)))
+      pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(n), "_Marker_Heatmap.pdf")), height = max(6, ceiling(length(numbersOfClusters)/2.5)), width = max(8, ceiling(length(useMarkers)/3)))
       ComplexHeatmap::draw(heatmapsList[[n]], merge_legend = TRUE)
       dev.off()
     }
@@ -2781,7 +2781,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
 if (gimmePDFs) {
   lapply(names(selectedBarplotList), function(x) {
     if (is.null(selectedBarplotList[[x]])) return(NULL)
-    pdf(file = paste0(pdfDir, "/", selectedBarplotList[[x]][["cx"]], "_", selectedBarplotList[[x]][["sx"]], "_barplot.pdf"), width = 10, height = 5)
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(selectedBarplotList[[x]][["cx"]], "_", selectedBarplotList[[x]][["sx"]], "_barplot.pdf"))), width = 10, height = 5)
     print(selectedBarplotList[[x]][["g"]])
     dev.off()
   })
@@ -2978,7 +2978,7 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[
 if (gimmePDFs) {
   dir.create(file.path(pdfDir, "Markers_per_cluster_boxplots"))
   lapply(names(individualClusterMarkerBoxplots), function(x) {
-    pdf(file.path(pdfDir, "Markers_per_cluster_boxplots", paste0(x, ".pdf")), width = 12, height = 5)
+    pdf(file.path(pdfDir, "Markers_per_cluster_boxplots", paste0(MARMOT::safe_file_name(x), ".pdf")), width = 12, height = 5)
     print(individualClusterMarkerBoxplots[[x]])
     dev.off()
   })
@@ -3218,12 +3218,12 @@ invisible(lapply(names(UMAPList), function(yn){
 if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse)))
   lapply(names(UMAPList), function(m) {
-    dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse), m))
-    pdf(file = file.path(pdfDir, paste0(m, "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
+    dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
+    pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(m), "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
     print(plot_grid(plotlist = UMAPList[[m]], ncol = 4))
     dev.off()
     lapply(names(UMAPList[[m]]), function(n) {
-      pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
+      pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
       if (n != "legend") {
         print(UMAPList[[m]][[n]])
       } else if (n == "legend") {
@@ -3281,9 +3281,9 @@ invisible(lapply(names(DRperCondList), function(yn){
 if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse)))
   lapply(names(DRperCondList), function(m) {
-    dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m))
+    dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
     lapply(names(DRperCondList[[m]]), function(n) {
-      pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), m, paste0(n, "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
+      pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
       if (n != "legend") {
         print(DRperCondList[[m]][[n]])
       } else if (n == "legend") {
@@ -3446,7 +3446,7 @@ daResultsList <- setNames(lapply(names(daList), function(cont) {
       formatStyle(columns = "logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold")
   ))
   cat("\n\n")
-  openxlsx::write.xlsx(x = as.data.frame(daList[[cont]]), file = file.path(excelDir, paste0(cont, "_DA_Results.xlsx")))
+  openxlsx::write.xlsx(x = as.data.frame(daList[[cont]]), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), "_DA_Results.xlsx")))
   return(list("pDH" = pDH, "cx" = cx, "daDF" = daDF))
 }), names(daList))
 ```
@@ -3456,7 +3456,7 @@ daResultsList <- setNames(lapply(names(daList), function(cont) {
 ```{r, label = "save DA results", include = FALSE}
 if (gimmePDFs) {
   lapply(names(daResultsList), function(x) {
-    pdf(file = file.path(pdfDir, paste0(x, "_DA_heatmap.pdf")), height = 6, width = 13)
+    pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(x), "_DA_heatmap.pdf")), height = 6, width = 13)
     print(daResultsList[[x]][["pDH"]])
     dev.off()
   })
@@ -3482,7 +3482,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
   cat("\n\n")
   cat("####", cont, "\n\n")
 
-  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Full_Results.xlsx")))
+  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), "_DS_Full_Results.xlsx")))
 
   dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- data.frame(dsUp_tbl[dsUp_tbl >= 1])
   dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- data.frame(dsDown_tbl[dsDown_tbl >= 1])
@@ -3565,7 +3565,7 @@ dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList
   cat("\n\n")
   cat("####", cont, "\n\n")
 
-  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(cont, "_DS_Merged_Results.xlsx")))
+  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), "_DS_Merged_Results.xlsx")))
   dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- dsUp_tbl[dsUp_tbl >= 1]
   dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- dsDown_tbl[dsDown_tbl >= 1]
 
@@ -3662,7 +3662,7 @@ for (i in seq_along(selectedClustersList)) {
     cx <- names(selectedClustersList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
     sx <- names(selectedClustersList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
     if (gimmePDFs) {
-      pdf(file = paste0(pdfDir, "/", cx, "_", sx, "_heatmaps.pdf"), width = 10, height = ceiling(length(cl)*0.5)+1)
+      pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(cx, "_", sx, "_heatmaps.pdf"))), width = 10, height = ceiling(length(cl)*0.5)+1)
       print(h1)
       dev.off()
     }
@@ -3726,7 +3726,7 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
 ```{r, label = "save DR of selected clusters", include = FALSE}
 if (gimmePDFs) {
   lapply(names(DRSelectedClusters), function(x) {
-    pdf(file = paste0(pdfDir, "/", DRSelectedClusters[[x]][["cx"]], "_", DRSelectedClusters[[x]][["sx"]], "_", dimRedMethodToUse, "_full.pdf"), width = 5, height = 5)
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(DRSelectedClusters[[x]][["cx"]], "_", DRSelectedClusters[[x]][["sx"]], "_", dimRedMethodToUse, "_full.pdf"))), width = 5, height = 5)
     print(DRSelectedClusters[[x]][["gp"]])
     dev.off()
   })
@@ -3784,7 +3784,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
 ```{r, label = "save DR of selected clusters 2", include = FALSE}
 if (gimmePDFs) {
   lapply(names(DRSelectedClusters2), function(x) {
-    pdf(file = paste0(pdfDir, "/", x, "_", dimRedMethodToUse, "_subset.pdf"), width = 10, height =  6*(ceiling(length(condLevels)/2)))
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(x, "_", dimRedMethodToUse, "_subset.pdf"))), width = 10, height =  6*(ceiling(length(condLevels)/2)))
     print(DRSelectedClusters2[[x]])
     dev.off()
   })
