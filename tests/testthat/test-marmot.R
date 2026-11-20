@@ -237,3 +237,53 @@ test_that("marmot: k values may be separated by commas, spaces or both", {
   suppressMessages(marmot(metadata = md, name = "KTest", render = FALSE))
   expect_true(any(grepl("^kValuesIWant <- c\\(20,40,60\\)$", run_copy(d))))
 })
+
+test_that("marmot: a blank downsampleTo means every cell, not the default cap", {
+  d <- withr::local_tempdir()
+  md <- make_settings_workbook(d, list(knn = "20"))
+  wb <- openxlsx::loadWorkbook(md)
+  ps <- openxlsx::read.xlsx(wb, sheet = "Pipeline Settings")
+  openxlsx::deleteData(wb, "Pipeline Settings", cols = 2, rows = match("downsampleTo", ps$Variable) + 1L, gridExpand = TRUE)
+  openxlsx::saveWorkbook(wb, md, overwrite = TRUE)
+  suppressMessages(marmot(metadata = md, name = "BlankDS", render = FALSE))
+  expect_true(any(grepl("^downsampleTo <- NULL$", run_copy(d))))
+})
+
+test_that("marmot: retired settings are set aside with a message, unknown ones warned about", {
+  d <- withr::local_tempdir()
+  sheet <- data.frame(
+    Variable = c("knn", "kValuesIWant", "runInParallel", "themeToUse", "condaDir", "knnn"),
+    Setting  = c("40", "20 40", "TRUE", "bw", "~/mamba", "30"),
+    Info     = "x", stringsAsFactors = FALSE)
+  wb <- openxlsx::createWorkbook(); openxlsx::addWorksheet(wb, "Pipeline Settings")
+  openxlsx::writeData(wb, "Pipeline Settings", sheet)
+  md <- file.path(d, "meta.xlsx"); openxlsx::saveWorkbook(wb, md)
+  expect_message(
+    expect_warning(marmot(metadata = md, name = "Old", render = FALSE), "knnn"),
+    "no longer used.*runInParallel, themeToUse, condaDir")
+  lines <- run_copy(d)
+  expect_true(any(grepl("^knn <- 40$", lines)))
+  expect_false(any(grepl("themeToUse|runInParallel|condaDir|knnn", lines)))
+  # Settings missing from the sheet keep MARMOT's defaults
+  expect_true(any(grepl("^downsampleTo <- 10000", lines)))
+  expect_true(any(grepl("^viridisColour <- \"lapaz\"", lines)))
+})
+
+test_that("marmot: a setting left blank that needs a value stops with its name", {
+  d <- withr::local_tempdir()
+  sheet <- data.frame(Variable = c("knn", "kValuesIWant"), Setting = c(NA, "20 40"), Info = "x")
+  wb <- openxlsx::createWorkbook(); openxlsx::addWorksheet(wb, "Pipeline Settings")
+  openxlsx::writeData(wb, "Pipeline Settings", sheet)
+  md <- file.path(d, "meta.xlsx"); openxlsx::saveWorkbook(wb, md)
+  expect_error(marmot(metadata = md, name = "Blank", render = FALSE), "knn is blank")
+})
+
+test_that("marmot: excludeTheseSamples takes a comma-separated list", {
+  d <- withr::local_tempdir()
+  sheet <- data.frame(Variable = c("knn", "excludeTheseSamples"), Setting = c("20", "S001, S 02,S003"), Info = "x")
+  wb <- openxlsx::createWorkbook(); openxlsx::addWorksheet(wb, "Pipeline Settings")
+  openxlsx::writeData(wb, "Pipeline Settings", sheet)
+  md <- file.path(d, "meta.xlsx"); openxlsx::saveWorkbook(wb, md)
+  suppressMessages(marmot(metadata = md, name = "Excl", render = FALSE))
+  expect_true(any(grepl("^excludeTheseSamples <- c\\('S001','S 02','S003'\\)$", run_copy(d))))
+})

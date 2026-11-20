@@ -38,19 +38,34 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   }
   params_df <- openxlsx::read.xlsx(metadata, sheet = "Pipeline Settings")
   
+  # Settings that older versions of MARMOT had and this one no longer uses.
+  # A sheet made for an older version still works; its extra rows are set aside.
+  retired <- c("runInParallel", "themeToUse", "condaDir", "parcScriptDir", "drCellCount")
+  retired_in_sheet <- intersect(params_df$Variable, retired)
+  if (length(retired_in_sheet) > 0) {
+    message("These settings are no longer used by MARMOT and were ignored: ",
+            paste(retired_in_sheet, collapse = ", "),
+            ". You can delete those rows from your Pipeline Settings sheet.")
+    params_df <- params_df[!params_df$Variable %in% retired, , drop = FALSE]
+  }
+
+  # A setting whose row is missing altogether takes MARMOT's default. One that
+  # is in the sheet but left blank is more likely a slip, so stop and say so.
   cantBeBlank <- c(
-    "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn", 
+    "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
     "dimRedMethodToUse", "markersToDimRedBy", "runQC", "useQC", "gimmePDFs",
-    "quantileNormaliseAll", "runInParallel", "nCores", "ramPerCore", "themeToUse",
-    "viridisColour"
+    "quantileNormaliseAll", "nCores", "ramPerCore", "viridisColour"
   )
-  lapply(cantBeBlank, function(p) {
-    if (is.na(params_df$Setting[params_df$Variable == p])) {
-      stop(p, " is blank! Please enter a value in the Excel Metadata file.")
-    }
-  })
+  blank <- cantBeBlank[vapply(cantBeBlank, function(p) {
+    value <- params_df$Setting[which(params_df$Variable == p)]
+    length(value) > 0 && all(is.na(value))
+  }, logical(1))]
+  if (length(blank) > 0) {
+    stop(paste(blank, collapse = ", "), " is blank! Please enter a value in the Excel Metadata file.")
+  }
   
-  # Variables where NA in the Excel means "set to NULL" (not "use QMD default")
+  # Settings where a blank cell means "none" (NULL), not "use MARMOT's default":
+  # a blank downsampleTo is every cell, not the default cap.
   nullable_vars <- c("downsampleTo", "RDataFolder", "excludeTheseSamples")
   nullable_nas <- params_df$Variable[params_df$Variable %in% nullable_vars &
                                        is.na(params_df$Setting)]
@@ -62,18 +77,21 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   # Get the list of options chosen
   params_list <- as.list(params_df[, 2]) |> setNames(params_df$Variable)
 
-  # Explicitly set nullable variables to NULL when blank in Excel
-  for (v in nullable_nas) params_list[[v]] <- NULL
-  
   # Tidy up the params
-  kValues <- strsplit(as.character(params_list$kValuesIWant), "[ ,]+") |> unlist()
-  params_list$kValuesIWant <- as.numeric(kValues[nzchar(kValues)])
-  for (f in c("downsampleTo", "knn", "drCellCount", "nCores", "ramPerCore")) {
+  if ("kValuesIWant" %in% names(params_list)) {
+    kValues <- strsplit(as.character(params_list$kValuesIWant), "[ ,]+") |> unlist()
+    params_list$kValuesIWant <- as.numeric(kValues[nzchar(kValues)])
+  }
+  # Sample IDs to leave out, separated by commas
+  if ("excludeTheseSamples" %in% names(params_list)) {
+    params_list$excludeTheseSamples <- trimws(strsplit(as.character(params_list$excludeTheseSamples), ",")[[1]])
+  }
+  for (f in c("downsampleTo", "knn", "nCores", "ramPerCore")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
   }
-  for (f in c("useQC", "gimmePDFs", "quantileNormaliseAll", "runInParallel", "runScGate")) {
+  for (f in c("useQC", "gimmePDFs", "greyscalePlots", "quantileNormaliseAll", "runScGate")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.logical(params_list[[f]])
     }
@@ -95,8 +113,13 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     x <- gsub("\\", "\\\\", x, fixed = TRUE)
     gsub("'", "\\'", x, fixed = TRUE)
   }
+  not_a_setting <- character(0)
   for (var_name in names(params_list)) {
     pattern <- paste0("^", var_name, "\\ <-\\ \\.*.*")
+    if (!any(grepl(pattern, rmd_content))) {
+      not_a_setting <- c(not_a_setting, var_name)
+      next
+    }
     
     if (length(params_list[[var_name]]) == 1) {
       if (is.numeric(params_list[[var_name]]) | is.logical(params_list[[var_name]])) {
@@ -114,6 +137,15 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     # Replace whole lines by position: gsub() would read backslashes in the
     # replacement as its own escapes and strip them.
     rmd_content[grepl(pattern, rmd_content)] <- replacement
+  }
+  # Blank cells that mean "none": write NULL over whatever the default is
+  for (v in nullable_nas) {
+    rmd_content[grepl(paste0("^", v, "\\ <-\\ "), rmd_content)] <- paste0(v, " <- NULL")
+  }
+  if (length(not_a_setting) > 0) {
+    warning("The marmots don't know these settings, so they were ignored: ",
+            paste(not_a_setting, collapse = ", "),
+            ". Please check the spelling in your Pipeline Settings sheet.", call. = FALSE)
   }
   
   # Point QMD at the installed header so we don't copy 329KB into the results folder
