@@ -40,10 +40,9 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     choices = c("None", colsThatCanBePlot), selected = "None")
 
   # ── Contrast dropdowns ─────────────────────────────────────────────────
-  # Populate from the actual contrast names in study metadata (same as main branch).
-  # selectedClustersList is indexed positionally: odd = up, even = down.
-  contrast_names <- na.omit(res$smd$`Conditions To Test`)
-  contrast_names <- contrast_names[nzchar(contrast_names)]
+  # Populate from the contrasts in the study metadata, tidied the way the
+  # pipeline tidies them so both number the contrasts alike.
+  contrast_names <- tidy_contrasts(res$smd$`Conditions To Test`)
   if (length(contrast_names) == 0) contrast_names <- "None"
   updateSelectInput(session, "umapContrast", choices = contrast_names)
   updateSelectInput(session, "fpContrast",   choices = contrast_names)

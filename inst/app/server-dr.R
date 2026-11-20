@@ -81,16 +81,9 @@ umapReactive <- eventReactive(
 
       if (da_mode != "None" && contrast != "None" &&
           !is.null(res$selectedClustersList)) {
-        # Positional indexing (same as main branch):
-        # selectedClustersList pairs: odd = up, even = down
-        contrasts_all <- na.omit(res$smd$`Conditions To Test`)
-        contrast_idx  <- match(contrast, contrasts_all)
-        if (!is.na(contrast_idx)) {
-          pair_start <- (contrast_idx - 1) * 2 + 1
-          clusters_to_plot <- res$selectedClustersList[c(pair_start, pair_start + 1)]
-        } else {
-          clusters_to_plot <- list(character(0), character(0))
-        }
+        # Looked up by name, never by position (see get_da_clusters)
+        clusters_to_plot <- unname(get_da_clusters(
+          res$selectedClustersList, res$smd$`Conditions To Test`, contrast))
         da_result <- filter_da_clusters(umapDF, clusters_to_plot, mode = da_mode)
         umapDF <- da_result$umap_df
         if (!is.null(da_result$warning)) {

@@ -393,3 +393,61 @@ test_that("extract_expr_matrix: values match the underlying assay", {
 
   expect_equal(unname(result), unname(expected))
 })
+
+# ── tidy_contrasts / get_da_clusters ─────────────────────────────────────────
+
+test_that("tidy_contrasts matches the pipeline: blanks, spacing and non-contrasts go", {
+  raw <- c("B over A", NA, "  C   over  A ", "", "not a contrast", "D over B")
+  expect_equal(tidy_contrasts(raw), c("B over A", "C over A", "D over B"))
+  expect_equal(tidy_contrasts(NULL), character(0))
+})
+
+test_that("get_da_clusters: a list in pipeline order is read correctly", {
+  contrasts <- c("B over A", "C over A")
+  scl <- list(
+    "Contrast 1: B Up" = c("1", "2"),
+    "Contrast 1: A Up" = c("3"),
+    "Contrast 2: C Up" = c("4"),
+    "Contrast 2: A Up" = c("5", "6")
+  )
+  expect_equal(get_da_clusters(scl, contrasts, "B over A"),
+               list(up = c("1", "2"), down = "3"))
+  expect_equal(get_da_clusters(scl, contrasts, "C over A"),
+               list(up = "4", down = c("5", "6")))
+})
+
+test_that("get_da_clusters: empty entries left out of the file do not shift the rest", {
+  # As loaded from h5ad: 'Contrast 1: B Up' was empty and is absent, and the
+  # remaining entries come back in alphabetical order.
+  contrasts <- c("B over A", "C over A")
+  scl <- list(
+    "Contrast 1: A Up" = c("3"),
+    "Contrast 2: A Up" = c("5", "6"),
+    "Contrast 2: C Up" = c("4")
+  )
+  expect_equal(get_da_clusters(scl, contrasts, "B over A"),
+               list(up = character(0), down = "3"))
+  expect_equal(get_da_clusters(scl, contrasts, "C over A"),
+               list(up = "4", down = c("5", "6")))
+})
+
+test_that("get_da_clusters: alphabetical order cannot swap up and down", {
+  # 'A' sorts before 'B', so position would call the 'A Up' clusters 'up'.
+  scl <- list("Contrast 1: A Up" = "9", "Contrast 1: B Up" = "7")
+  expect_equal(get_da_clusters(scl, "B over A", "B over A"),
+               list(up = "7", down = "9"))
+})
+
+test_that("get_da_clusters: nothing significant, unknown contrast or no list give empties", {
+  none <- list(up = character(0), down = character(0))
+  expect_equal(get_da_clusters(list(), "B over A", "B over A"), none)
+  expect_equal(get_da_clusters(NULL, "B over A", "B over A"), none)
+  expect_equal(get_da_clusters(list("Contrast 1: B Up" = "1"), "B over A", "None"), none)
+})
+
+test_that("get_da_clusters: numbering ignores rows the pipeline ignores", {
+  # The pipeline skips the middle row, so 'C over A' is its Contrast 2.
+  contrasts <- c("B over A", "just a note", "C  over A")
+  scl <- list("Contrast 2: C Up" = "4")
+  expect_equal(get_da_clusters(scl, contrasts, "C over A")$up, "4")
+})

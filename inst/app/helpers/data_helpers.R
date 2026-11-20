@@ -162,6 +162,47 @@ apply_relabelling_pure <- function(sce, umapDFList, coloursList, cluster_table,
   list(sce = sce, umapDFList = umapDFList, coloursList = coloursList)
 }
 
+#' Tidy the "Conditions To Test" column the way the pipeline does
+#'
+#' The pipeline drops blanks, trims and squeezes spaces, and keeps only rows of
+#' the form "A over B". The Explorer must number contrasts the same way, or its
+#' "Contrast 2" is not the pipeline's "Contrast 2".
+#'
+#' @param contrasts Character vector, as read from the study metadata
+#' @return Character vector of contrasts, in pipeline order
+tidy_contrasts <- function(contrasts) {
+  contrasts <- as.character(contrasts)
+  contrasts <- contrasts[!is.na(contrasts)]
+  contrasts <- gsub("\\s+", " ", trimws(contrasts))
+  contrasts[grepl(".+ over .+", contrasts)]
+}
+
+#' Look up the DA clusters of one contrast by name
+#'
+#' The pipeline names each entry of selectedClustersList
+#' "Contrast <i>: <condition> Up". Entries are looked up by that name, never by
+#' position: a saved results file leaves out empty entries and returns the rest
+#' in alphabetical order, so position means nothing.
+#'
+#' @param selected_clusters_list Named list of DA cluster vectors
+#' @param contrasts All contrasts from the study metadata
+#' @param contrast The contrast to look up, e.g. "Treated over Control"
+#' @return list(up = clusters higher in the first condition,
+#'   down = clusters higher in the second condition); empty if none
+get_da_clusters <- function(selected_clusters_list, contrasts, contrast) {
+  none <- list(up = character(0), down = character(0))
+  contrasts <- tidy_contrasts(contrasts)
+  i <- match(tidy_contrasts(contrast), contrasts)
+  if (length(i) != 1 || is.na(i)) return(none)
+
+  conditions <- strsplit(contrasts[i], " over ")[[1]]
+  lookup <- function(condition) {
+    clusters <- selected_clusters_list[[paste0("Contrast ", i, ": ", condition, " Up")]]
+    if (is.null(clusters)) character(0) else as.character(clusters)
+  }
+  list(up = lookup(conditions[1]), down = lookup(conditions[2]))
+}
+
 #' Filter DA clusters in a umap data frame
 #'
 #' Pure transformation extracted from server-dr.R. Replaces cluster_id values

@@ -503,19 +503,12 @@ observeEvent(
       contrast <- input$fpContrast %||% "None"
       if (da_mode != "None" && contrast != "None" &&
           !is.null(inputDataReactive$Results$selectedClustersList)) {
-        # Positional indexing (same as main branch):
-        # selectedClustersList pairs: odd = up, even = down
-        scl <- inputDataReactive$Results$selectedClustersList
-        contrasts_all <- na.omit(inputDataReactive$Results$smd$`Conditions To Test`)
-        contrast_idx  <- match(contrast, contrasts_all)
-        if (!is.na(contrast_idx)) {
-          pair_start    <- (contrast_idx - 1) * 2 + 1
-          up_clusters   <- scl[[pair_start]]
-          down_clusters <- if (length(scl) >= pair_start + 1) scl[[pair_start + 1]] else character(0)
-        } else {
-          up_clusters   <- character(0)
-          down_clusters <- character(0)
-        }
+        # Looked up by name, never by position (see get_da_clusters)
+        da <- get_da_clusters(
+          inputDataReactive$Results$selectedClustersList,
+          inputDataReactive$Results$smd$`Conditions To Test`, contrast)
+        up_clusters   <- da$up
+        down_clusters <- da$down
 
         da_clusters <- switch(da_mode,
           "All" = as.character(c(up_clusters, down_clusters)),
