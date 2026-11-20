@@ -832,13 +832,20 @@ if (runQC == "FlowAI") {
 
   qc_dir <- file.path(fp, "resultsQC_flowAI")
   expected_qc_files <- gsub("\\.fcs$", "_QC.fcs", md$file_name)
+  # QC'd files on disk are reused only if they were made from exactly these FCS
+  # files with exactly these QC settings (see ?MARMOT::qc_cache_stamp).
+  qc_stamp <- MARMOT::qc_cache_stamp(fcs_files, "FlowAI", list(remove_from = metricsQC))
   qc_present <- dir.exists(qc_dir) &&
-    all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC\\.fcs", ignore.case = TRUE))
+    all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC\\.fcs", ignore.case = TRUE)) &&
+    MARMOT::qc_cache_is_current(qc_dir, qc_stamp)
+  qcWasReused <- qc_present
 
   if (qc_present) {
     message("📁 QC files found on disk — skipping recomputation.")
   } else {
     message("⚙️  Running FlowAI per-file at full resolution...")
+    # Start from an empty folder, so nothing from an earlier run is mixed in
+    unlink(qc_dir, recursive = TRUE)
     dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
 
     for (i in seq_along(fcs_files)) {
@@ -856,6 +863,7 @@ if (runQC == "FlowAI") {
       )
       rm(ff); invisible(gc())
     }
+    MARMOT::qc_cache_write_stamp(qc_dir, qc_stamp)
   }
 
   # Load and annotate QC summary table
@@ -882,23 +890,36 @@ if (runQC == "PeacoQC") {
   message("🔍 Starting automated quality control with PeacoQC...🦚")
 
   qc_dir <- file.path(fp, "resultsQC_peacoQC")
+
+  # Determine fluorescence channels from one frame's metadata
+  all_channels <- param_df$name
+  fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
+  fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
+
+  # QC'd files on disk are reused only if they were made from exactly these FCS
+  # files with exactly these QC settings (see ?MARMOT::qc_cache_stamp). PeacoQC
+  # judges the arcsinh-transformed data, so the cofactors are QC settings too.
+  qc_stamp <- MARMOT::qc_cache_stamp(fcs_files, "PeacoQC", list(
+    channels = fluor_channels,
+    cofactors = as.list(cf[fluor_channels]),
+    determine_good_cells = "all"
+  ))
   qc_present <- dir.exists(qc_dir) && {
     expected_qc_files <- gsub("\\.fcs$", "_QC.fcs", md$file_name)
     actual_qc_paths <- list.files(qc_dir, pattern = "_QC\\.fcs$", recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
     all(expected_qc_files %in% basename(actual_qc_paths))
-  }
+  } && MARMOT::qc_cache_is_current(qc_dir, qc_stamp)
+  qcWasReused <- qc_present
 
   if (qc_present) {
     message("📁 QC files found on disk — skipping recomputation.")
   } else {
     message("⚙️  Running PeacoQC per-file at full resolution...")
 
+    # Start from an empty folder, so nothing from an earlier run is mixed in
+    unlink(qc_dir, recursive = TRUE)
     dir.create(qc_dir, showWarnings = FALSE, recursive = TRUE)
 
-    # Determine fluorescence channels from one frame's metadata
-    all_channels <- param_df$name
-    fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
-    fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
     message("🔬 Using channels for QC: ", paste(fluor_channels, collapse = ", "))
     message("🚫 Excluded channels: ", paste(setdiff(all_channels, fluor_channels), collapse = ", "))
 
@@ -910,15 +931,20 @@ if (runQC == "PeacoQC") {
       ff <- flowCore::read.FCS(fcs_files[i], transformation = FALSE,
                                 truncate_max_range = FALSE)
       ff_t <- flowCore::transform(ff, asinh_transforms)
-      rm(ff)
 
-      PeacoQC::PeacoQC(
+      # PeacoQC judges the transformed data, but the cells it keeps are saved
+      # untransformed (as FlowAI's are), so no cofactor is baked into the files.
+      peaco <- PeacoQC::PeacoQC(
         ff = ff_t, channels = fluor_channels,
-        plot = TRUE, save_fcs = TRUE,
+        plot = TRUE, save_fcs = FALSE,
         output_directory = qc_dir, name_directory = fcs_name,
         report = TRUE, determine_good_cells = "all"
       )
-      rm(ff_t); invisible(gc())
+      qc_fcs_dir <- file.path(qc_dir, fcs_name, "fcs_files")
+      dir.create(qc_fcs_dir, showWarnings = FALSE, recursive = TRUE)
+      flowCore::write.FCS(ff[peaco$GoodCells, ],
+                          file.path(qc_fcs_dir, gsub("\\.fcs$", "_QC.fcs", fcs_name)))
+      rm(ff, ff_t, peaco); invisible(gc())
     }
 
     # Generate combined QC summary table
@@ -931,6 +957,7 @@ if (runQC == "PeacoQC") {
       }
     }
     readr::write_tsv(QCmini, file.path(qc_dir, "QCmini.txt"))
+    MARMOT::qc_cache_write_stamp(qc_dir, qc_stamp)
     message("✅ PeacoQC processing complete.")
   }
 
@@ -1026,12 +1053,11 @@ if ("Untransformed" %in% names(framesList)) {
   }) |> setNames(names(framesList$Untransformed))
 }
 
-# Transform FlowAI QC'd data — FlowAI runs on raw data, so QC'd files are untransformed.
-# PeacoQC doesn't need this: it runs on already-transformed data.
-if ("FlowAI" %in% names(framesList)) {
-  framesList[["FlowAI"]] <- lapply(seq_along(framesList[["FlowAI"]]), function(i) {
-    flowCore::transform(framesList[["FlowAI"]][[i]], asinh_transforms)
-  }) |> setNames(names(framesList[["FlowAI"]]))
+# Transform QC'd data — both QC tools save their QC'd files untransformed.
+for (qcTool in intersect(c("FlowAI", "PeacoQC"), names(framesList))) {
+  framesList[[qcTool]] <- lapply(seq_along(framesList[[qcTool]]), function(i) {
+    flowCore::transform(framesList[[qcTool]][[i]], asinh_transforms)
+  }) |> setNames(names(framesList[[qcTool]]))
 }
 ```
 
@@ -2096,6 +2122,9 @@ if (exists("qc_skip_reason")) {
         "The data here is presented purely for your information and does not reflect any of the results in this report.",
         "If you wish to also use only the cells that passed QC, please change the `useQC` variable to TRUE in the metadata file.")
     cat("\n:::\n\n")
+  }
+  if (exists("qcWasReused") && isTRUE(qcWasReused)) {
+    cat("The QC results below were reused from an earlier run of exactly these FCS files with the same QC settings.\n\n")
   }
   print(kable(QCmini, format = "html", escape = FALSE, col.names = gsub("\\.", "", names(QCmini))) |> kable_styling())
   cat("\n\n")
