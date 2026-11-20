@@ -313,12 +313,6 @@ if (!is.null(RDataFolder)) {
   }
   message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
   MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
-  # Also load FCS frame objects (stored as qs2 — not decomposable to h5ad)
-  qs_path <- file.path(RDataFolder, "framesList.qs2")
-  if (file.exists(qs_path)) {
-    assign("framesList", qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
-  }
-
   # Load DA/DS result objects (S4 structures that can't survive h5ad)
   da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
   if (file.exists(da_ds_path)) {
@@ -326,6 +320,8 @@ if (!is.null(RDataFolder)) {
     for (nm in names(da_ds)) {
       if (!is.null(da_ds[[nm]])) assign(nm, da_ds[[nm]], envir = .GlobalEnv)
     }
+    # sceDS was saved without its expression data: give it back from `sce`
+    if (exists("sceDS")) sceDS <- MARMOT::restore_slim_sce(sceDS, sce)
     message("Loaded (qs2): da_ds_results.qs2")
   }
 
@@ -1248,9 +1244,11 @@ assay(sce, "exprsQuantNorm") <- norm_exprs
 scale.coef <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
 assay(sce, "norm") <- t(scale(t(exprs_mat), center = scale.coef[, 1], scale = scale.coef[, 2] - scale.coef[, 1]))
 
-# Free intermediates and bulky framesList entries no longer needed for analysis.
-# framesList.qs (for FCS export) is saved separately; fsList/fsToUse are done.
+# Free the frames and intermediates: everything needed from here on is in
+# `sce`. The frames are not saved; the results record each cell's event
+# number instead, so cells can be traced back to the original FCS files.
 rm(exprs_mat, norm_exprs, qs, scale.coef)
+if (exists("framesList")) rm(framesList)
 if (exists("fsList")) rm(fsList)
 if (exists("fsToUse")) rm(fsToUse)
 invisible(gc())
@@ -1986,21 +1984,15 @@ dir.create(excelDir, showWarnings = FALSE)
 
 message("💾 Saving outputs...")
 
-# Save FCS frame objects as qs2 — flowFrame/flowSet cannot be stored in Parquet
-if (exists("framesList", envir = .GlobalEnv)) {
-  out_path <- file.path(rFilesDir, "framesList.qs2")
-  qs2::qs_save(get("framesList", envir = .GlobalEnv), file = out_path,
-               nthreads = nCores)
-  message("Saved (qs2): framesList")
-}
-
-# Save DA/DS result objects as qs2 — S4 structures can't round-trip through h5ad
+# Save DA/DS result objects as qs2 — S4 structures can't round-trip through h5ad.
+# sceDS is saved without its expression data and embeddings, which are the
+# same as those of `sce` in the h5ad; they are put back on loading.
 da_ds_save <- list(
   daList = if (exists("daList")) daList else NULL,
   dsList = if (exists("dsList")) dsList else NULL,
   selectedClustersList = if (exists("selectedClustersList")) selectedClustersList else NULL,
   clustersToMapList = if (exists("clustersToMapList")) clustersToMapList else NULL,
-  sceDS = if (exists("sceDS")) sceDS else NULL,
+  sceDS = if (exists("sceDS")) MARMOT::slim_sce(sceDS) else NULL,
   daPValToUse = if (exists("daPValToUse")) daPValToUse else "p_adj"
 )
 qs2::qs_save(da_ds_save, file.path(rFilesDir, "da_ds_results.qs2"), nthreads = nCores)
