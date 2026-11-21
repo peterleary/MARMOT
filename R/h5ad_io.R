@@ -101,6 +101,39 @@ NULL
   sce
 }
 
+# Text that this R session cannot write correctly. Names with Greek letters,
+# umlauts and the like are written as they are when R knows their encoding, or
+# when the session's character type is UTF-8. Text of unknown encoding in any
+# other session would go into the file as escaped bytes ("<ce><b1>").
+.unwritable_text <- function(x) {
+  found <- character(0)
+  collect <- function(v) {
+    if (is.factor(v)) v <- levels(v)
+    if (is.character(v)) {
+      v <- v[!is.na(v)]
+      bad <- Encoding(v) == "unknown" & grepl("[^\x01-\x7f]", v, useBytes = TRUE, perl = TRUE)
+      found <<- c(found, v[bad])
+    }
+    if (!is.null(names(v))) collect_names(names(v))
+    if (is.list(v)) for (item in v) collect(item)
+    invisible(NULL)
+  }
+  collect_names <- function(n) collect(unname(n))
+  collect(x)
+  unique(found)
+}
+
+# Stop before saving if any text would be written wrongly.
+.check_text_can_be_written <- function(ad, uns) {
+  if (isTRUE(l10n_info()[["UTF-8"]])) return(invisible(TRUE))
+  bad <- .unwritable_text(list(as.list(ad$obs), rownames(ad$obs), as.list(ad$var), rownames(ad$var), uns))
+  if (length(bad) == 0) return(invisible(TRUE))
+  stop("Oops! Some names use special characters that this R session can't write properly, ",
+       "for example: ", paste(utils::head(shQuote(iconv(bad, "UTF-8", "UTF-8", sub = "byte")), 3), collapse = ", "),
+       ". Please run the analysis with marmot(), or start R with a UTF-8 language setting ",
+       "(for example LANG=en_GB.UTF-8), and try again.", call. = FALSE)
+}
+
 # A data frame with plain columns only. Columns read from an FCS file's
 # parameter table are of class "AsIs", which cannot be written to an h5ad
 # properly: the table then fails to read back, with a warning on every load.
@@ -319,6 +352,7 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
     uns$qc <- qc
   }
 
+  .check_text_can_be_written(ad, uns)
   ad$uns <- uns
 
   # Write
@@ -389,6 +423,7 @@ save_da_ds_h5ad <- function(h5ad_path, daList = NULL, dsList = NULL,
     uns$pipeline_settings$daPValToUse <- daPValToUse
   }
 
+  .check_text_can_be_written(ad, uns)
   ad$uns <- uns
   anndataR::write_h5ad(ad, h5ad_path, compression = "gzip", mode = "w")
 

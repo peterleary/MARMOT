@@ -433,3 +433,41 @@ test_that("round-trip: contrasts named with Greek letters and symbols keep their
   expect_identical(enc2utf8(names(shiny$daList)), enc2utf8(greek))
   expect_equal(shiny$daList[[3]]$logFC, c(3, -3))
 })
+
+test_that("text of unknown encoding is refused in a session that cannot write it", {
+  skip_if_not_installed("anndataR")
+  withr::local_locale(c(LC_CTYPE = "C"))
+  skip_if(isTRUE(l10n_info()[["UTF-8"]]), "could not switch to a plain character type")
+  alpha_over_beta <- as.raw(c(0xce, 0xb1, 0x20, 0x6f, 0x76, 0x65, 0x72, 0x20, 0xce, 0xb2))
+  unknown <- rawToChar(alpha_over_beta)
+  marked <- unknown
+  Encoding(marked) <- "UTF-8"
+
+  expect_identical(.unwritable_text(list(a = "plain", b = list(factor(marked), c(x = "also plain")))), character(0))
+  expect_length(.unwritable_text(list(tab = data.frame(n = unknown))), 1)
+  expect_length(.unwritable_text(stats::setNames(list(1), unknown)), 1)
+  expect_length(.unwritable_text(factor(unknown)), 1)
+
+  sce <- make_mock_sce()
+  tab <- data.frame(cluster_id = c("1", "2"), logFC = c(1, -1), p_adj = c(0.01, 0.5))
+  save_with <- function(contrast, dir) {
+    env <- new.env(parent = emptyenv())
+    env$sce <- sce
+    env$md <- S4Vectors::metadata(sce)$experiment_info
+    env$daList <- stats::setNames(list(tab), contrast)
+    suppressWarnings(save_h5ad_data(dir, envir = env))
+  }
+
+  refused <- withr::local_tempdir()
+  expect_error(save_with(unknown, refused), "special characters")
+  expect_false(file.exists(file.path(refused, "marmot_results.h5ad")))
+
+  # R knows the encoding of this one, so it is written as it is
+  saved <- withr::local_tempdir()
+  save_with(marked, saved)
+  in_file <- as.character(rhdf5::h5read(file.path(saved, "marmot_results.h5ad"), "uns/da_result_names/name"))
+  rhdf5::h5closeAll()
+  expect_identical(charToRaw(in_file), alpha_over_beta)
+  expect_error(save_da_ds_h5ad(file.path(saved, "marmot_results.h5ad"), daList = stats::setNames(list(tab), unknown)),
+               "special characters")
+})
