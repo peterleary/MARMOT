@@ -346,3 +346,49 @@ test_that("round-trip: a panel with FCS-style 'AsIs' columns reads back, without
   expect_identical(as.character(loaded$panel$marker_name), c("CD4", "CD8"))
   expect_no_warning(load_h5ad_for_shiny(h5ad_path))
 })
+
+test_that("embeddings are stored under scanpy's names and come back under MARMOT's", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  n <- ncol(sce)
+  set.seed(1)
+  embeddings <- list(PCA = matrix(rnorm(n * 3), ncol = 3), UMAP = matrix(rnorm(n * 2), ncol = 2),
+                     TSNE = matrix(rnorm(n * 2), ncol = 2), Mpacmap = matrix(rnorm(n * 2), ncol = 2))
+  SingleCellExperiment::reducedDims(sce) <- embeddings
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  stored <- rhdf5::h5ls(h5ad_path, recursive = 2)
+  rhdf5::h5closeAll()
+  expect_setequal(stored$name[stored$group == "/obsm"], c("X_pca", "X_umap", "X_tsne", "X_mpacmap"))
+
+  for (back in list(reconstruct_sce_from_h5ad(h5ad_path), load_h5ad_for_shiny(h5ad_path)$sce)) {
+    expect_identical(SingleCellExperiment::reducedDimNames(back), names(embeddings))
+    for (e in names(embeddings)) {
+      expect_identical(unname(as.matrix(SingleCellExperiment::reducedDim(back, e))), unname(embeddings[[e]]), info = e)
+    }
+  }
+  loaded <- new.env()
+  load_h5ad_to_env(h5ad_path, envir = loaded)
+  expect_identical(SingleCellExperiment::reducedDimNames(loaded$sce), names(embeddings))
+})
+
+test_that("embedding names differing only in case do not collide when stored", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  n <- ncol(sce)
+  embeddings <- list(PaCMAP = matrix(1, n, 2), pacmap = matrix(2, n, 2))
+  SingleCellExperiment::reducedDims(sce) <- embeddings
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  back <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
+  expect_identical(SingleCellExperiment::reducedDimNames(back), names(embeddings))
+  expect_equal(unname(as.matrix(SingleCellExperiment::reducedDim(back, "pacmap")))[1, 1], 2)
+})

@@ -71,6 +71,36 @@ NULL
   sce
 }
 
+# Store the embeddings under the names Python tools look for: scanpy and
+# viewers such as cellxgene expect `X_umap`, `X_tsne`, `X_pca`. The table
+# records MARMOT's own name for each, which is given back on loading.
+.pack_embeddings <- function(ad) {
+  obsm <- ad$obsm
+  if (length(obsm) == 0) return(NULL)
+  stored_as <- paste0("X_", tolower(names(obsm)))
+  # Two names differing only in case would collide: keep them as they are
+  if (anyDuplicated(stored_as)) stored_as <- paste0("X_", names(obsm))
+  layout <- data.frame(embedding = names(obsm), stored_as = stored_as, stringsAsFactors = FALSE)
+  names(obsm) <- stored_as
+  ad$obsm <- obsm
+  layout
+}
+
+# Give the SCE's embeddings back MARMOT's names, in their original order.
+.unpack_embeddings <- function(sce, embedding_names) {
+  if (is.null(embedding_names)) return(sce)
+  layout <- as.data.frame(embedding_names)
+  stored <- SingleCellExperiment::reducedDims(sce)
+  missing_embeddings <- setdiff(layout$stored_as, names(stored))
+  if (length(missing_embeddings) > 0) {
+    stop("The results file is missing embeddings: ", paste(missing_embeddings, collapse = ", "))
+  }
+  restored <- lapply(as.character(layout$stored_as), function(n) stored[[n]])
+  names(restored) <- as.character(layout$embedding)
+  SingleCellExperiment::reducedDims(sce) <- restored
+  sce
+}
+
 # A data frame with plain columns only. Columns read from an FCS file's
 # parameter table are of class "AsIs", which cannot be written to an h5ad
 # properly: the table then fails to read back, with a warning on every load.
@@ -140,6 +170,9 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   uns <- list()
 
   if (!is.null(assay_layout)) uns$assay_layout <- assay_layout
+
+  embedding_names <- .pack_embeddings(ad)
+  if (!is.null(embedding_names)) uns$embedding_names <- embedding_names
 
   # Manifest
   format_stamp <- .results_format_stamp()
@@ -576,6 +609,7 @@ reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
   if (is.null(uns)) uns <- list()
 
   sce <- .unpack_assays(sce, uns$assay_layout)
+  sce <- .unpack_embeddings(sce, uns$embedding_names)
 
   # Event numbers go back where the pipeline keeps them, out of colData
   if ("event_number" %in% colnames(SummarizedExperiment::colData(sce))) {
