@@ -76,6 +76,15 @@ read_results_format <- function(h5ad_path) {
   found
 }
 
+# Stop with an error of class `marmot_results_format`, so that the Explorer
+# can show the message on its own instead of inside a generic error box.
+.stop_results_format <- function(...) {
+  stop(structure(
+    class = c("marmot_results_format", "error", "condition"),
+    list(message = paste0(...), call = NULL)
+  ))
+}
+
 #' Check that this MARMOT can read a results file
 #'
 #' Stops with a plain message if the results were made by MARMOT 1.x, or by a
@@ -90,15 +99,17 @@ check_results_format <- function(h5ad_path) {
   version <- found$format_version
 
   if (is.na(version) || version < .results_format_version) {
-    stop("Oops! These results were dug by old marmots (MARMOT 1.x), and the new marmots ",
-         "can't read them. Please re-run the analysis with MARMOT 2, or open them with ",
-         "MARMOT 1.3.2, which still can.", call. = FALSE)
+    .stop_results_format(
+      "Oops! These results were dug by old marmots (MARMOT 1.x), and the new marmots ",
+      "can't read them. Please re-run the analysis with MARMOT 2, or open them with ",
+      "MARMOT 1.3.2, which still can.")
   }
   if (version > .results_format_version) {
     made_by <- if (is.na(found$marmot_version)) "a later version" else paste("MARMOT", found$marmot_version)
-    stop("Oops! These results were dug by newer marmots (", made_by, ") than the ones ",
-         "living here (MARMOT ", as.character(utils::packageVersion("MARMOT")), "). ",
-         "Please update MARMOT and try again.", call. = FALSE)
+    .stop_results_format(
+      "Oops! These results were dug by newer marmots (", made_by, ") than the ones ",
+      "living here (MARMOT ", as.character(utils::packageVersion("MARMOT")), "). ",
+      "Please update MARMOT and try again.")
   }
   invisible(found)
 }

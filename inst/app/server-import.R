@@ -110,6 +110,9 @@ observe({
     message("MARMOT data loaded: ", files$ncell, " cells, ",
             length(files$sorted_markers_cache), " markers")
 
+  }, marmot_results_format = function(e) {
+    # Results from another MARMOT: the message says it all
+    showModal(modalDialog(title = "These results can't be opened here", conditionMessage(e)))
   }, error = function(e) {
     showModal(modalDialog(
       title = "Error loading data",

@@ -74,3 +74,14 @@ test_that("results from a newer MARMOT are refused, naming both versions", {
   expect_match(conditionMessage(err), as.character(utils::packageVersion("MARMOT")), fixed = TRUE)
   expect_error(load_h5ad_for_shiny(h5ad_path), "newer marmots")
 })
+
+test_that("format errors carry their own class, so the Explorer can show them plainly", {
+  d <- withr::local_tempdir()
+  h5ad_path <- file.path(d, "marmot_results.h5ad")
+  file.create(h5ad_path)
+  write_results_format(d, list(format = "marmot-results", format_version = 1L, marmot_version = "1.3.2"))
+  err <- tryCatch(check_results_format(h5ad_path), error = function(e) e)
+  expect_s3_class(err, "marmot_results_format")
+  expect_s3_class(err, "error")
+  expect_match(conditionMessage(err), "old marmots")
+})
