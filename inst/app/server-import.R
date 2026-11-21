@@ -102,21 +102,17 @@ observe({
         dplyr::arrange(gtools::mixedorder(Cluster))
     }
 
-    # ── FCS frame objects (not decomposable to h5ad) ─────────────────────────
-    framesListPath_qs2 <- file.path(dataDir, "framesList.qs2")
-    framesListPath_qs  <- file.path(dataDir, "framesList.qs")
-
-    if (file.exists(framesListPath_qs2)) {
-      files$framesList <- qs2::qs_read(framesListPath_qs2, nthreads = 4)
-    } else if (file.exists(framesListPath_qs)) {
-      files$framesList <- qs::qread(framesListPath_qs)
-    }
+    # Kept so the FCS export can find the original FCS files
+    files$dataDir <- dataDir
 
     # ── Store in reactive values ─────────────────────────────────────────────
     inputDataReactive$Results <- files
     message("MARMOT data loaded: ", files$ncell, " cells, ",
             length(files$sorted_markers_cache), " markers")
 
+  }, marmot_results_format = function(e) {
+    # Results from another MARMOT: the message says it all
+    showModal(modalDialog(title = "These results can't be opened here", conditionMessage(e)))
   }, error = function(e) {
     showModal(modalDialog(
       title = "Error loading data",

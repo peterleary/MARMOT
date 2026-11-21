@@ -37,6 +37,127 @@
 #' @name h5ad_io
 NULL
 
+# Move the main expression matrix into X and drop the layers that are exact
+# copies of it. `ad` is changed in place. Returns a table of every assay and
+# where it is stored ("X" or its own layer name), or NULL if nothing was done.
+.pack_assays <- function(ad, assay_names) {
+  main <- intersect(c("exprs", "exprsTransformed", "counts"), names(ad$layers))
+  if (length(main) == 0 || !is.null(ad$X)) return(NULL)
+  main <- main[1]
+  x <- ad$layers[[main]]
+  same_as_x <- vapply(names(ad$layers), function(n) identical(ad$layers[[n]], x), logical(1))
+  ad$X <- x
+  ad$layers <- ad$layers[!same_as_x]
+  data.frame(
+    assay     = assay_names,
+    stored_as = ifelse(assay_names %in% names(same_as_x)[same_as_x], "X", assay_names),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Give the SCE back the assays it was saved with, in their original order.
+# Assays that were stored once as X share one matrix again.
+.unpack_assays <- function(sce, assay_layout) {
+  if (is.null(assay_layout)) return(sce)
+  layout <- as.data.frame(assay_layout)
+  stored <- SummarizedExperiment::assays(sce)
+  missing_assays <- setdiff(layout$stored_as, names(stored))
+  if (length(missing_assays) > 0) {
+    stop("The results file is missing expression data: ", paste(missing_assays, collapse = ", "))
+  }
+  restored <- lapply(as.character(layout$stored_as), function(n) stored[[n]])
+  names(restored) <- as.character(layout$assay)
+  SummarizedExperiment::assays(sce) <- restored
+  sce
+}
+
+# Store the embeddings under the names Python tools look for: scanpy and
+# viewers such as cellxgene expect `X_umap`, `X_tsne`, `X_pca`. The table
+# records MARMOT's own name for each, which is given back on loading.
+.pack_embeddings <- function(ad) {
+  obsm <- ad$obsm
+  if (length(obsm) == 0) return(NULL)
+  stored_as <- paste0("X_", tolower(names(obsm)))
+  # Two names differing only in case would collide: keep them as they are
+  if (anyDuplicated(stored_as)) stored_as <- paste0("X_", names(obsm))
+  layout <- data.frame(embedding = names(obsm), stored_as = stored_as, stringsAsFactors = FALSE)
+  names(obsm) <- stored_as
+  ad$obsm <- obsm
+  layout
+}
+
+# Give the SCE's embeddings back MARMOT's names, in their original order.
+.unpack_embeddings <- function(sce, embedding_names) {
+  if (is.null(embedding_names)) return(sce)
+  layout <- as.data.frame(embedding_names)
+  stored <- SingleCellExperiment::reducedDims(sce)
+  missing_embeddings <- setdiff(layout$stored_as, names(stored))
+  if (length(missing_embeddings) > 0) {
+    stop("The results file is missing embeddings: ", paste(missing_embeddings, collapse = ", "))
+  }
+  restored <- lapply(as.character(layout$stored_as), function(n) stored[[n]])
+  names(restored) <- as.character(layout$embedding)
+  SingleCellExperiment::reducedDims(sce) <- restored
+  sce
+}
+
+# Text that this R session cannot write correctly. Names with Greek letters,
+# umlauts and the like are written as they are when R knows their encoding, or
+# when the session's character type is UTF-8. Text of unknown encoding in any
+# other session would go into the file as escaped bytes ("<ce><b1>").
+.unwritable_text <- function(x) {
+  found <- character(0)
+  collect <- function(v) {
+    if (is.factor(v)) v <- levels(v)
+    if (is.character(v)) {
+      v <- v[!is.na(v)]
+      bad <- Encoding(v) == "unknown" & grepl("[^\x01-\x7f]", v, useBytes = TRUE, perl = TRUE)
+      found <<- c(found, v[bad])
+    }
+    if (!is.null(names(v))) collect_names(names(v))
+    if (is.list(v)) for (item in v) collect(item)
+    invisible(NULL)
+  }
+  collect_names <- function(n) collect(unname(n))
+  collect(x)
+  unique(found)
+}
+
+# Stop before saving if any text would be written wrongly.
+.check_text_can_be_written <- function(ad, uns) {
+  if (isTRUE(l10n_info()[["UTF-8"]])) return(invisible(TRUE))
+  bad <- .unwritable_text(list(as.list(ad$obs), rownames(ad$obs), as.list(ad$var), rownames(ad$var), uns))
+  if (length(bad) == 0) return(invisible(TRUE))
+  stop("Oops! Some names use special characters that this R session can't write properly, ",
+       "for example: ", paste(utils::head(shQuote(iconv(bad, "UTF-8", "UTF-8", sub = "byte")), 3), collapse = ", "),
+       ". Please run the analysis with marmot(), or start R with a UTF-8 language setting ",
+       "(for example LANG=en_GB.UTF-8), and try again.", call. = FALSE)
+}
+
+# A data frame with plain columns only. Columns read from an FCS file's
+# parameter table are of class "AsIs", which cannot be written to an h5ad
+# properly: the table then fails to read back, with a warning on every load.
+.plain_table <- function(x) {
+  x <- as.data.frame(x)
+  for (col in names(x)) {
+    if (inherits(x[[col]], "AsIs")) class(x[[col]]) <- setdiff(class(x[[col]]), "AsIs")
+    if (!is.factor(x[[col]])) x[[col]] <- unname(as.vector(x[[col]]))
+  }
+  x
+}
+
+# One row per original FCS file: its name, MD5 checksum and number of events.
+.source_files_table <- function(fcs_files) {
+  data.frame(
+    file_name = basename(fcs_files),
+    md5       = unname(tools::md5sum(fcs_files)),
+    events    = vapply(fcs_files, function(f) {
+      as.integer(flowCore::read.FCSheader(f, keyword = "$TOT")[[1]][["$TOT"]])
+    }, integer(1), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Save All Pipeline Data to h5ad
 #'
 #' Packs all pipeline R objects into a single h5ad file using the AnnData format.
@@ -69,15 +190,30 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
 
   ad <- anndataR::as_AnnData(sce)
 
+  # Each cell's event number in its original FCS file (kept out of colData)
+  if (!is.null(event_numbers(sce))) ad$obs$event_number <- event_numbers(sce)
+
+  # One copy of the expression data, in the standard place. The pipeline's
+  # `counts`, `exprs` and `exprsTransformed` are the same arcsinh matrix; it
+  # is stored once, as X, where any AnnData reader looks for it. The table
+  # records which assay names to give back on loading.
+  assay_layout <- .pack_assays(ad, SummarizedExperiment::assayNames(sce))
+
   # -- Populate uns with MARMOT metadata --
   uns <- list()
 
+  if (!is.null(assay_layout)) uns$assay_layout <- assay_layout
+
+  embedding_names <- .pack_embeddings(ad)
+  if (!is.null(embedding_names)) uns$embedding_names <- embedding_names
+
   # Manifest
+  format_stamp <- .results_format_stamp()
   uns$marmot_manifest <- list(
-    schema_version = 1L,
-    pipeline_version = as.character(utils::packageVersion("MARMOT")),
-    timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S"),
-    format = "marmot-h5ad-v1"
+    schema_version = format_stamp$format_version,
+    pipeline_version = format_stamp$marmot_version,
+    timestamp = format_stamp$timestamp,
+    format = format_stamp$format
   )
 
   # Small metadata tables
@@ -88,7 +224,16 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
   if (!is.null(smd)) uns$study_metadata <- as.data.frame(smd)
 
   panel <- safe_get("panel")
-  if (!is.null(panel)) uns$panel <- as.data.frame(panel)
+  if (!is.null(panel)) uns$panel <- .plain_table(panel)
+
+  # The original FCS files: name, checksum and number of events. With each
+  # cell's event number, this is what lets cells be traced back to them.
+  fcs_files <- safe_get("fcs_files")
+  if (is.character(fcs_files) && length(fcs_files) > 0 && all(file.exists(fcs_files))) {
+    uns$source_files <- .source_files_table(fcs_files)
+  } else if (is.data.frame(safe_get("sourceFiles"))) {
+    uns$source_files <- as.data.frame(safe_get("sourceFiles"))
+  }
 
   # Pipeline settings (key-value as named list of strings)
   settings_vars <- c("clusteringMethodToUse", "dimRedMethodToUse", "knn",
@@ -111,16 +256,20 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
     uns$cluster_codes <- cc_save
   }
 
-  # DR data frames (umapDFList)
+  # Plotting tables (umapDFList). Everything in them is already in the SCE, so
+  # only the record of which cells each holds is saved, and they are rebuilt
+  # on loading (see R/dr_frames.R). A table that could not be rebuilt exactly
+  # from the SCE is saved whole instead.
   umapDFList <- safe_get("umapDFList")
   if (!is.null(umapDFList) && is.list(umapDFList)) {
+    umapDFList <- Filter(is.data.frame, umapDFList)
+    rebuildable <- .rebuildable_dr_frames(sce, umapDFList, safe_get("clusteringMethodToUse"))
+    index <- .dr_frame_index(umapDFList[rebuildable])
+    if (!is.null(index)) uns$dr_frames <- index
     dr_list <- list()
-    for (name in names(umapDFList)) {
-      df <- umapDFList[[name]]
-      if (is.data.frame(df)) {
-        safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
-        dr_list[[safe_name]] <- df
-      }
+    for (name in setdiff(names(umapDFList), rebuildable)) {
+      safe_name <- gsub("[^a-zA-Z0-9._-]", "_", name)
+      dr_list[[safe_name]] <- umapDFList[[name]]
     }
     if (length(dr_list) > 0) uns$dr_dataframes <- dr_list
   }
@@ -203,11 +352,13 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
     uns$qc <- qc
   }
 
+  .check_text_can_be_written(ad, uns)
   ad$uns <- uns
 
   # Write
   h5ad_path <- file.path(output_dir, "marmot_results.h5ad")
   anndataR::write_h5ad(ad, h5ad_path, compression = "gzip", mode = "w")
+  write_results_format(output_dir, format_stamp)
 
   message("h5ad data saved to: ", h5ad_path)
   invisible(h5ad_path)
@@ -272,6 +423,7 @@ save_da_ds_h5ad <- function(h5ad_path, daList = NULL, dsList = NULL,
     uns$pipeline_settings$daPValToUse <- daPValToUse
   }
 
+  .check_text_can_be_written(ad, uns)
   ad$uns <- uns
   anndataR::write_h5ad(ad, h5ad_path, compression = "gzip", mode = "w")
 
@@ -291,6 +443,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   requireNamespace("anndataR", quietly = TRUE)
 
   if (!file.exists(h5ad_path)) stop("h5ad file not found: ", h5ad_path)
+  check_results_format(h5ad_path)
 
   ad <- anndataR::read_h5ad(h5ad_path)
   uns <- ad$uns
@@ -300,6 +453,7 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   if (!is.null(uns$sample_metadata)) assign("md", as.data.frame(uns$sample_metadata), envir = envir)
   if (!is.null(uns$study_metadata)) assign("smd", as.data.frame(uns$study_metadata), envir = envir)
   if (!is.null(uns$panel)) assign("panel", as.data.frame(uns$panel), envir = envir)
+  if (!is.null(uns$source_files)) assign("sourceFiles", as.data.frame(uns$source_files), envir = envir)
 
   # -- Pipeline settings --
   if (!is.null(uns$pipeline_settings)) {
@@ -328,12 +482,8 @@ load_h5ad_to_env <- function(h5ad_path, envir = .GlobalEnv) {
   if (!is.null(sce)) assign("sce", sce, envir = envir)
 
   # -- umapDFList --
-  if (!is.null(uns$dr_dataframes) && is.list(uns$dr_dataframes)) {
-    umapDFList <- lapply(uns$dr_dataframes, as.data.frame)
-    # Restore dots in names (e.g., "Downsampled_UMAP" -> "Downsampled.UMAP")
-    names(umapDFList) <- gsub("_", ".", names(umapDFList))
-    assign("umapDFList", umapDFList, envir = envir)
-  }
+  umapDFList <- .load_dr_frames(uns, sce, uns$pipeline_settings$clusteringMethodToUse)
+  if (!is.null(umapDFList)) assign("umapDFList", umapDFList, envir = envir)
 
   # -- Colours (reconstruct named vectors from 2-col data.frames) --
   if (!is.null(uns$colours) && is.list(uns$colours)) {
@@ -398,6 +548,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   requireNamespace("anndataR", quietly = TRUE)
 
   if (!file.exists(h5ad_path)) stop("h5ad file not found: ", h5ad_path)
+  check_results_format(h5ad_path)
 
   ad <- anndataR::read_h5ad(h5ad_path)
   uns <- ad$uns
@@ -408,6 +559,7 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   # Metadata
   if (!is.null(uns$sample_metadata)) files$md <- as.data.frame(uns$sample_metadata)
   if (!is.null(uns$study_metadata)) files$smd <- as.data.frame(uns$study_metadata)
+  if (!is.null(uns$source_files)) files$sourceFiles <- as.data.frame(uns$source_files)
 
   # Pipeline settings
   if (!is.null(uns$pipeline_settings)) {
@@ -437,10 +589,8 @@ load_h5ad_for_shiny <- function(h5ad_path) {
   }
 
   # umapDFList
-  if (!is.null(uns$dr_dataframes) && is.list(uns$dr_dataframes)) {
-    files$umapDFList <- lapply(uns$dr_dataframes, as.data.frame)
-    names(files$umapDFList) <- gsub("_", ".", names(files$umapDFList))
-  }
+  umapDFList <- .load_dr_frames(uns, files$sce, uns$pipeline_settings$clusteringMethodToUse)
+  if (!is.null(umapDFList)) files$umapDFList <- umapDFList
 
   # Colours (reconstruct named vectors)
   if (!is.null(uns$colours) && is.list(uns$colours)) {
@@ -485,10 +635,22 @@ reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
 
   if (!file.exists(h5ad_path)) return(NULL)
 
-  if (is.null(ad)) ad <- anndataR::read_h5ad(h5ad_path)
+  if (is.null(ad)) {
+    check_results_format(h5ad_path)
+    ad <- anndataR::read_h5ad(h5ad_path)
+  }
   sce <- ad$as_SingleCellExperiment()
   uns <- ad$uns
   if (is.null(uns)) uns <- list()
+
+  sce <- .unpack_assays(sce, uns$assay_layout)
+  sce <- .unpack_embeddings(sce, uns$embedding_names)
+
+  # Event numbers go back where the pipeline keeps them, out of colData
+  if ("event_number" %in% colnames(SummarizedExperiment::colData(sce))) {
+    SingleCellExperiment::int_colData(sce)$event_number <- as.integer(sce$event_number)
+    sce$event_number <- NULL
+  }
 
   # Restore factor columns in rowData
   rd <- as.data.frame(SummarizedExperiment::rowData(sce))

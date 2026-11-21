@@ -137,6 +137,8 @@ ui <- dashboardPage(
                      style = "width: 100%; margin-bottom: 4px;"),
       downloadButton("downloadFCS",        "FCS files",
                      style = "width: 100%; margin-bottom: 4px;"),
+      textInput("fcsFolder", NULL, value = "", width = "100%",
+                placeholder = "Only if the original FCS files have moved: their folder"),
       downloadButton("downloadClusterCodes", "Cluster codes",
                      style = "width: 100%; margin-bottom: 10px;")
     ),

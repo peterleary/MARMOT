@@ -21,7 +21,9 @@ test_that("save_h5ad_data creates expected file", {
 
   # Check manifest via uns
   ad <- anndataR::read_h5ad(h5ad_path)
-  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-results")
+  expect_equal(as.integer(ad$uns$marmot_manifest$schema_version), 2L)
+  expect_true(file.exists(file.path(tmp, "marmot_format.json")))
 })
 
 test_that("round-trip: metadata survives save/load", {
@@ -245,4 +247,227 @@ test_that("round-trip: contrasts whose names collapse to the same key are all ke
   shiny <- suppressWarnings(load_h5ad_for_shiny(h5ad_path))
   expect_equal(names(shiny$daList), c("Z+ over B", "A+ over B", "A- over B"))
   expect_equal(shiny$daList[["A- over B"]]$logFC, c(2, -2))
+})
+
+test_that("round-trip: the original FCS files are recorded with checksum and event count", {
+  skip_if_not_installed("anndataR")
+  d <- withr::local_tempdir()
+  paths <- file.path(d, c("b.fcs", "a.fcs"))
+  suppressWarnings(flowCore::write.FCS(flowCore::flowFrame(cbind(A = 1:30, B = 30:1)), paths[1]))
+  suppressWarnings(flowCore::write.FCS(flowCore::flowFrame(cbind(A = 1:7, B = 7:1)), paths[2]))
+
+  sce <- make_mock_sce()
+  out <- file.path(d, "R_files"); dir.create(out)
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  env$fcs_files <- paths
+  save_h5ad_data(out, envir = env)
+  h5ad_path <- file.path(out, "marmot_results.h5ad")
+
+  for (source_files in list(load_h5ad_for_shiny(h5ad_path)$sourceFiles,
+                            { e <- new.env(); load_h5ad_to_env(h5ad_path, envir = e); e$sourceFiles })) {
+    expect_identical(as.character(source_files$file_name), c("b.fcs", "a.fcs"))
+    expect_identical(as.character(source_files$md5), unname(tools::md5sum(paths)))
+    expect_equal(as.integer(source_files$events), c(30L, 7L))
+  }
+
+  # Saved again from reloaded results, where the FCS paths are gone, it is kept
+  e <- new.env(); load_h5ad_to_env(h5ad_path, envir = e)
+  out2 <- file.path(d, "again"); dir.create(out2)
+  save_h5ad_data(out2, envir = e)
+  expect_identical(as.character(load_h5ad_for_shiny(file.path(out2, "marmot_results.h5ad"))$sourceFiles$md5),
+                   unname(tools::md5sum(paths)))
+})
+
+test_that("the arcsinh matrix is stored once, as X, and every assay comes back as it was", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  # As in the pipeline: three names for one matrix, plus two derived layers
+  main <- SummarizedExperiment::assay(sce, "exprsTransformed")
+  SummarizedExperiment::assays(sce) <- list(
+    counts = main, exprs = main, exprsTransformed = main,
+    exprsQuantNorm = SummarizedExperiment::assay(sce, "exprsQuantNorm"), norm = main * 2)
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  stored <- rhdf5::h5ls(h5ad_path, recursive = 2)
+  rhdf5::h5closeAll()
+  expect_true("X" %in% stored$name[stored$group == "/"])
+  expect_setequal(stored$name[stored$group == "/layers"], c("exprsQuantNorm", "norm"))
+
+  back <- reconstruct_sce_from_h5ad(h5ad_path)
+  expect_identical(SummarizedExperiment::assayNames(back), SummarizedExperiment::assayNames(sce))
+  for (a in SummarizedExperiment::assayNames(sce)) {
+    expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, a))),
+                     unname(as.matrix(SummarizedExperiment::assay(sce, a))), info = a)
+    expect_identical(dimnames(SummarizedExperiment::assay(back, a)), dimnames(SummarizedExperiment::assay(sce, a)), info = a)
+  }
+  expect_identical(SummarizedExperiment::assayNames(load_h5ad_for_shiny(h5ad_path)$sce),
+                   SummarizedExperiment::assayNames(sce))
+})
+
+test_that("an assay that differs from the main matrix by one value keeps its own layer", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  main <- SummarizedExperiment::assay(sce, "exprsTransformed")
+  nearly <- main; nearly[1, 1] <- nearly[1, 1] + 1e-12
+  SummarizedExperiment::assays(sce) <- list(counts = nearly, exprs = main, exprsTransformed = main)
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  back <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
+  expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "counts"))), unname(as.matrix(nearly)))
+  expect_identical(unname(as.matrix(SummarizedExperiment::assay(back, "exprs"))), unname(as.matrix(main)))
+})
+
+test_that("round-trip: a panel with FCS-style 'AsIs' columns reads back, without warnings", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  # As the pipeline builds it: columns taken from flowCore's parameter table
+  env$panel <- data.frame(fcs_colname = I(c("FJComp-A", "FJComp-B")), marker_name = I(c("CD4", "CD8")),
+                          marker_class = c("type", "state"), stringsAsFactors = FALSE)
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  loaded <- new.env()
+  expect_no_warning(load_h5ad_to_env(h5ad_path, envir = loaded))
+  expect_identical(as.character(loaded$panel$fcs_colname), c("FJComp-A", "FJComp-B"))
+  expect_identical(as.character(loaded$panel$marker_name), c("CD4", "CD8"))
+  expect_no_warning(load_h5ad_for_shiny(h5ad_path))
+})
+
+test_that("embeddings are stored under scanpy's names and come back under MARMOT's", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  n <- ncol(sce)
+  set.seed(1)
+  embeddings <- list(PCA = matrix(rnorm(n * 3), ncol = 3), UMAP = matrix(rnorm(n * 2), ncol = 2),
+                     TSNE = matrix(rnorm(n * 2), ncol = 2), Mpacmap = matrix(rnorm(n * 2), ncol = 2))
+  SingleCellExperiment::reducedDims(sce) <- embeddings
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  stored <- rhdf5::h5ls(h5ad_path, recursive = 2)
+  rhdf5::h5closeAll()
+  expect_setequal(stored$name[stored$group == "/obsm"], c("X_pca", "X_umap", "X_tsne", "X_mpacmap"))
+
+  for (back in list(reconstruct_sce_from_h5ad(h5ad_path), load_h5ad_for_shiny(h5ad_path)$sce)) {
+    expect_identical(SingleCellExperiment::reducedDimNames(back), names(embeddings))
+    for (e in names(embeddings)) {
+      expect_identical(unname(as.matrix(SingleCellExperiment::reducedDim(back, e))), unname(embeddings[[e]]), info = e)
+    }
+  }
+  loaded <- new.env()
+  load_h5ad_to_env(h5ad_path, envir = loaded)
+  expect_identical(SingleCellExperiment::reducedDimNames(loaded$sce), names(embeddings))
+})
+
+test_that("embedding names differing only in case do not collide when stored", {
+  skip_if_not_installed("anndataR")
+  sce <- make_mock_sce()
+  n <- ncol(sce)
+  embeddings <- list(PaCMAP = matrix(1, n, 2), pacmap = matrix(2, n, 2))
+  SingleCellExperiment::reducedDims(sce) <- embeddings
+  tmp <- withr::local_tempdir()
+  env <- new.env(parent = emptyenv())
+  env$sce <- sce
+  env$md <- S4Vectors::metadata(sce)$experiment_info
+  save_h5ad_data(tmp, envir = env)
+  back <- reconstruct_sce_from_h5ad(file.path(tmp, "marmot_results.h5ad"))
+  expect_identical(SingleCellExperiment::reducedDimNames(back), names(embeddings))
+  expect_equal(unname(as.matrix(SingleCellExperiment::reducedDim(back, "pacmap")))[1, 1], 2)
+})
+
+test_that("round-trip: contrasts named with Greek letters and symbols keep their names and tables", {
+  skip_if_not_installed("anndataR")
+  # As in a pipeline run: marmot() switches the character type to UTF-8 for
+  # the render. Under a plain "C" setting these names cannot be written.
+  utf8_ctype <- MARMOT:::.find_utf8_ctype()
+  skip_if(!nzchar(utf8_ctype), "no UTF-8 character type on this machine")
+  withr::local_locale(c(LC_CTYPE = utf8_ctype))
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env_save <- new.env(parent = emptyenv())
+  env_save$sce <- sce
+  env_save$md <- S4Vectors::metadata(sce)$experiment_info
+  tab <- function(v) data.frame(cluster_id = c("1", "2"), logFC = c(v, -v), p_adj = c(0.01, 0.5))
+  # Every one of these becomes a key of nothing but underscores and "over"
+  greek <- c("α over β", "γ over β", "αβ+ over γδ-", "IFN-γ⁺ over IL-1β⁻")
+  env_save$daList <- stats::setNames(lapply(1:4, tab), greek)
+  env_save$dsList <- stats::setNames(lapply(5:8, tab), greek)
+
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  # The names are in the file as written, not as escaped text such as "<ce><b1>"
+  in_file <- as.character(rhdf5::h5read(h5ad_path, "uns/da_result_names/name"))
+  rhdf5::h5closeAll()
+  expect_identical(lapply(in_file, charToRaw), lapply(enc2utf8(greek), charToRaw))
+
+  env_load <- new.env(parent = emptyenv())
+  suppressWarnings(load_h5ad_to_env(h5ad_path, envir = env_load))
+  da <- get("daList", envir = env_load)
+  ds <- get("dsList", envir = env_load)
+  expect_identical(enc2utf8(names(da)), enc2utf8(greek))
+  expect_identical(enc2utf8(names(ds)), enc2utf8(greek))
+  for (i in 1:4) {
+    expect_equal(da[[i]]$logFC, c(i, -i))
+    expect_equal(ds[[i]]$logFC, c(i + 4, -(i + 4)))
+  }
+  shiny <- suppressWarnings(load_h5ad_for_shiny(h5ad_path))
+  expect_identical(enc2utf8(names(shiny$daList)), enc2utf8(greek))
+  expect_equal(shiny$daList[[3]]$logFC, c(3, -3))
+})
+
+test_that("text of unknown encoding is refused in a session that cannot write it", {
+  skip_if_not_installed("anndataR")
+  withr::local_locale(c(LC_CTYPE = "C"))
+  skip_if(isTRUE(l10n_info()[["UTF-8"]]), "could not switch to a plain character type")
+  alpha_over_beta <- as.raw(c(0xce, 0xb1, 0x20, 0x6f, 0x76, 0x65, 0x72, 0x20, 0xce, 0xb2))
+  unknown <- rawToChar(alpha_over_beta)
+  marked <- unknown
+  Encoding(marked) <- "UTF-8"
+
+  expect_identical(.unwritable_text(list(a = "plain", b = list(factor(marked), c(x = "also plain")))), character(0))
+  expect_length(.unwritable_text(list(tab = data.frame(n = unknown))), 1)
+  expect_length(.unwritable_text(stats::setNames(list(1), unknown)), 1)
+  expect_length(.unwritable_text(factor(unknown)), 1)
+
+  sce <- make_mock_sce()
+  tab <- data.frame(cluster_id = c("1", "2"), logFC = c(1, -1), p_adj = c(0.01, 0.5))
+  save_with <- function(contrast, dir) {
+    env <- new.env(parent = emptyenv())
+    env$sce <- sce
+    env$md <- S4Vectors::metadata(sce)$experiment_info
+    env$daList <- stats::setNames(list(tab), contrast)
+    suppressWarnings(save_h5ad_data(dir, envir = env))
+  }
+
+  refused <- withr::local_tempdir()
+  expect_error(save_with(unknown, refused), "special characters")
+  expect_false(file.exists(file.path(refused, "marmot_results.h5ad")))
+
+  # R knows the encoding of this one, so it is written as it is
+  saved <- withr::local_tempdir()
+  save_with(marked, saved)
+  in_file <- as.character(rhdf5::h5read(file.path(saved, "marmot_results.h5ad"), "uns/da_result_names/name"))
+  rhdf5::h5closeAll()
+  expect_identical(charToRaw(in_file), alpha_over_beta)
+  expect_error(save_da_ds_h5ad(file.path(saved, "marmot_results.h5ad"), daList = stats::setNames(list(tab), unknown)),
+               "special characters")
 })

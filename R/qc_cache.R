@@ -9,7 +9,7 @@
 
 # Raise this whenever the pipeline changes what it writes into a QC folder, so
 # that folders written by an older MARMOT are redone instead of being reused.
-.qc_stamp_version <- 2L
+.qc_stamp_version <- 3L
 
 #' Describe what a QC cache is made from
 #'

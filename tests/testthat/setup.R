@@ -889,7 +889,7 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
 
   # Read and check manifest
   ad <- anndataR::read_h5ad(h5ad_path)
-  expect_equal(ad$uns$marmot_manifest$format, "marmot-h5ad-v1")
+  expect_equal(ad$uns$marmot_manifest$format, "marmot-results")
 
   # Cell count
   if (!is.null(expected_cells)) {
@@ -916,33 +916,32 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
   html_files <- list.files(result$results_path, pattern = "\\.html$")
   expect_true(length(html_files) >= 1)
 
-  # qs2 sidecars produced by fresh runs (skipped on RDataFolder reloads).
-  # framesList.qs2 carries flowFrame objects (CATALYST input); da_ds_results.qs2
-  # carries S4 differential-analysis structures that don't round-trip through h5ad.
+  # Results format 2: a format stamp, no saved frames, and the DA/DS sidecar
+  # (S4 differential-analysis structures that don't round-trip through h5ad).
   r_files_dir <- dirname(h5ad_path)
-  framesList_path  <- file.path(r_files_dir, "framesList.qs2")
-  da_ds_path       <- file.path(r_files_dir, "da_ds_results.qs2")
-  expect_true(file.exists(framesList_path),
-              info = "framesList.qs2 sidecar should exist after fresh pipeline run")
+  da_ds_path  <- file.path(r_files_dir, "da_ds_results.qs2")
+  expect_true(file.exists(file.path(r_files_dir, "marmot_format.json")),
+              info = "the results folder should carry a format stamp")
+  expect_false(file.exists(file.path(r_files_dir, "framesList.qs2")),
+               info = "format 2 does not save the frames")
   expect_true(file.exists(da_ds_path),
               info = "da_ds_results.qs2 sidecar should exist after fresh pipeline run")
+  expect_false(is.null(ad$X), info = "the arcsinh matrix should be stored as X")
 
-  if (requireNamespace("qs2", quietly = TRUE) && file.exists(framesList_path)) {
-    fl <- qs2::qs_read(framesList_path, nthreads = 1)
-    expect_true(is.list(fl), info = "framesList must be a list")
-    # Pipeline names the active QC frames slot ("FlowAI"/"PeacoQC"/"Untransformed")
-    expect_true(length(fl) >= 1, info = "framesList must have at least one frame group")
-
-    # CATALYST matching invariant: frame names within each group end in .fcs
-    # (Feb 2026 fix — names are *.fcs, not bare sample IDs)
-    first_group <- fl[[1]]
-    if (length(first_group) > 0) {
-      nms <- names(first_group)
-      expect_true(!is.null(nms) && all(nzchar(nms)),
-                  info = "framesList entries must be named")
-      expect_true(all(grepl("\\.fcs$", nms, ignore.case = TRUE)),
-                  info = "framesList names must end in .fcs (CATALYST matching)")
-    }
+  # Every cell is traceable: an event number within its original FCS file,
+  # and no event used twice within a sample.
+  events <- event_numbers(sce)
+  expect_false(is.null(events), info = "event numbers should be recorded")
+  source_files <- as.data.frame(ad$uns$source_files)
+  md_saved <- as.data.frame(ad$uns$sample_metadata)
+  expect_true(nrow(source_files) >= 1, info = "the original FCS files should be recorded")
+  if (!is.null(events) && nrow(source_files) >= 1) {
+    file_of_cell <- as.character(md_saved$file_name[match(as.character(sce$sample_id), as.character(md_saved$sample_id))])
+    events_in_file <- source_files$events[match(file_of_cell, as.character(source_files$file_name))]
+    expect_true(all(events >= 1 & events <= events_in_file),
+                info = "event numbers must lie within the original file")
+    expect_false(any(duplicated(paste(file_of_cell, events))),
+                 info = "no event may appear twice")
   }
 
   if (requireNamespace("qs2", quietly = TRUE) && file.exists(da_ds_path)) {
@@ -951,6 +950,12 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
     # Expected slots written by the QMD (write_results_to_file chunk)
     expect_true(all(c("daList", "dsList", "selectedClustersList",
                       "clustersToMapList", "daPValToUse") %in% names(da_ds)))
+    # sceDS is saved without its expression data, and gets it back from the SCE
+    if (!is.null(da_ds$sceDS)) {
+      expect_length(SummarizedExperiment::assayNames(da_ds$sceDS), 0)
+      restored <- restore_slim_sce(da_ds$sceDS, sce)
+      expect_true(length(SummarizedExperiment::assayNames(restored)) >= 1)
+    }
   }
 
   invisible(sce)

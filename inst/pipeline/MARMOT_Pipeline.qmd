@@ -313,12 +313,6 @@ if (!is.null(RDataFolder)) {
   }
   message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
   MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
-  # Also load FCS frame objects (stored as qs2 — not decomposable to h5ad)
-  qs_path <- file.path(RDataFolder, "framesList.qs2")
-  if (file.exists(qs_path)) {
-    assign("framesList", qs2::qs_read(qs_path, nthreads = nCores), envir = .GlobalEnv)
-  }
-
   # Load DA/DS result objects (S4 structures that can't survive h5ad)
   da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
   if (file.exists(da_ds_path)) {
@@ -326,6 +320,8 @@ if (!is.null(RDataFolder)) {
     for (nm in names(da_ds)) {
       if (!is.null(da_ds[[nm]])) assign(nm, da_ds[[nm]], envir = .GlobalEnv)
     }
+    # sceDS was saved without its expression data: give it back from `sce`
+    if (exists("sceDS")) sceDS <- MARMOT::restore_slim_sce(sceDS, sce)
     message("Loaded (qs2): da_ds_results.qs2")
   }
 
@@ -885,11 +881,21 @@ if (runQC == "FlowAI") {
       flow_auto_qc(
         fcsfiles       = ff,
         folder_results = qc_dir,
-        remove_from    = metricsQC,
-        fcs_highQ      = "_QC_highQ",
-        fcs_lowQ       = "_QC_lowQ"
+        remove_from    = metricsQC
       )
-      rm(ff); invisible(gc())
+      # FlowAI decides which cells to remove, but its own "high quality" file
+      # is not used: it clips bright values at the channel's declared range
+      # and rewrites Time. FlowAI's `_QC.fcs` holds every event, in order, with
+      # a flag (below 10,000 = keep). The kept cells are taken from the
+      # original file with that flag, and numbered so each can be traced back.
+      flagged <- flowCore::read.FCS(
+        file.path(qc_dir, sub("\\.fcs$", "_QC.fcs", basename(fcs_files[i]))),
+        transformation = FALSE, truncate_max_range = FALSE)
+      keep <- flowCore::exprs(flagged)[, paste0("remove_from_", metricsQC)] < 10000
+      stopifnot(length(keep) == nrow(ff))
+      flowCore::write.FCS(MARMOT::add_event_numbers(ff)[keep, ],
+                          file.path(qc_dir, sub("\\.fcs$", "_QC_highQ.fcs", basename(fcs_files[i]))))
+      rm(ff, flagged, keep); invisible(gc())
     }
     MARMOT::qc_cache_write_stamp(qc_dir, qc_stamp)
   }
@@ -962,6 +968,7 @@ if (runQC == "PeacoQC") {
 
       # PeacoQC judges the transformed data, but the cells it keeps are saved
       # untransformed (as FlowAI's are), so no cofactor is baked into the files.
+      # They are numbered first, so each can be traced back to the original file.
       peaco <- PeacoQC::PeacoQC(
         ff = ff_t, channels = fluor_channels,
         plot = TRUE, save_fcs = FALSE,
@@ -970,7 +977,7 @@ if (runQC == "PeacoQC") {
       )
       qc_fcs_dir <- file.path(qc_dir, fcs_name, "fcs_files")
       dir.create(qc_fcs_dir, showWarnings = FALSE, recursive = TRUE)
-      flowCore::write.FCS(ff[peaco$GoodCells, ],
+      flowCore::write.FCS(MARMOT::add_event_numbers(ff)[peaco$GoodCells, ],
                           file.path(qc_fcs_dir, gsub("\\.fcs$", "_QC.fcs", fcs_name)))
       rm(ff, ff_t, peaco); invisible(gc())
     }
@@ -1005,9 +1012,12 @@ if (runQC == "PeacoQC") {
 
 message("📥 Loading FCS data into memory...")
 
-# Helper: read one FCS file and apply RAM cap if needed
-read_and_cap <- function(f) {
+# Helper: read one FCS file and apply RAM cap if needed.
+# Original files have their events numbered here, before any are dropped, so
+# each cell can be traced back. QC'd files were numbered when QC wrote them.
+read_and_cap <- function(f, number_events = FALSE) {
   ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  if (number_events) ff <- MARMOT::add_event_numbers(ff)
   if (needs_cap && nrow(ff) > per_sample_cap) {
     set.seed(2)
     ff <- ff[sort(sample(nrow(ff), per_sample_cap)), ]
@@ -1044,7 +1054,7 @@ if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
 
 } else {
   # useQC=FALSE or no QC: load raw files → build Transformed
-  frames <- setNames(lapply(fcs_files, read_and_cap), fcs_names)
+  frames <- setNames(lapply(fcs_files, read_and_cap, number_events = TRUE), fcs_names)
   if (!is.null(excludeTheseSamples)) {
     keep_samples <- md$file_name[!md$sample_id %in% excludeTheseSamples]
     frames <- frames[keep_samples]
@@ -1207,6 +1217,8 @@ sce <- CATALYST::prepData(
   transform = FALSE,
   md_cols = list(factors = conditions)
 )
+# Record which event of its original FCS file each cell is
+sce <- MARMOT::record_event_numbers(sce, fsToUse, md)
 # exprs and exprsTransformed are identical to counts at this stage (transformation
 # was applied at the flowFrame level, before prepData).  Share the same matrix
 # object to avoid tripling memory — R's copy-on-modify means no duplication until
@@ -1232,9 +1244,11 @@ assay(sce, "exprsQuantNorm") <- norm_exprs
 scale.coef <- matrixStats::rowQuantiles(exprs_mat, probs = c(0.01, 0.99))
 assay(sce, "norm") <- t(scale(t(exprs_mat), center = scale.coef[, 1], scale = scale.coef[, 2] - scale.coef[, 1]))
 
-# Free intermediates and bulky framesList entries no longer needed for analysis.
-# framesList.qs (for FCS export) is saved separately; fsList/fsToUse are done.
+# Free the frames and intermediates: everything needed from here on is in
+# `sce`. The frames are not saved; the results record each cell's event
+# number instead, so cells can be traced back to the original FCS files.
 rm(exprs_mat, norm_exprs, qs, scale.coef)
+if (exists("framesList")) rm(framesList)
 if (exists("fsList")) rm(fsList)
 if (exists("fsToUse")) rm(fsToUse)
 invisible(gc())
@@ -1970,21 +1984,15 @@ dir.create(excelDir, showWarnings = FALSE)
 
 message("💾 Saving outputs...")
 
-# Save FCS frame objects as qs2 — flowFrame/flowSet cannot be stored in Parquet
-if (exists("framesList", envir = .GlobalEnv)) {
-  out_path <- file.path(rFilesDir, "framesList.qs2")
-  qs2::qs_save(get("framesList", envir = .GlobalEnv), file = out_path,
-               nthreads = nCores)
-  message("Saved (qs2): framesList")
-}
-
-# Save DA/DS result objects as qs2 — S4 structures can't round-trip through h5ad
+# Save DA/DS result objects as qs2 — S4 structures can't round-trip through h5ad.
+# sceDS is saved without its expression data and embeddings, which are the
+# same as those of `sce` in the h5ad; they are put back on loading.
 da_ds_save <- list(
   daList = if (exists("daList")) daList else NULL,
   dsList = if (exists("dsList")) dsList else NULL,
   selectedClustersList = if (exists("selectedClustersList")) selectedClustersList else NULL,
   clustersToMapList = if (exists("clustersToMapList")) clustersToMapList else NULL,
-  sceDS = if (exists("sceDS")) sceDS else NULL,
+  sceDS = if (exists("sceDS")) MARMOT::slim_sce(sceDS) else NULL,
   daPValToUse = if (exists("daPValToUse")) daPValToUse else "p_adj"
 )
 qs2::qs_save(da_ds_save, file.path(rFilesDir, "da_ds_results.qs2"), nthreads = nCores)
@@ -3110,7 +3118,47 @@ if (is.null(drCellPerCondition)) {
 } else {
   umapsDFToPlot <- "Downsampled"
 }
-openxlsx::write.xlsx(x = as.data.frame(umapDFList[[umapsDFToPlot]]), file = file.path(excelDir, paste0(dimRedMethodToUse, "_Coordinates.xlsx")))
+# ───────────────────────────────────────────────────────
+# 💾 Save the plotted cells, so these plots can be redrawn anywhere
+# One Excel file with four sheets: Read me, Cells, Expression (arcsinh), Colours.
+
+# Cells: the plotting table, plus the FCS file and event each cell came from
+cellsToSave <- as.data.frame(umapDFList[[umapsDFToPlot]])
+cellsToSave$file_name <- md$file_name[match(cellsToSave$sample_id, md$sample_id)]
+cellsToSave$event_number <- MARMOT::event_numbers(sce)[cellsToSave$sce_idx]
+cellsToSave <- dplyr::relocate(cellsToSave, file_name, event_number, .after = sample_id)
+
+# Expression (arcsinh): the same cells in the same order, before the 0 to 1 scaling
+arcsinhToSave <- cbind(
+  cellsToSave[, c("sample_id", "file_name", "event_number", "sce_idx")],
+  t(assay(sce, "exprsTransformed"))[cellsToSave$sce_idx, , drop = FALSE]
+)
+
+# Colours: every colour the report uses for the columns of the Cells sheet
+coloursToSave <- dplyr::bind_rows(lapply(intersect(names(coloursList), names(cellsToSave)), function(v) {
+  data.frame(used_for = v, value = names(coloursList[[v]]), colour = unname(coloursList[[v]]))
+}))
+# ... and the marker scale, unless it is "Lucky", which is random every time
+if (viridisColour != "Lucky") {
+  markerScale <- get_palette_colours(viridisColour)
+  coloursToSave <- dplyr::bind_rows(coloursToSave, data.frame(
+    used_for = "marker scale, low to high", value = as.character(seq_along(markerScale)), colour = markerScale
+  ))
+}
+
+MARMOT::write_coordinates_file(
+  file    = file.path(excelDir, paste0(dimRedMethodToUse, "_Coordinates.xlsx")),
+  cells   = cellsToSave,
+  arcsinh = arcsinhToSave,
+  colours = coloursToSave,
+  about   = list(
+    "MARMOT version"      = as.character(packageVersion("MARMOT")),
+    "Dimension reduction" = dimRedMethodToUse,
+    "Clustering"          = clusteringMethodToUse,
+    "Cells in this file"  = if (is.null(drCellPerCondition)) "All cells of the analysis" else "A sample of the cells of each condition, as plotted in the report",
+    "Marker colour scale" = viridisColour
+  )
+)
 dr1a <- plotUMAPNice(
   df = as.data.frame(umapDFList[[umapsDFToPlot]]),
   colour_by = "cluster_id",

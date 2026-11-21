@@ -8,7 +8,7 @@ The app is themed in **Crimson** (zinc + red on near-white).
 
 ### Import / overview
 
-Loads the SCE from `marmot_results.h5ad` plus the sidecars (`framesList.qs2`, `da_ds_results.qs2`, `pipeline_settings.json`). Shows sample / panel summaries.
+Loads the SCE from `marmot_results.h5ad` plus the sidecars (`da_ds_results.qs2`, `pipeline_settings.json`). Shows sample / panel summaries.
 
 The app auto-enables **rasterisation** when `ncell > 150,000` (uses `geom_scattermore`) for performance; the Feature Plot raster checkbox is auto-ticked.
 
@@ -82,7 +82,7 @@ Reads `da_ds_results.qs2`. Tables filterable by contrast, cluster, marker. Inclu
 ### Download
 
 - **Plot exports**: PDF, SVG, PNG of the currently visible plot.
-- **FCS export**: writes per-cluster (or per-sample × per-cluster) FCS files using the cached `framesList.qs2`. Useful for re-importing a specific subset into FlowJo / similar.
+- **FCS export**: writes one FCS file per sample (zipped), holding only the cells in the report. The cells are read from the original FCS files, with UMAP x/y and cluster-code columns appended, plus a `cluster_codes.xlsx` explaining the codes. Useful for re-importing into FlowJo / similar. If the original FCS files have moved, type their folder into the box under the button; a file that has changed since the analysis is refused.
 - **Data export**: CSV of the colData / DR coordinates / DA-DS tables.
 
 ## Behaviour notes
@@ -96,7 +96,7 @@ Reads `da_ds_results.qs2`. Tables filterable by contrast, cluster, marker. Inclu
 - **"Why don't my clusters look the same colour as in the report?"** — palettes can differ; use the Colours tab to fix and re-export.
 - **"Can I save the relabelling?"** — currently in-memory only; user re-enters on next launch unless they export the labelled `colData`.
 - **"Why does it say `meta10` and `meta20`?"** — alternative clustering resolutions stored alongside `cluster_id`. See `concepts.md` and `glossary.md`.
-- **"How do I export a single cluster as FCS?"** — Download tab → FCS export → choose cluster.
+- **"How do I export the clusters as FCS?"** — Download tab → FCS files. One FCS file per sample, with a cluster-code column; gate on that column in FlowJo to pick out a single cluster.
 
 ## What you should *not* do
 

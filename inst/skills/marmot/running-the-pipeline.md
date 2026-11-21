@@ -105,7 +105,7 @@ MyStudy/
     ├── PDF_figures/                                 # standalone plot exports
     └── R_files/                                     # data sidecars used by the Shiny app
         ├── marmot_results.h5ad                      # main SCE store (HDF5/AnnData)
-        ├── framesList.qs2                           # FCS frames sidecar (for FCS export)
+        ├── marmot_format.json                       # results format stamp
         ├── da_ds_results.qs2                        # DA + DS results sidecar
         └── pipeline_settings.json                   # snapshot of run parameters
 ```
