@@ -3118,7 +3118,47 @@ if (is.null(drCellPerCondition)) {
 } else {
   umapsDFToPlot <- "Downsampled"
 }
-openxlsx::write.xlsx(x = as.data.frame(umapDFList[[umapsDFToPlot]]), file = file.path(excelDir, paste0(dimRedMethodToUse, "_Coordinates.xlsx")))
+# ───────────────────────────────────────────────────────
+# 💾 Save the plotted cells, so these plots can be redrawn anywhere
+# One Excel file with four sheets: Read me, Cells, Expression (arcsinh), Colours.
+
+# Cells: the plotting table, plus the FCS file and event each cell came from
+cellsToSave <- as.data.frame(umapDFList[[umapsDFToPlot]])
+cellsToSave$file_name <- md$file_name[match(cellsToSave$sample_id, md$sample_id)]
+cellsToSave$event_number <- MARMOT::event_numbers(sce)[cellsToSave$sce_idx]
+cellsToSave <- dplyr::relocate(cellsToSave, file_name, event_number, .after = sample_id)
+
+# Expression (arcsinh): the same cells in the same order, before the 0 to 1 scaling
+arcsinhToSave <- cbind(
+  cellsToSave[, c("sample_id", "file_name", "event_number", "sce_idx")],
+  t(assay(sce, "exprsTransformed"))[cellsToSave$sce_idx, , drop = FALSE]
+)
+
+# Colours: every colour the report uses for the columns of the Cells sheet
+coloursToSave <- dplyr::bind_rows(lapply(intersect(names(coloursList), names(cellsToSave)), function(v) {
+  data.frame(used_for = v, value = names(coloursList[[v]]), colour = unname(coloursList[[v]]))
+}))
+# ... and the marker scale, unless it is "Lucky", which is random every time
+if (viridisColour != "Lucky") {
+  markerScale <- get_palette_colours(viridisColour)
+  coloursToSave <- dplyr::bind_rows(coloursToSave, data.frame(
+    used_for = "marker scale, low to high", value = as.character(seq_along(markerScale)), colour = markerScale
+  ))
+}
+
+MARMOT::write_coordinates_file(
+  file    = file.path(excelDir, paste0(dimRedMethodToUse, "_Coordinates.xlsx")),
+  cells   = cellsToSave,
+  arcsinh = arcsinhToSave,
+  colours = coloursToSave,
+  about   = list(
+    "MARMOT version"      = as.character(packageVersion("MARMOT")),
+    "Dimension reduction" = dimRedMethodToUse,
+    "Clustering"          = clusteringMethodToUse,
+    "Cells in this file"  = if (is.null(drCellPerCondition)) "All cells of the analysis" else "A sample of the cells of each condition, as plotted in the report",
+    "Marker colour scale" = viridisColour
+  )
+)
 dr1a <- plotUMAPNice(
   df = as.data.frame(umapDFList[[umapsDFToPlot]]),
   colour_by = "cluster_id",
