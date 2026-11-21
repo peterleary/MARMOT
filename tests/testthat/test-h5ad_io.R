@@ -392,3 +392,44 @@ test_that("embedding names differing only in case do not collide when stored", {
   expect_identical(SingleCellExperiment::reducedDimNames(back), names(embeddings))
   expect_equal(unname(as.matrix(SingleCellExperiment::reducedDim(back, "pacmap")))[1, 1], 2)
 })
+
+test_that("round-trip: contrasts named with Greek letters and symbols keep their names and tables", {
+  skip_if_not_installed("anndataR")
+  # As in a pipeline run: marmot() switches the character type to UTF-8 for
+  # the render. Under a plain "C" setting these names cannot be written.
+  utf8_ctype <- MARMOT:::.find_utf8_ctype()
+  skip_if(!nzchar(utf8_ctype), "no UTF-8 character type on this machine")
+  withr::local_locale(c(LC_CTYPE = utf8_ctype))
+  sce <- make_mock_sce()
+  tmp <- withr::local_tempdir()
+  env_save <- new.env(parent = emptyenv())
+  env_save$sce <- sce
+  env_save$md <- S4Vectors::metadata(sce)$experiment_info
+  tab <- function(v) data.frame(cluster_id = c("1", "2"), logFC = c(v, -v), p_adj = c(0.01, 0.5))
+  # Every one of these becomes a key of nothing but underscores and "over"
+  greek <- c("α over β", "γ over β", "αβ+ over γδ-", "IFN-γ⁺ over IL-1β⁻")
+  env_save$daList <- stats::setNames(lapply(1:4, tab), greek)
+  env_save$dsList <- stats::setNames(lapply(5:8, tab), greek)
+
+  save_h5ad_data(tmp, envir = env_save)
+  h5ad_path <- file.path(tmp, "marmot_results.h5ad")
+
+  # The names are in the file as written, not as escaped text such as "<ce><b1>"
+  in_file <- as.character(rhdf5::h5read(h5ad_path, "uns/da_result_names/name"))
+  rhdf5::h5closeAll()
+  expect_identical(lapply(in_file, charToRaw), lapply(enc2utf8(greek), charToRaw))
+
+  env_load <- new.env(parent = emptyenv())
+  suppressWarnings(load_h5ad_to_env(h5ad_path, envir = env_load))
+  da <- get("daList", envir = env_load)
+  ds <- get("dsList", envir = env_load)
+  expect_identical(enc2utf8(names(da)), enc2utf8(greek))
+  expect_identical(enc2utf8(names(ds)), enc2utf8(greek))
+  for (i in 1:4) {
+    expect_equal(da[[i]]$logFC, c(i, -i))
+    expect_equal(ds[[i]]$logFC, c(i + 4, -(i + 4)))
+  }
+  shiny <- suppressWarnings(load_h5ad_for_shiny(h5ad_path))
+  expect_identical(enc2utf8(names(shiny$daList)), enc2utf8(greek))
+  expect_equal(shiny$daList[[3]]$logFC, c(3, -3))
+})
