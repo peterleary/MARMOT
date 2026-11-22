@@ -1,6 +1,6 @@
 # Tests for R/dr_frames.R
 
-# The plotting tables as the pipeline builds them (chunk `prepare_dimreds_all`).
+# The plotting tables as the pipeline builds them (chunk `analysis_plotting_tables`).
 pipeline_dr_frames <- function(sce, clustering_method) {
   build_dr_df <- function(method) {
     coords <- SingleCellExperiment::reducedDim(sce, method)[, 1:2]

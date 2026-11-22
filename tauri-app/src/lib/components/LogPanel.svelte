@@ -18,42 +18,42 @@
 
   // Per-chunk custom messages. Chunks not listed fall back to GENERIC_MESSAGES.
   const CHUNK_MESSAGES = {
-    dim_reduction: [
+    analysis_dim_reduction: [
       "Running dimensionality reduction — UMAP and TSNE can take 5–10 minutes on 100k+ cells.",
       "TSNE is O(n log n) with big constants. This is the pipeline's slowest chunk.",
       "Marmot is burrowing through nearest neighbours... 🦫",
       "Still crunching. PaCMAP, UMAP and TSNE each build their own kNN index."
     ],
-    parc_clustering: [
+    analysis_clustering_parc: [
       "PARC is building a kNN graph + running Leiden community detection.",
       "kNN construction is the slow part here. We're getting there.",
       "Still clustering. PARC scales well but big datasets still take a few minutes."
     ],
-    mparc_clustering: [
+    analysis_clustering_mparc: [
       "Running the pure-R PARC fallback — slower than the Python version, be patient.",
       "Mparc is the R implementation. It works, it's just not fast."
     ],
-    FlowSOM: [
+    analysis_clustering_flowsom: [
       "FlowSOM is training its self-organising map and running metaclustering.",
       "Still clustering. FlowSOM is usually quick, but bigger datasets take longer."
     ],
-    import_fcs_load: [
+    analysis_fcs_load: [
       "Loading FCS files into memory — disk speed matters here.",
       "Still reading FCS. Large files with many samples take a while."
     ],
-    run_peacoqc: [
+    analysis_qc_peacoqc: [
       "PeacoQC is scanning every event in every file for bad signal regions.",
       "QC in progress. This scales with (total cells × channels)."
     ],
-    run_flow_auto_qc: [
+    analysis_qc_flowai: [
       "flowAI is running quality control on every file.",
       "Still doing QC. Large files take longer."
     ],
-    da_ds_analysis: [
+    analysis_da_ds: [
       "Fitting differential abundance / state models — one GLM per cluster per contrast.",
       "Still running DA/DS. Scales with (clusters × contrasts)."
     ],
-    create_sce: [
+    analysis_cell_object: [
       "Building the SingleCellExperiment object and its assay matrices.",
       "Still assembling the SCE. Large datasets mean big assay matrices."
     ]
