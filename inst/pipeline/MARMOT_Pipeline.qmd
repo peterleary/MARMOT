@@ -765,7 +765,7 @@ diag_checkpoint(log_path, "analysis_metadata")
 ```
 
 
-```{r analysis_condition_colours, results = "hide", dependson = -1, eval = is.null(RDataFolder)}
+```{r analysis_condition_colours, results = "hide", eval = is.null(RDataFolder)}
 
 # Collect all unique factor levels from the specified metadata columns
 allConditionLevels <- unlist(lapply(conditions, \(x) levels(factor(md[[x]]))), use.names = FALSE)
@@ -1008,7 +1008,7 @@ if (runQC %in% c("FlowAI", "PeacoQC")) {
 }
 ```
 
-```{r analysis_qc_flowai, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
+```{r analysis_qc_flowai, results = "asis", include = FALSE, eval = is.null(RDataFolder)}
 
 if (runQC == "FlowAI") {
 
@@ -1080,7 +1080,7 @@ if (runQC == "FlowAI") {
 }
 ```
 
-```{r analysis_qc_peacoqc, results = "asis", include = FALSE, dependson = -1, eval = is.null(RDataFolder)}
+```{r analysis_qc_peacoqc, results = "asis", include = FALSE, eval = is.null(RDataFolder)}
 if (runQC == "PeacoQC") {
 
   message("🔍 Starting automated quality control with PeacoQC...🦚")
@@ -1480,15 +1480,15 @@ if (clusteringMethodToUse %in% c("MfastPG", "Mphenograph", "Rphenograph")) {
   selected_k <- paste0("k", knn)
   sce$cluster_id <- sce[[selected_k]]
   
-  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
-    "data.frame(", clusteringMethodToUse , " = factor(levels(sce[[selected_k]])))"
-  )))
+  metadata(sce)$cluster_codes <- setNames(
+    data.frame(factor(levels(sce[[selected_k]]))), clusteringMethodToUse
+  )
   kids <- sce[[paste0("k", knn)]]
   numbersOfClusters <- gtools::mixedsort(levels(kids))
 }
 ```
 
-```{r analysis_clustering_parc, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+```{r analysis_clustering_parc, results = "hide", eval = is.null(RDataFolder)}
 
 if (clusteringMethodToUse == "PARC") {
   if (!MARMOT:::use_marmot_python()) {
@@ -1519,16 +1519,16 @@ if (clusteringMethodToUse == "PARC") {
 
   chosen_k <- paste0("p", knn)
   sce$cluster_id <- sce[[chosen_k]]
-  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
-    "data.frame(", clusteringMethodToUse, " = factor(levels(sce[[chosen_k]])))"
-  )))
+  metadata(sce)$cluster_codes <- setNames(
+    data.frame(factor(levels(sce[[chosen_k]]))), clusteringMethodToUse
+  )
   kids <- sce[[paste0("p", knn)]]
   numbersOfClusters <- gtools::mixedsort(levels(kids))
   }
 }
 ```
 
-```{r analysis_clustering_mparc, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+```{r analysis_clustering_mparc, results = "hide", eval = is.null(RDataFolder)}
 
 if (clusteringMethodToUse == "Mparc") {
   message("Running Mparc clustering (R)...")
@@ -1548,15 +1548,15 @@ if (clusteringMethodToUse == "Mparc") {
 
   chosen_k <- paste0("p", knn)
   sce$cluster_id <- sce[[chosen_k]]
-  metadata(sce)$cluster_codes <- eval(parse(text = paste0(
-    "data.frame(", clusteringMethodToUse, " = factor(levels(sce[[chosen_k]])))"
-  )))
+  metadata(sce)$cluster_codes <- setNames(
+    data.frame(factor(levels(sce[[chosen_k]]))), clusteringMethodToUse
+  )
   kids <- sce[[paste0("p", knn)]]
   numbersOfClusters <- gtools::mixedsort(levels(kids))
 }
 ```
 
-```{r analysis_clustering_flowsom, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+```{r analysis_clustering_flowsom, results = "hide", eval = is.null(RDataFolder)}
 
 if (clusteringMethodToUse == "FlowSOM") {
   message("🌾 Running FlowSOM clustering...")
@@ -1621,7 +1621,7 @@ diag_record(log_path, "clustering", list(
 diag_checkpoint(log_path, "analysis_cluster_info")
 ```
 
-```{r analysis_dim_reduction, results = "hide", dependson = "input settings", eval = is.null(RDataFolder)}
+```{r analysis_dim_reduction, results = "hide", eval = is.null(RDataFolder)}
 
 message("📉 Running dimensionality reduction: ", dimRedMethodToUse)
 
@@ -1769,7 +1769,7 @@ if (is.null(RDataFolder) && runScGate) {
 }
 ```
 
-```{r analysis_plotting_tables, results = "hide", dependson = c("input settings", "make sce"), eval = is.null(RDataFolder)}
+```{r analysis_plotting_tables, results = "hide", eval = is.null(RDataFolder)}
 
 message("🧭 Preparing dimensionality reduction dataframes for all methods...")
 
@@ -1846,7 +1846,7 @@ umapDFList$All <- umapDFList[[dimRedMethodToUse]]
 umapDFList$Downsampled <- umapDFList[[paste0("Downsampled.", dimRedMethodToUse)]]
 ```
 
-```{r analysis_cluster_colours, results = "hide", dependson = c("input settings", "generate UMAP df"), eval = is.null(RDataFolder)}
+```{r analysis_cluster_colours, results = "hide", eval = is.null(RDataFolder)}
 
 message("🎨 Assigning colours to clusters...")
 
@@ -1864,7 +1864,7 @@ for (k in kValuesIWant) {
 }
 ```
 
-```{r analysis_da_ds, results = "hide", dependson = c("input settings", "make sce", "import md file"), eval = is.null(RDataFolder)}
+```{r analysis_da_ds, results = "hide", eval = is.null(RDataFolder)}
 message("🚀 Starting differential abundance (DA) and differential state (DS) analysis...")
 
 daPValToUse <- "p_adj"
@@ -2048,21 +2048,6 @@ clustersToMapList <- lapply(names(selectedClustersList), function(label) {
 names(clustersToMapList) <- names(selectedClustersList)
 
 message("✅ DA and DS analysis complete.")
-
-# Save DA/DS results to h5ad (runs even during reload since DA/DS always re-runs)
-h5ad_save_dir <- if (!is.null(RDataFolder)) {
-  RDataFolder
-} else if (exists("rFilesDir")) {
-  rFilesDir
-} else NULL
-
-if (!is.null(h5ad_save_dir)) {
-  h5ad_path <- file.path(h5ad_save_dir, "marmot_results.h5ad")
-  if (file.exists(h5ad_path)) {
-    message("💾 Saving updated DA/DS results to h5ad...")
-    MARMOT::save_da_ds_h5ad(h5ad_path, daList, dsList, selectedClustersList, daPValToUse)
-  }
-}
 
 # ── Diagnostic: DA / DS shape (positional indexing, no contrast strings) ──
 sce_cluster_levels <- levels(sce$cluster_id)
@@ -2740,35 +2725,6 @@ cellsPerClusterBarplot + facet_wrap(~condition, scales = "free") + theme_prism(a
 cellsPerClusterBarplot + facet_wrap(~sample_id, ncol = 3, scales = "free")
 ```
 
-```{r, label = "report_clusters_marker_share", fig.height=6, include = FALSE}
-x1 <- as.data.frame(t(assay(sce, "exprsQuantNorm")))
-x1$cluster_id <- cluster_ids(sce, clusteringMethodToUse)
-
-x1mean <- data.frame("cluster_id" = gtools::mixedsort(levels(as.factor(x1$cluster_id))))
-for (m in useMarkers) {
-  x1mean[[m]] <- NA
-  for (cl in levels(as.factor(x1$cluster_id))) {
-    x1mean[cl,m] <- mean(x1[[m]][which(x1$cluster_id == cl)])
-  }
-}
-x1rf <- x1mean
-for (m in useMarkers) {
-  for (cl in levels(as.factor(x1$cluster_id))) {
-    x1rf[cl,m] <- x1mean[cl,m]/sum(x1mean[cl,-1])
-  }
-}
-x1meanmelt <- melt(x1mean)
-x1meanmelt$cluster_id <- factor(x1meanmelt$cluster_id, levels = unique(x1meanmelt$cluster_id))
-x1rfmelt <- melt(x1rf)
-x1rfmelt$cluster_id <- factor(x1rfmelt$cluster_id, levels = unique(x1rfmelt$cluster_id))
-ggplot(x1rfmelt, aes(x = cluster_id, y = value, fill = variable)) + 
-  geom_bar(stat = "identity") + 
-  theme_prism() + 
-  scale_fill_manual(values = coloursList[[paste0(mergeBy, knn)]]) +
-  xlab("Cluster ID") +
-  ylab("Proportion of the Quantile Scaled Mean")
-```
-
 ```{r, label = "report_clusters_cell_counts_table"}
 .cells_wide <- tidyr::pivot_wider(df, names_from = cluster_id, values_from = Freq) |> dplyr::select(-condition) |> tibble::column_to_rownames("sample_id") |> t() |> data.frame() |> tibble::rownames_to_column("cluster_id")
 DT::datatable(.cells_wide, rownames = FALSE)
@@ -3307,7 +3263,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
 
 :::::::: panel-tabset
 
-```{r, label = "report_dr_per_marker", fig.width=16, fig.height=ceiling(length(useMarkers)/3)*3, dependson="umaps_per_marker1", results = 'asis'}
+```{r, label = "report_dr_per_marker", fig.width=16, fig.height=ceiling(length(useMarkers)/3)*3, results = 'asis'}
 invisible(lapply(names(UMAPList), function(yn){
   cat("####", yn, "\n\n")
   print(plot_grid(plotlist = UMAPList[[yn]], ncol = 4, align = "hv"))
@@ -3573,10 +3529,6 @@ if (gimmePDFs) {
 Differential state (DS) analysis tests whether the expression of individual markers within each cluster differs between conditions. Unlike DA (which tests cluster abundance), DS tests for changes in marker expression levels within each cluster.
 :::
 
-```{r, label = "report_ds_table_library", include = FALSE}
-htmltools::tagList(DT::datatable(data.frame(x = 1)))
-```
-
 :::::::: panel-tabset
 
 ```{r, label = "report_ds_results", results = 'asis', fig.height=12, fig.width=10}
@@ -3656,10 +3608,6 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
 ### DS - Merged
 
 Same as the other differential state results, but instead we have merged all clusters prior to DS, so now we see what could be considered differential abundance of each marker between conditions.
-
-```{r, label = "report_ds_merged_table_library", include = FALSE}
-htmltools::tagList(DT::datatable(data.frame(x = 1)))
-```
 
 :::::::: panel-tabset
 
