@@ -3533,11 +3533,17 @@ Differential state (DS) analysis tests whether the expression of individual mark
 
 ```{r, label = "report_ds_results", results = 'asis', fig.height=12, fig.width=10}
 dsPThreshToUse <- 0.05
-dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), invert = TRUE)], function(cont) {
+
+# Everything the report shows for one DS test: the Excel file, the markers up
+# in each group, the heatmap and the full table. merged = TRUE is for the
+# tests run with all clusters merged into one.
+show_ds_results <- function(cont, merged = FALSE) {
+  groups <- strsplit(sub(" Merged$", "", cont), split = " over ")[[1]]
+
   cat("\n\n")
   cat("####", cont, "\n\n")
 
-  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), "_DS_Full_Results.xlsx")))
+  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), if (merged) "_DS_Merged_Results.xlsx" else "_DS_Full_Results.xlsx")))
 
   dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- data.frame(dsUp_tbl[dsUp_tbl >= 1])
   dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- data.frame(dsDown_tbl[dsDown_tbl >= 1])
@@ -3549,7 +3555,7 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     dsDown <- data.frame("Marker" = rownames(dsDown), "Number of clusters" = dsDown[1,])
   }
 
-  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][1], "**\n\n")
+  cat("**Markers up in", groups[1], "**\n\n")
   if (nrow(dsUp) >= 1) {
     print(
       kable(
@@ -3559,10 +3565,10 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     )
     cat("\n\n")
   } else {
-    cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
+    cat("There are no up-regulated markers in", groups[1], "\n\n")
   }
 
-  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][2], "**\n\n")
+  cat("**Markers up in", groups[2], "**\n\n")
   if (nrow(dsDown) >= 1) {
     print(
       kable(
@@ -3572,18 +3578,20 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     )
     cat("\n\n")
   } else {
-    cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
+    cat("There are no up-regulated markers in", groups[2], "\n\n")
   }
 
   cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions, hm_pal = hmPalToUse)
+  pDH <- plotDiffHeatmap(if (merged) sceDS else sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions, hm_pal = hmPalToUse)
   pDH <- apply_anno_colours(pDH, conditions, coloursList)
   print(pDH)
   cat("\n\n")
   cat("**Full Results**\n\n")
-  cat("This table shows the log2FC and p-values of each marker per cluster in", cont, "\n\n")
-  cat("Positive log2fc means the marker was higher in", strsplit(cont, split = " over ")[[1]][1], "in a given cluster. \n\n")
-  cat("Negative log2fc means the marker was higher in", strsplit(cont, split = " over ")[[1]][2], "in a given cluster. \n\n")
+  if (!merged) {
+    cat("This table shows the log2FC and p-values of each marker per cluster in", cont, "\n\n")
+  }
+  cat("Positive log2fc means the marker was higher in", groups[1], "in a given cluster. \n\n")
+  cat("Negative log2fc means the marker was higher in", groups[2], "in a given cluster. \n\n")
 
   dsTab1 <- as.data.frame(dsList[[cont]]$tbl_DS[, c("cluster_id", "marker_id", "logFC", "p_val", "p_adj")])
   dsTab1 <- dsTab1[order(dsTab1$p_val), ]
@@ -3599,8 +3607,11 @@ dsResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), inv
     )
   )
   cat("\n\n")
-  return(list("pDH" = pDH, "dsTab1" = dsTab1))
-}), names(dsList)[grep("Merged", names(dsList), invert = TRUE)])
+  list("pDH" = pDH, "dsTab1" = dsTab1)
+}
+
+dsContrasts <- names(dsList)[grep("Merged", names(dsList), invert = TRUE)]
+dsResultsList <- setNames(lapply(dsContrasts, show_ds_results), dsContrasts)
 ```
 
 ::::::::
@@ -3612,54 +3623,8 @@ Same as the other differential state results, but instead we have merged all clu
 :::::::: panel-tabset
 
 ```{r, label = "report_ds_merged_results", results = 'asis', fig.height=12, fig.width=10}
-dsMergedResultsList <- setNames(lapply(names(dsList)[grep("Merged", names(dsList), invert = FALSE)], function(cont) {
-  cat("\n\n")
-  cat("####", cont, "\n\n")
-
-  openxlsx::write.xlsx(x = as.data.frame(dsList[[cont]]$tbl_DS), file = file.path(excelDir, paste0(MARMOT::safe_file_name(cont), "_DS_Merged_Results.xlsx")))
-  dsUp_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC >= 0)]), decreasing = TRUE); dsUp <- dsUp_tbl[dsUp_tbl >= 1]
-  dsDown_tbl <- sort(table(dsList[[cont]]$tbl_DS$marker_id[which(dsList[[cont]]$tbl_DS[[daPValToUse]] <= dsPThreshToUse & dsList[[cont]]$tbl_DS$logFC <= 0)]), decreasing = TRUE); dsDown <- dsDown_tbl[dsDown_tbl >= 1]
-
-  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][1], "**\n\n")
-  if (length(dsUp) >= 1) {
-    print(dsUp)
-    cat("\n\n")
-  } else {
-    cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][1], "\n\n")
-  }
-
-  cat("**Markers up in", strsplit(cont, split = " over ")[[1]][2], "**\n\n")
-  if (length(dsDown) >= 1) {
-    print(dsDown)
-    cat("\n\n")
-  } else {
-    cat("There are no up-regulated markers in", strsplit(cont, split = " over ")[[1]][2], "\n\n")
-  }
-  cat("**Heatmap**\n\n")
-  pDH <- plotDiffHeatmap(x = sceDS, y = dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, col_anno = conditions, hm_pal = hmPalToUse)
-  pDH <- apply_anno_colours(pDH, conditions, coloursList)
-  print(pDH)
-  cat("\n\n")
-  cat("**Full Results**\n\n")
-  cat("Positive log2fc means the marker was higher in", strsplit(sub(" Merged$", "", cont), split = " over ")[[1]][1], "in a given cluster. \n\n")
-  cat("Negative log2fc means the marker was higher in", strsplit(sub(" Merged$", "", cont), split = " over ")[[1]][2], "in a given cluster. \n\n")
-
-  dsTab1 <- as.data.frame(dsList[[cont]]$tbl_DS[, c("cluster_id", "marker_id", "logFC", "p_val", "p_adj")])
-  dsTab1 <- dsTab1[order(dsTab1$p_val), ]
-  print(
-    htmltools::tagList(DT::datatable(
-      data = dsTab1,
-      rownames = FALSE,
-      width = "700px"
-      ) |>
-        DT::formatSignif(c("logFC", "p_val", "p_adj"), digits = 3) |>
-        DT::formatStyle("logFC", color = styleInterval(cuts = 0, values = c("blue", "darkorange")), fontWeight = "bold") |>
-        DT::formatStyle(c("p_val", "p_adj"), color = styleInterval(cuts = 0.05, values = c("green", "black")),fontWeight = "bold")
-    )
-  )
-  cat("\n\n")
-  return(list("pDH" = pDH, "dsTab1" = dsTab1))
-}), names(dsList)[grep("Merged", names(dsList), invert = FALSE)])
+dsMergedContrasts <- names(dsList)[grep("Merged", names(dsList), invert = FALSE)]
+dsMergedResultsList <- setNames(lapply(dsMergedContrasts, show_ds_results, merged = TRUE), dsMergedContrasts)
 ```
 
 ::::::::
