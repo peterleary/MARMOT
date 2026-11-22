@@ -3735,7 +3735,10 @@ for (i in seq_along(selectedClustersList)) {
 #### All Cells
 
 ```{r, label = "report_da_dr", fig.height=5, fig.width=5, results = 'asis'}
-DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
+# The embedding with the DA clusters of group i picked out in colour and the
+# other cells in grey. by_condition = TRUE draws one panel per condition, all
+# on the same axes.
+plot_da_clusters <- function(i, by_condition = FALSE) {
   clustersToMap <- names(clustersToMapList[[i]])
   cTM <- clustersToMapList[[i]]
   umapDF <- umapDFList[[umapsDFToPlot]]
@@ -3752,10 +3755,17 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
 
   gp <- gp + geom_point(data = umapDF3, size = dr_point_size, colour = "grey75", alpha = 0.3, shape = 16, show.legend = FALSE)
   gp <- gp + geom_point(data = umapDF2, size = dr_point_size * 1.5, alpha = 0.95)
-  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black")
-  gp <- gp + scale_color_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
-  gp <- gp + scale_fill_manual(values = c(cTM, na.value = "grey33"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = FALSE)
+  gp <- gp + scale_color_manual(values = cTM, breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  gp <- gp + scale_fill_manual(values = cTM, breaks = levels(as.factor(umapDF2[["cluster_id"]])))
+  if (by_condition) {
+    gp <- gp + ylim(min(umapDF$y[!is.na(umapDF$y)])-1, max(umapDF$y[!is.na(umapDF$y)])+1)
+    gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
+  }
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
+  if (by_condition) {
+    gp <- gp + facet_wrap(~ condition, ncol = 2)
+  }
   gp <- gp + ggtitle(names(clustersToMapList)[i])
   gp <- gp + coord_fixed() +
     theme_prism() +
@@ -3764,9 +3774,13 @@ DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) 
       axis.ticks = element_blank(),
       axis.line = element_blank(),
       legend.text = element_text(size = 10),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5))
-  gp <- gp + guides(colour = guide_legend(override.aes = list(size = 3)))
-  gp <- gp + theme(legend.position = "hide")
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5),
+      legend.position = "hide")
+  gp + guides(colour = guide_legend(override.aes = list(size = 3)))
+}
+
+DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
+  gp <- plot_da_clusters(i)
   print(gp)
   cx <- names(clustersToMapList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
   sx <- names(clustersToMapList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
@@ -3787,42 +3801,7 @@ if (gimmePDFs) {
 ```{r, label = "report_da_dr_by_condition", fig.height= 6*(ceiling(length(condLevels)/2)), fig.width=10, results = 'asis'}
 DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   cat("####" , names(clustersToMapList)[i], "\n\n")
-  clustersToMap <- (names(clustersToMapList[[i]]))
-  cTM <- clustersToMapList[[i]]
-  umapDF <- umapDFList[[umapsDFToPlot]]
-  umapDF2 <- umapDF[umapDF[["cluster_id"]] %in% clustersToMap,]
-  umapDF2[["cluster_id"]] <- droplevels(umapDF2[["cluster_id"]])
-  umapDF3 <- umapDF[!umapDF[["cluster_id"]] %in% clustersToMap, ]
-
-  ## Get the mean x/y coordinate for each cluster so we can add labels manually 
-  cluster_centre <- umapDF2 |>
-  dplyr::group_by(cluster_id) |>
-  dplyr::summarize(center_x = mean(x), center_y = mean(y))
-
-  gp <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["cluster_id"]]))
-
-  gp <- gp + geom_point(data = umapDF3, size = dr_point_size, colour = "grey75", alpha = 0.3, shape = 16, show.legend = FALSE)
-  gp <- gp + geom_point(data = umapDF2, size = dr_point_size * 1.5, alpha = 0.95)
-  gp <- gp + geom_label_repel(data = cluster_centre, aes(x = center_x, y = center_y, label = cluster_id, fill = cluster_id), size = 4, colour = "black", show.legend = FALSE)
-  gp <- gp + scale_color_manual(
-    values = c(cTM, na.value = "black"),
-    breaks = levels(as.factor(umapDF2[["cluster_id"]])))
-  gp <- gp + scale_fill_manual(values = c(cTM, na.value = "black"), breaks = levels(as.factor(umapDF2[["cluster_id"]])))
-  gp <- gp + ylim(min(umapDF$y[!is.na(umapDF$y)])-1, max(umapDF$y[!is.na(umapDF$y)])+1)
-  gp <- gp + xlim(min(umapDF$x[!is.na(umapDF$x)])-1, max(umapDF$x[!is.na(umapDF$x)])+1)
-  gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
-  gp <- gp + facet_wrap(~ condition, ncol = 2)
-  gp <- gp + ggtitle(names(clustersToMapList)[i])
-  gp <- gp + coord_fixed() +
-    theme_prism() +
-    theme(
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      axis.line = element_blank(),
-      legend.text = element_text(size = 10),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5),
-      legend.position = "hide")
-  gp <- gp + guides(colour = guide_legend(override.aes = list(size = 3)))
+  gp <- plot_da_clusters(i, by_condition = TRUE)
   print(gp)
   cat("\n\n")
   return(gp)
