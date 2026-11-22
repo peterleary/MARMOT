@@ -97,6 +97,10 @@ timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
 options(bitmapType = "cairo", kableExtra_view_html = FALSE)
 ```
 
+<!-- ════════════════════════════════════════════════════════
+     PART 1: YOUR SETTINGS. The only chunk you need to edit.
+     ════════════════════════════════════════════════════════ -->
+
 ```{r input_settings}
 
 ## 🔧 File paths
@@ -154,6 +158,10 @@ cat("- **scGate:** ", if (runScGate) "Enabled" else "Disabled", "\n")
 cat(":::\n\n")
 ```
 
+<!-- ════════════════════════════════════════════════════════
+     PART 2: SET-UP. Packages, palettes and helper functions. Nothing here touches the data.
+     ════════════════════════════════════════════════════════ -->
+
 ```{r setup_check_settings, include = FALSE}
 
 required_vars <- c(
@@ -199,6 +207,22 @@ get_palette_colours <- function(palette, n = 64) {
     colorRampPalette(RColorBrewer::brewer.pal(11, palette))(n)
   }
 }
+```
+
+```{r setup_cluster_palette, results = "hide"}
+
+# Define base palette used in CATALYST-inspired plots
+catalystCols <- c(
+  "#DC050C", "#FB8072", "#1965B0", "#7BAFDE", "#882E72", "#B17BA6",
+  "#FF7F00", "#FDB462", "#E7298A", "#E78AC3", "#33A02C", "#B2DF8A",
+  "#55A1B1", "#8DD3C7", "#A6761D", "#E6AB02", "#7570B3", "#BEAED4",
+  "#666666", "#999999", "#AA8282", "#D4B7B7", "#8600BF", "#BA5CE3",
+  "#808000", "#AEAE5C", "#1E90FF", "#00BFFF", "#56FF0D", "#CFBF11"
+)
+
+# Darken the palette and append (to allow >30 colours with contrast)
+darkenedCols <- colorspace::darken(catalystCols, 0.4)
+catalystCols <- paste0(c(catalystCols, darkenedCols), "FF")  # Add full opacity
 ```
 
 ```{r setup_packages, include = FALSE}
@@ -296,76 +320,115 @@ build_da_heatmap_inputs <- function(sce, k, assay = "exprs",
 }
 ```
 
-```{r reload_results, include = FALSE, results = 'asis'}
+```{r setup_embedding_plot}
+# Draws one embedding plot. The default point size, `dr_point_size`, is set
+# from the number of plotted cells just before the report is drawn.
+plotUMAPNice <- function(
+  df = umapDF,
+  colour_by = "condition",
+  show_density = FALSE,
+  size = dr_point_size,
+  alpha = 1,
+  text_size = 12,
+  facet_by = NULL,
+  show_grids = FALSE,
+  name = "Normalised\nExpression\n",
+  show_cluster_labels = FALSE,
+  cluster_labels = "cluster_id",
+  border = FALSE,
+  border_size = 3,
+  border_density = 1,
+  border_colour = "black"
+) {
+  gp <- ggplot(df, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[colour_by]]))
 
-if (!is.null(RDataFolder)) {
-  # Auto-resolve: if user pointed to the top-level Results_Files dir, descend into R_files/
-  h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
-  if (!file.exists(h5ad_path) &&
-       file.exists(file.path(RDataFolder, "R_files", "marmot_results.h5ad"))) {
-    RDataFolder <- file.path(RDataFolder, "R_files")
-    h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
-    message("ℹ️ Auto-resolved RDataFolder to: ", RDataFolder)
+  # Density overlay
+  if (show_density) {
+    gp <- gp +
+      geom_density_2d(
+        data = df[, c("x", "y")],
+        aes(x = x, y = y),
+        colour = "lightgrey",
+        size = 0.5,
+        bins = 20,
+        alpha = 0.8
+      ) +
+      coord_cartesian(
+        xlim = range(df$x, na.rm = TRUE) + c(-1, 1),
+        ylim = range(df$y, na.rm = TRUE) + c(-1, 1)
+      )
   }
-  if (!file.exists(h5ad_path)) {
-    stop("No h5ad data found in ", RDataFolder,
-         ". Please re-run the pipeline to generate h5ad output.")
+
+  if (border && nrow(df) > 10) {
+    kde <- MASS::kde2d(df[["x"]], df[["y"]], n = 100L)
+    ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
+    iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
+    cell_density <- kde$z[cbind(ix, iy)]
+    border_df <- df[cell_density < quantile(cell_density, border_density), ]
+    gp <- gp +
+      geom_point(data = border_df, size = size * border_size,
+                 colour = border_colour, show.legend = FALSE) +
+      geom_point(colour = "grey75", size = size, show.legend = FALSE) +
+      geom_point(size = size, alpha = alpha)
+  } else {
+    gp <- gp + geom_point(size = size, alpha = alpha, shape = 16)
   }
-  message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
-  MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
-  # Load DA/DS result objects (S4 structures that can't survive h5ad)
-  da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
-  if (file.exists(da_ds_path)) {
-    da_ds <- qs2::qs_read(da_ds_path, nthreads = nCores)
-    for (nm in names(da_ds)) {
-      if (!is.null(da_ds[[nm]])) assign(nm, da_ds[[nm]], envir = .GlobalEnv)
+
+  gp <- gp +
+    labs(x = paste(dimRedMethodToUse, "dim 1"),
+         y = paste(dimRedMethodToUse, "dim 2"),
+         title = colour_by) +
+    coord_fixed() +
+    theme_prism() +
+    theme(
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      legend.text = element_text(size = 10),
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+    )
+
+  # Guides
+  if (colour_by == "condition") {
+    gp <- gp + guides(colour = guide_legend(override.aes = list(size = 2)))
+  }
+
+  # Cluster label overlays
+  if (show_cluster_labels) {
+    label_coords <- data.frame(
+      df |>
+        dplyr::group_by(.data[[cluster_labels]]) |>
+        dplyr::summarise(x = median(x), y = median(y)))
+    if (colour_by %in% useMarkers) {
+      label_coords[[colour_by]] <- lapply(label_coords[[cluster_labels]], function(level) {
+        mean(df[[colour_by]][df[[cluster_labels]] == level])
+      }) |> unlist()
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = FALSE)
+    } else {
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = FALSE)
     }
-    # sceDS was saved without its expression data: give it back from `sce`
-    if (exists("sceDS")) sceDS <- MARMOT::restore_slim_sce(sceDS, sce)
-    message("Loaded (qs2): da_ds_results.qs2")
   }
 
-  # Reconstruct panel from rowData(sce) — the analysis_panel_cofactors chunk is skipped on reload
-  rd <- as.data.frame(SummarizedExperiment::rowData(sce))
-  panel <- data.frame(
-    fcs_colname  = rownames(rd),
-    marker_name  = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
-    antigen      = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
-    marker_class = if ("marker_class" %in% names(rd)) rd$marker_class else "none",
-    use_channel  = TRUE,
-    stringsAsFactors = FALSE
-  )
-
-  # Inject md columns into colData — prepData did this on fresh run via
-  # md_cols = list(factors = conditions), but h5ad doesn't preserve the merge.
-  cd <- as.data.frame(SummarizedExperiment::colData(sce))
-  md_reload <- as.data.frame(md)
-  md_extra_cols <- setdiff(names(md_reload), c("file_name", names(cd)))
-  if (length(md_extra_cols) > 0) {
-    lookup <- md_reload[, c("sample_id", md_extra_cols), drop = FALSE]
-    matched <- lookup[match(cd$sample_id, lookup$sample_id), md_extra_cols, drop = FALSE]
-    rownames(matched) <- rownames(cd)
-    for (col in md_extra_cols) {
-      SummarizedExperiment::colData(sce)[[col]] <- matched[[col]]
-    }
-    message("ℹ️  Injected md columns into colData: ", paste(md_extra_cols, collapse = ", "))
+  if (!show_grids) {
+    gp <- gp +
+      theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
   }
-}
 
-# Pick the merge method depending on clustering backend
-mergeBy <- dplyr::case_when(
-  clusteringMethodToUse %in% c("Rphenograph", "Mphenograph", "MfastPG") ~ "k",
-  clusteringMethodToUse %in% c("PARC", "Mparc") ~ "p",
-  clusteringMethodToUse == "FlowSOM" ~ "meta",
-  TRUE ~ NA_character_  # temp placeholder
-)
-if (is.na(mergeBy)) stop("Unsupported clustering method: ", clusteringMethodToUse)
+  # Gradient or manual colour scale
+  if (colour_by %in% useMarkers) {
+    gp <- gp + scale_colour_gradientn(name, colours = get_palette_colours(viridisColour))
+    gp <- gp + scale_fill_gradientn(name, colours = get_palette_colours(viridisColour))
+  } else {
+    gp <- gp + scale_colour_manual(values = coloursList[[colour_by]])
+    gp <- gp + scale_fill_manual(values = coloursList[[colour_by]])
+  }
 
-# Heatmap colour palette
-hmPalToUse <- if (greyscalePlots) {
-  RColorBrewer::brewer.pal(9, "Greys")
-} else {
-  rev(RColorBrewer::brewer.pal(11, "RdBu"))
+  # Faceting
+  if (!is.null(facet_by)) {
+    gp <- gp + facet_wrap(facets = as.formula(paste("~", facet_by)))
+  }
+
+  return(gp)
 }
 ```
 
@@ -434,21 +497,135 @@ diag_success <- function(path) {
 }
 ```
 
+<!-- ════════════════════════════════════════════════════════
+     PART 3: RELOAD. Only does anything when RDataFolder points at saved results.
+     The two chunks after it need to know whether results were reloaded.
+     ════════════════════════════════════════════════════════ -->
+
+```{r reload_results, include = FALSE, results = 'asis'}
+
+if (!is.null(RDataFolder)) {
+  # Auto-resolve: if user pointed to the top-level Results_Files dir, descend into R_files/
+  h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
+  if (!file.exists(h5ad_path) &&
+       file.exists(file.path(RDataFolder, "R_files", "marmot_results.h5ad"))) {
+    RDataFolder <- file.path(RDataFolder, "R_files")
+    h5ad_path <- file.path(RDataFolder, "marmot_results.h5ad")
+    message("ℹ️ Auto-resolved RDataFolder to: ", RDataFolder)
+  }
+  if (!file.exists(h5ad_path)) {
+    stop("No h5ad data found in ", RDataFolder,
+         ". Please re-run the pipeline to generate h5ad output.")
+  }
+  message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
+  MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
+  # Load DA/DS result objects (S4 structures that can't survive h5ad)
+  da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
+  if (file.exists(da_ds_path)) {
+    da_ds <- qs2::qs_read(da_ds_path, nthreads = nCores)
+    for (nm in names(da_ds)) {
+      if (!is.null(da_ds[[nm]])) assign(nm, da_ds[[nm]], envir = .GlobalEnv)
+    }
+    # sceDS was saved without its expression data: give it back from `sce`
+    if (exists("sceDS")) sceDS <- MARMOT::restore_slim_sce(sceDS, sce)
+    message("Loaded (qs2): da_ds_results.qs2")
+  }
+
+  # Reconstruct panel from rowData(sce) — the analysis_panel_cofactors chunk is skipped on reload
+  rd <- as.data.frame(SummarizedExperiment::rowData(sce))
+  panel <- data.frame(
+    fcs_colname  = rownames(rd),
+    marker_name  = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
+    antigen      = if ("marker_name" %in% names(rd)) rd$marker_name else rownames(rd),
+    marker_class = if ("marker_class" %in% names(rd)) rd$marker_class else "none",
+    use_channel  = TRUE,
+    stringsAsFactors = FALSE
+  )
+
+  # Inject md columns into colData — prepData did this on fresh run via
+  # md_cols = list(factors = conditions), but h5ad doesn't preserve the merge.
+  cd <- as.data.frame(SummarizedExperiment::colData(sce))
+  md_reload <- as.data.frame(md)
+  md_extra_cols <- setdiff(names(md_reload), c("file_name", names(cd)))
+  if (length(md_extra_cols) > 0) {
+    lookup <- md_reload[, c("sample_id", md_extra_cols), drop = FALSE]
+    matched <- lookup[match(cd$sample_id, lookup$sample_id), md_extra_cols, drop = FALSE]
+    rownames(matched) <- rownames(cd)
+    for (col in md_extra_cols) {
+      SummarizedExperiment::colData(sce)[[col]] <- matched[[col]]
+    }
+    message("ℹ️  Injected md columns into colData: ", paste(md_extra_cols, collapse = ", "))
+  }
+}
+```
+
+```{r setup_derived_settings, include = FALSE}
+# Pick the merge method depending on clustering backend
+mergeBy <- dplyr::case_when(
+  clusteringMethodToUse %in% c("Rphenograph", "Mphenograph", "MfastPG") ~ "k",
+  clusteringMethodToUse %in% c("PARC", "Mparc") ~ "p",
+  clusteringMethodToUse == "FlowSOM" ~ "meta",
+  TRUE ~ NA_character_  # temp placeholder
+)
+if (is.na(mergeBy)) stop("Unsupported clustering method: ", clusteringMethodToUse)
+
+# Heatmap colour palette
+hmPalToUse <- if (greyscalePlots) {
+  RColorBrewer::brewer.pal(9, "Greys")
+} else {
+  rev(RColorBrewer::brewer.pal(11, "RdBu"))
+}
+```
+
+```{r save_folders, results = "hide"}
+
+# Create Results root directory if not resuming from saved RData
+if (is.null(RDataFolder)) {
+  if (is.null(resultsDir)) {
+    # Manual run (RStudio) — create results dir with timestamp
+    resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
+    dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
+  }
+
+  rFilesDir <- file.path(resultsDir, "R_files")
+  dir.create(rFilesDir, showWarnings = FALSE, recursive = TRUE)
+}
+
+# When reloading, RDataFolder points to R_files/ — go up one level for sibling dirs
+reloadResultsDir <- if (!is.null(RDataFolder)) dirname(RDataFolder) else NULL
+
+# PDFs
+if (gimmePDFs) {
+  pdfDir <- if (is.null(RDataFolder)) {
+    file.path(resultsDir, "PDF_figures")
+  } else {
+    file.path(reloadResultsDir, "PDF_figures")
+  }
+  dir.create(pdfDir, showWarnings = FALSE)
+}
+
+# Excel outputs
+excelDir <- if (is.null(RDataFolder)) {
+  file.path(resultsDir, "Excel_Files")
+} else {
+  file.path(reloadResultsDir, "Excel_Files")
+}
+dir.create(excelDir, showWarnings = FALSE)
+```
+
+
+<!-- ════════════════════════════════════════════════════════
+     PART 4: ANALYSIS. Everything that affects results, in the order it happens.
+     ════════════════════════════════════════════════════════ -->
+
 ```{r analysis_metadata, results = "hide"}
 
 # ── Initialise run log (marmot_run_log.json) ──────────────────────────────
 # Shape-only diagnostics for remote debugging. Never writes cell-level values
 # or identifying labels. Written progressively so mid-pipeline crashes still
 # leave a useful file.
-log_path <- if (!is.null(RDataFolder)) {
-  file.path(RDataFolder, "marmot_run_log.json")
-} else {
-  # Honour resultsDir set by marmot() (preferred), else construct one.
-  # Matches the fallback logic in the later `save_folders` chunk.
-  rd <- if (exists("resultsDir", inherits = FALSE) && !is.null(resultsDir))
-          resultsDir else file.path(fp, paste0("Results_Files_", timeRun))
-  file.path(rd, "R_files", "marmot_run_log.json")
-}
+# It sits in the R_files folder (see the `save_folders` chunk).
+log_path <- file.path(if (!is.null(RDataFolder)) RDataFolder else rFilesDir, "marmot_run_log.json")
 .diag_get <- function(name, default = NA) {
   if (exists(name, envir = .GlobalEnv, inherits = FALSE)) {
     v <- get(name, envir = .GlobalEnv)
@@ -587,21 +764,6 @@ diag_record(log_path, "data_shape", list(
 diag_checkpoint(log_path, "analysis_metadata")
 ```
 
-```{r setup_cluster_palette, results = "hide"}
-
-# Define base palette used in CATALYST-inspired plots
-catalystCols <- c(
-  "#DC050C", "#FB8072", "#1965B0", "#7BAFDE", "#882E72", "#B17BA6",
-  "#FF7F00", "#FDB462", "#E7298A", "#E78AC3", "#33A02C", "#B2DF8A",
-  "#55A1B1", "#8DD3C7", "#A6761D", "#E6AB02", "#7570B3", "#BEAED4",
-  "#666666", "#999999", "#AA8282", "#D4B7B7", "#8600BF", "#BA5CE3",
-  "#808000", "#AEAE5C", "#1E90FF", "#00BFFF", "#56FF0D", "#CFBF11"
-)
-
-# Darken the palette and append (to allow >30 colours with contrast)
-darkenedCols <- colorspace::darken(catalystCols, 0.4)
-catalystCols <- paste0(c(catalystCols, darkenedCols), "FF")  # Add full opacity
-```
 
 ```{r analysis_condition_colours, results = "hide", dependson = -1, eval = is.null(RDataFolder)}
 
@@ -1944,41 +2106,10 @@ diag_record(log_path, "ds_analysis", list(
 diag_checkpoint(log_path, "analysis_da_ds")
 ```
 
-```{r save_folders, results = "hide"}
 
-# Create Results root directory if not resuming from saved RData
-if (is.null(RDataFolder)) {
-  if (is.null(resultsDir)) {
-    # Manual run (RStudio) — create results dir with timestamp
-    resultsDir <- file.path(fp, paste0("Results_Files_", timeRun))
-    dir.create(resultsDir, showWarnings = FALSE, recursive = TRUE)
-  }
-
-  rFilesDir <- file.path(resultsDir, "R_files")
-  dir.create(rFilesDir, showWarnings = FALSE)
-}
-
-# When reloading, RDataFolder points to R_files/ — go up one level for sibling dirs
-reloadResultsDir <- if (!is.null(RDataFolder)) dirname(RDataFolder) else NULL
-
-# PDFs
-if (gimmePDFs) {
-  pdfDir <- if (is.null(RDataFolder)) {
-    file.path(resultsDir, "PDF_figures")
-  } else {
-    file.path(reloadResultsDir, "PDF_figures")
-  }
-  dir.create(pdfDir, showWarnings = FALSE)
-}
-
-# Excel outputs
-excelDir <- if (is.null(RDataFolder)) {
-  file.path(resultsDir, "Excel_Files")
-} else {
-  file.path(reloadResultsDir, "Excel_Files")
-}
-dir.create(excelDir, showWarnings = FALSE)
-```
+<!-- ════════════════════════════════════════════════════════
+     PART 5: SAVE. Results are written before the report is drawn.
+     ════════════════════════════════════════════════════════ -->
 
 ```{r save_results, eval = is.null(RDataFolder), include = FALSE}
 
@@ -2028,121 +2159,18 @@ message("Saved: pipeline_settings.json")
 file.copy(md_fp, resultsDir, overwrite = TRUE)
 ```
 
-```{r setup_embedding_plot}
+```{r report_dr_point_size}
 
 # Adaptive point size: 25/sqrt(n) clamped to [0.05, 0.5]
 # ~1000 cells → 0.5, ~10k → 0.25, ~50k → 0.11, ~100k → 0.08, ~500k+ → 0.05
 n_dr_cells <- nrow(umapDFList[[ifelse(is.null(drCellPerCondition), "All", "Downsampled")]])
 dr_point_size <- max(0.05, min(0.5, 25 / sqrt(n_dr_cells)))
-
-plotUMAPNice <- function(
-  df = umapDF,
-  colour_by = "condition",
-  show_density = FALSE,
-  size = dr_point_size,
-  alpha = 1,
-  text_size = 12,
-  facet_by = NULL,
-  show_grids = FALSE,
-  name = "Normalised\nExpression\n",
-  show_cluster_labels = FALSE,
-  cluster_labels = "cluster_id",
-  border = FALSE,
-  border_size = 3,
-  border_density = 1,
-  border_colour = "black"
-) {
-  gp <- ggplot(df, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[colour_by]]))
-
-  # Density overlay
-  if (show_density) {
-    gp <- gp +
-      geom_density_2d(
-        data = df[, c("x", "y")],
-        aes(x = x, y = y),
-        colour = "lightgrey",
-        size = 0.5,
-        bins = 20,
-        alpha = 0.8
-      ) +
-      coord_cartesian(
-        xlim = range(df$x, na.rm = TRUE) + c(-1, 1),
-        ylim = range(df$y, na.rm = TRUE) + c(-1, 1)
-      )
-  }
-
-  if (border && nrow(df) > 10) {
-    kde <- MASS::kde2d(df[["x"]], df[["y"]], n = 100L)
-    ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
-    iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
-    cell_density <- kde$z[cbind(ix, iy)]
-    border_df <- df[cell_density < quantile(cell_density, border_density), ]
-    gp <- gp +
-      geom_point(data = border_df, size = size * border_size,
-                 colour = border_colour, show.legend = FALSE) +
-      geom_point(colour = "grey75", size = size, show.legend = FALSE) +
-      geom_point(size = size, alpha = alpha)
-  } else {
-    gp <- gp + geom_point(size = size, alpha = alpha, shape = 16)
-  }
-
-  gp <- gp +
-    labs(x = paste(dimRedMethodToUse, "dim 1"),
-         y = paste(dimRedMethodToUse, "dim 2"),
-         title = colour_by) +
-    coord_fixed() +
-    theme_prism() +
-    theme(
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      axis.line = element_blank(),
-      legend.text = element_text(size = 10),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
-    )
-
-  # Guides
-  if (colour_by == "condition") {
-    gp <- gp + guides(colour = guide_legend(override.aes = list(size = 2)))
-  }
-
-  # Cluster label overlays
-  if (show_cluster_labels) {
-    label_coords <- data.frame(
-      df |>
-        dplyr::group_by(.data[[cluster_labels]]) |>
-        dplyr::summarise(x = median(x), y = median(y)))
-    if (colour_by %in% useMarkers) {
-      label_coords[[colour_by]] <- lapply(label_coords[[cluster_labels]], function(level) {
-        mean(df[[colour_by]][df[[cluster_labels]] == level])
-      }) |> unlist()
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = FALSE)
-    } else {
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = FALSE)
-    }
-  }
-
-  if (!show_grids) {
-    gp <- gp +
-      theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
-  }
-
-  # Gradient or manual colour scale
-  if (colour_by %in% useMarkers) {
-    gp <- gp + scale_colour_gradientn(name, colours = get_palette_colours(viridisColour))
-    gp <- gp + scale_fill_gradientn(name, colours = get_palette_colours(viridisColour))
-  } else {
-    gp <- gp + scale_colour_manual(values = coloursList[[colour_by]])
-    gp <- gp + scale_fill_manual(values = coloursList[[colour_by]])
-  }
-
-  # Faceting
-  if (!is.null(facet_by)) {
-    gp <- gp + facet_wrap(facets = as.formula(paste("~", facet_by)))
-  }
-
-  return(gp)
-}
 ```
+
+
+<!-- ════════════════════════════════════════════════════════
+     PART 6: REPORT. Display only: nothing below changes a result.
+     ════════════════════════════════════════════════════════ -->
 
 Started on `r paste(timeRun)`
 
