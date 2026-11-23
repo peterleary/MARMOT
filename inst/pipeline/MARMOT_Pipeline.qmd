@@ -440,71 +440,6 @@ plotUMAPNice <- function(
 }
 ```
 
-```{r setup_run_log, include = FALSE}
-# Pipeline-local diagnostic log helpers. Writes a shape-only JSON at
-# <results>/R_files/marmot_run_log.json so crashes / weird renders can be
-# debugged remotely without the user sharing any cell-level or identifying
-# data. Kept inline (not in R/) so this pipeline file stays self-contained
-# and doesn't need a package rebuild to iterate on.
-.diag_read <- function(path) jsonlite::fromJSON(path, simplifyVector = FALSE)
-.diag_write <- function(path, log) jsonlite::write_json(
-  log, path, pretty = TRUE, auto_unbox = TRUE, null = "null", na = "null"
-)
-.diag_duration <- function(start, end) {
-  s <- tryCatch(as.POSIXct(start, format = "%Y-%m-%dT%H:%M:%S%z"),
-                error = function(e) NA)
-  e <- tryCatch(as.POSIXct(end,   format = "%Y-%m-%dT%H:%M:%S%z"),
-                error = function(e) NA)
-  if (is.na(s) || is.na(e)) return(NA_real_)
-  as.numeric(difftime(e, s, units = "secs"))
-}
-diag_init <- function(path, settings = list()) {
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  pkgs <- c("MARMOT", "diffcyt", "CATALYST", "flowCore", "anndataR", "quarto",
-            "ggplot2", "SingleCellExperiment", "S4Vectors", "FlowSOM",
-            "limma", "edgeR", "jsonlite", "qs2")
-  pkg_versions <- stats::setNames(lapply(pkgs, function(p) tryCatch(
-    as.character(utils::packageVersion(p)), error = function(e) NA_character_
-  )), pkgs)
-  sysinfo <- Sys.info()
-  .diag_write(path, list(
-    system   = list(r_version = R.version.string,
-                    os = as.character(sysinfo[["sysname"]]),
-                    os_release = as.character(sysinfo[["release"]]),
-                    arch = as.character(sysinfo[["machine"]]),
-                    locale = Sys.getlocale("LC_CTYPE")),
-    packages = pkg_versions,
-    settings = as.list(settings),
-    render   = list(start_time = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
-                    end_time = NULL, duration_seconds = NULL,
-                    status = "in_progress", last_completed_chunk = NULL,
-                    crash_chunk = NULL, crash_message = NULL),
-    warnings = list()
-  ))
-  invisible(path)
-}
-diag_record <- function(path, section, values) {
-  if (!file.exists(path)) return(invisible(NULL))
-  log <- .diag_read(path); log[[section]] <- values; .diag_write(path, log)
-  invisible(path)
-}
-diag_checkpoint <- function(path, chunk_label) {
-  if (!file.exists(path)) return(invisible(NULL))
-  log <- .diag_read(path)
-  log$render$last_completed_chunk <- chunk_label
-  .diag_write(path, log); invisible(path)
-}
-diag_success <- function(path) {
-  if (!file.exists(path)) return(invisible(NULL))
-  log <- .diag_read(path)
-  log$render$end_time <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
-  log$render$status <- "success"
-  log$render$duration_seconds <- .diag_duration(log$render$start_time,
-                                                log$render$end_time)
-  .diag_write(path, log); invisible(path)
-}
-```
-
 <!-- ════════════════════════════════════════════════════════
      PART 3: RELOAD. Only does anything when RDataFolder points at saved results.
      The two chunks after it need to know whether results were reloaded.
@@ -640,7 +575,7 @@ log_path <- file.path(if (!is.null(RDataFolder)) RDataFolder else rFilesDir, "ma
     if (is.null(v)) default else v
   } else default
 }
-diag_init(log_path, settings = list(
+MARMOT::run_log_start(log_path, settings = list(
   clusteringMethodToUse = as.character(.diag_get("clusteringMethodToUse")),
   markersToClusterBy    = as.character(.diag_get("markersToClusterBy")),
   kValuesIWant          = as.character(.diag_get("kValuesIWant")),
@@ -762,14 +697,14 @@ md$patient_id <- factor(md$sample_id, levels = md$sample_id)
 md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
 
 # ── Diagnostic: metadata shape (counts only, no labels) ───────────────────
-diag_record(log_path, "data_shape", list(
+MARMOT::run_log_record(log_path, "data_shape", list(
   n_samples    = nrow(md),
   n_conditions = nlevels(md$condition),
   n_contrasts  = length(na.omit(smd$`Conditions To Test`)),
   n_markers_requested = length(useMarkers),
   homogeneous_panel   = isTRUE(homogeneousPanel)
 ))
-diag_checkpoint(log_path, "analysis_metadata")
+MARMOT::run_log_checkpoint(log_path, "analysis_metadata")
 ```
 
 
@@ -1241,7 +1176,7 @@ message(sprintf("📊 Loaded %s cells (%.1f GB estimated)",
                 effective_cells * bytes_per_cell / 1024^3))
 
 # ── Diagnostic: FCS load shape (no sample labels) ─────────────────────────
-diag_record(log_path, "fcs_load", list(
+MARMOT::run_log_record(log_path, "fcs_load", list(
   n_cells_total_raw   = as.integer(total_cells_raw),
   n_cells_total_used  = as.integer(effective_cells),
   cells_per_sample    = as.integer(unname(sapply(framesList[[1]], nrow))),
@@ -1250,7 +1185,7 @@ diag_record(log_path, "fcs_load", list(
   per_sample_cap      = as.integer(per_sample_cap),
   sys_ram_gb_detected = if (is.finite(sys_ram_gb)) sys_ram_gb else NA_real_
 ))
-diag_checkpoint(log_path, "analysis_fcs_load")
+MARMOT::run_log_checkpoint(log_path, "analysis_fcs_load")
 ```
 
 ```{r analysis_transform, results = "hide", eval = is.null(RDataFolder)}
@@ -1617,7 +1552,7 @@ if (homogeneousPanel) {
 }
 
 # ── Diagnostic: clustering shape (labels are just "1".."N" — safe) ────────
-diag_record(log_path, "clustering", list(
+MARMOT::run_log_record(log_path, "clustering", list(
   method                = as.character(clusteringMethodToUse),
   selected_k            = knn,
   n_clusters            = nlevels(kids),
@@ -1626,7 +1561,7 @@ diag_record(log_path, "clustering", list(
                             names(metadata(sce)$cluster_codes) else NULL,
   n_features_dr         = length(featuresToUmap)
 ))
-diag_checkpoint(log_path, "analysis_cluster_info")
+MARMOT::run_log_checkpoint(log_path, "analysis_cluster_info")
 ```
 
 ```{r analysis_dim_reduction, results = "hide", eval = is.null(RDataFolder)}
@@ -2087,16 +2022,16 @@ ds_contrast_shapes <- lapply(seq_along(dsList), function(i) {
     columns      = if (!is.null(tbl)) colnames(tbl) else character(0)
   )
 })
-diag_record(log_path, "da_analysis", list(
+MARMOT::run_log_record(log_path, "da_analysis", list(
   method_DA  = "diffcyt-DA-edgeR",
   min_cells  = 5,
   contrasts  = da_contrast_shapes
 ))
-diag_record(log_path, "ds_analysis", list(
+MARMOT::run_log_record(log_path, "ds_analysis", list(
   method_DS  = "diffcyt-DS-limma",
   contrasts  = ds_contrast_shapes
 ))
-diag_checkpoint(log_path, "analysis_da_ds")
+MARMOT::run_log_checkpoint(log_path, "analysis_da_ds")
 ```
 
 
@@ -3803,7 +3738,7 @@ sessionInfo()
 ```
 
 ```{r setup_run_log_finish, include = FALSE}
-if (exists("log_path")) diag_success(log_path)
+if (exists("log_path")) MARMOT::run_log_finish(log_path)
 ```
 
 :::::::::::::
