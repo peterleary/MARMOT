@@ -1,0 +1,58 @@
+# Clean installs of MARMOT on Mac, Windows and Linux, run by hand from the
+# Actions tab. Each machine starts with no packages, installs MARMOT's
+# dependencies as ready-built copies (nothing compiled), installs MARMOT from
+# this branch, sets up the original Python PARC and PaCMAP with pixi, runs the
+# setup check and renders a small report.
+name: install-check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Install MARMOT's dependencies (ready-built, nothing compiled)
+        shell: Rscript {0}
+        run: |
+          options(install.packages.compile.from.source = "never")
+          install.packages("BiocManager")
+          repos <- c("https://peterleary.r-universe.dev", BiocManager::repositories())
+          d <- read.dcf("DESCRIPTION")
+          parse <- function(f) { x <- trimws(strsplit(gsub("\\([^)]*\\)", "", d[1, f]), ",")[[1]]); x[nzchar(x)] }
+          base <- rownames(installed.packages(priority = "base"))
+          deps <- setdiff(c(parse("Imports"), parse("Suggests")), base)
+          t0 <- Sys.time()
+          install.packages(deps, repos = repos)
+          cat("Seconds:", round(as.numeric(difftime(Sys.time(), t0, units = "secs"))), "\n")
+          missing <- deps[!vapply(deps, requireNamespace, logical(1), quietly = TRUE)]
+          cat("Not installed:", if (length(missing)) paste(missing, collapse = ", ") else "none", "\n")
+
+      - name: Install MARMOT from this branch
+        run: R CMD INSTALL --no-multiarch .
+
+      - name: Set up the original PARC and PaCMAP (pixi)
+        shell: Rscript {0}
+        run: stopifnot(isTRUE(MARMOT::install_marmot_python()))
+
+      - name: Setup check
+        shell: Rscript {0}
+        run: MARMOT::check_setup()
+
+      - name: Render a small report
+        shell: Rscript {0}
+        run: |
+          Sys.setenv(NOT_CRAN = "true")
+          testthat::test_file("tests/testthat/test-pipeline-integration.R",
+                              desc = "pipeline integration: FlowSOM + UMAP end-to-end",
+                              stop_on_failure = TRUE)

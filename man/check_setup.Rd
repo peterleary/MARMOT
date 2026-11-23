@@ -7,11 +7,11 @@
 check_setup()
 }
 \value{
-Invisibly returns a data.frame with columns \code{package},
-  \code{type}, \code{status}, and \code{version}.
+Invisibly, a data frame with one row per package: \code{package}, \code{type}
+("needed" or "optional"), \code{status} and \code{version}.
 }
 \description{
-Prints a formatted status report showing which packages and the Python
-environment are installed and available. Core packages (CRAN/Bioconductor)
-show a red X if missing; GitHub and optional packages show a yellow warning.
+Says in plain words what this computer can do with MARMOT, and for anything
+missing, the one command that fixes it. The packages checked are read from
+MARMOT's own DESCRIPTION, so the check never drifts from what MARMOT uses.
 }

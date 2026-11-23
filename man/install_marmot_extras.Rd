@@ -2,40 +2,30 @@
 % Please edit documentation in R/install_marmot_extras.R
 \name{install_marmot_extras}
 \alias{install_marmot_extras}
-\title{Install optional MARMOT extras}
+\title{Install everything MARMOT can use}
 \usage{
 install_marmot_extras(include_suggests = TRUE, include_python = TRUE)
 }
 \arguments{
-\item{include_suggests}{If \code{TRUE} (the default), also install optional
-CRAN packages such as Seurat.}
+\item{include_suggests}{If \code{TRUE} (the default), install the optional
+packages too (QC, scGate, Seurat, Harmony, Rphenograph and so on).}
 
-\item{include_python}{If \code{TRUE} (the default), also create the
-\code{p4r} conda environment for PARC and PaCMAP.
-Requires conda or mamba (install miniforge from
-\url{https://github.com/conda-forge/miniforge}).
-Fails gracefully if conda is not found.}
+\item{include_python}{If \code{TRUE} (the default), also set up the Python
+environment for the original PARC and PaCMAP.}
 }
 \value{
-Invisibly returns a character vector of package names that failed
-  or were skipped.
+Invisibly, the packages that could not be installed.
 }
 \description{
-Installs additional packages and sets up the Python environment on top of
-the base MARMOT install.
+Installs every package MARMOT uses that is not installed yet, as
+ready-built copies: nothing is compiled. The list is read from MARMOT's own
+DESCRIPTION, so nothing is missed. Packages come from MARMOT's r-universe
+(ready-built MARMOT, Rphenograph and the GitHub-only packages), CRAN and
+Bioconductor. With \code{include_python = TRUE}, it also sets up the original
+Python PARC and PaCMAP (see \code{\link[=install_marmot_python]{install_marmot_python()}}).
 }
 \details{
-MARMOT has a two-tier install:
-\describe{
-  \item{Tier 1 (base)}{
-    \code{BiocManager::install("peterleary/MARMOT")} — installs FlowSOM,
-    CATALYST, diffcyt, UMAP, TSNE, and everything R-based. Works immediately.
-  }
-  \item{Tier 2 (extras)}{
-    \code{install_marmot_extras()} — installs optional R packages (PeacoQC,
-    flowAI, Seurat, etc.) and, when \code{include_python = TRUE}, creates a
-    \code{p4r} conda environment for PARC clustering and PaCMAP
-    dimensionality reduction. Requires conda or mamba (e.g. miniforge).
-  }
-}
+MARMOT encourages the original implementations: Rphenograph, and the Python
+PARC and PaCMAP. Its own R versions (Mphenograph, Mparc, Mpacmap) are there
+as fallbacks, and the report always says which one ran.
 }
