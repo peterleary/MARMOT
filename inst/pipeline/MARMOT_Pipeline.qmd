@@ -454,6 +454,9 @@ if (!is.null(RDataFolder)) {
   }
   message(glue::glue("🔁 Loading results from h5ad: {h5ad_path}"))
   MARMOT::load_h5ad_to_env(h5ad_path, envir = .GlobalEnv)
+  # The sample table comes back with row names ("1", "2", ...), which diffcyt
+  # refuses; a fresh run has none, so remove them
+  rownames(metadata(sce)$experiment_info) <- NULL
   # Load DA/DS result objects (S4 structures that can't survive h5ad)
   da_ds_path <- file.path(RDataFolder, "da_ds_results.qs2")
   if (file.exists(da_ds_path)) {
@@ -2012,8 +2015,9 @@ for (k in kValuesIWant) {
 }
 ```
 
-```{r analysis_da_ds, results = "hide", eval = is.null(RDataFolder)}
-message("🚀 Starting differential abundance (DA) and differential state (DS) analysis...")
+```{r analysis_da_ds_design, results = "hide"}
+# The design and contrasts for DA and DS. Built on a reload too (it takes no
+# time), so labelled populations can be tested without rerunning the rest.
 
 daPValToUse <- "p_adj"
 
@@ -2066,6 +2070,10 @@ contrasts <- lapply(contrastConditions, function(pair) {
   codes <- conditionCodes[match(pair, tidyConditionNames)]
   createContrast((colnames(design) == codes[1]) - (colnames(design) == codes[2]))
 })
+```
+
+```{r analysis_da_ds, results = "hide", eval = is.null(RDataFolder)}
+message("🚀 Starting differential abundance (DA) and differential state (DS) analysis...")
 
 # ───────────────────────────────────────────────────────
 # 📊 Differential abundance analysis (DA)
@@ -2248,6 +2256,72 @@ MARMOT::run_log_record(log_path, "ds_analysis", list(
 MARMOT::run_log_checkpoint(log_path, "analysis_da_ds")
 ```
 
+```{r analysis_labels, results = "hide"}
+# Label, then regenerate. When these results are reloaded and the user has
+# named clusters in MARMOT_Cluster_Labels.xlsx (in the first run's results
+# folder), the named populations get their own figures and DA/DS. QC,
+# clustering and embeddings are not recomputed. Clusters with the same name
+# merge; a blank label keeps the cluster; "drop" removes its cells, and
+# frequencies are then out of the remaining cells.
+labelsFile <- if (!is.null(RDataFolder)) file.path(reloadResultsDir, "MARMOT_Cluster_Labels.xlsx") else ""
+clusterLabels <- if (file.exists(labelsFile)) MARMOT::read_cluster_labels(labelsFile, levels(sce$cluster_id)) else NULL
+useLabels <- !is.null(clusterLabels)
+
+if (useLabels) {
+  message("🏷️ Applying cluster labels from ", basename(labelsFile), "...")
+  keepCells <- !is.na(clusterLabels$labels[as.character(sce$cluster_id)])
+
+  # What dropping removed, per sample
+  droppedPerSample <- data.frame(
+    sample  = levels(sce$sample_id),
+    removed = as.integer(table(factor(sce$sample_id[!keepCells], levels = levels(sce$sample_id)))),
+    total   = as.integer(table(sce$sample_id))
+  )
+  droppedPerSample$percent <- round(100 * droppedPerSample$removed / droppedPerSample$total, 1)
+
+  sceLab <- sce[, keepCells]
+  eiLab <- metadata(sceLab)$experiment_info
+  eiLab$n_cells <- as.integer(table(factor(sceLab$sample_id, levels = eiLab$sample_id)))
+  metadata(sceLab)$experiment_info <- eiLab
+
+  # The populations, as a CATALYST clustering of their own, so DA/DS and the
+  # CATALYST plots can use them like any clustering
+  kept <- clusterLabels$labels[!is.na(clusterLabels$labels)]
+  sceLab <- mergeClusters(sceLab, k = clusteringMethodToUse, id = "population",
+                          table = data.frame(old_cluster = names(kept), new_cluster = unname(kept)))
+  sceLab$population <- factor(unname(kept[as.character(sceLab$cluster_id)]), levels = unique(unname(kept)))
+
+  labDaList <- setNames(lapply(seq_along(contrasts), function(i) {
+    res <- diffcyt(d_input = sceLab, design = design, contrast = contrasts[[i]],
+                   analysis_type = "DA", method_DA = "diffcyt-DA-edgeR", clustering_to_use = "population",
+                   min_cells = 5, transform = FALSE, normalize = TRUE)
+    as.data.frame(rowData(res$res))
+  }), cTTForPlots)
+
+  sceLabDS <- sceLab
+  if (!any(rowData(sceLabDS)$marker_class == "state")) rowData(sceLabDS)$marker_class <- "state"
+  labDsList <- setNames(lapply(seq_along(contrasts), function(i) {
+    res <- diffcyt(d_input = sceLabDS, design = design, contrast = contrasts[[i]],
+                   analysis_type = "DS", method_DS = "diffcyt-DS-limma", clustering_to_use = "population",
+                   transform = FALSE, normalize = TRUE, verbose = FALSE)
+    as.data.frame(rowData(res$res))
+  }), cTTForPlots)
+
+  # Save them beside the other Excel files
+  labWb <- openxlsx::createWorkbook()
+  for (nm in names(labDaList)) {
+    sheet <- substr(paste("DA", MARMOT::safe_file_name(nm)), 1, 31)
+    openxlsx::addWorksheet(labWb, sheet); openxlsx::writeData(labWb, sheet, labDaList[[nm]])
+  }
+  for (nm in names(labDsList)) {
+    sheet <- substr(paste("DS", MARMOT::safe_file_name(nm)), 1, 31)
+    openxlsx::addWorksheet(labWb, sheet); openxlsx::writeData(labWb, sheet, labDsList[[nm]])
+  }
+  openxlsx::addWorksheet(labWb, "Dropped cells"); openxlsx::writeData(labWb, "Dropped cells", droppedPerSample)
+  openxlsx::saveWorkbook(labWb, file.path(excelDir, "Labelled_populations_DA_DS.xlsx"), overwrite = TRUE)
+}
+```
+
 
 <!-- ════════════════════════════════════════════════════════
      PART 5: SAVE. Results are written before the report is drawn.
@@ -2300,6 +2374,15 @@ message("Saved: pipeline_settings.json")
 
 # Copy metadata Excel into results folder for self-contained archive
 file.copy(md_fp, resultsDir, overwrite = TRUE)
+
+# A sheet for naming the clusters: fill in its Label column and run MARMOT
+# again from these results to get figures and DA/DS for the named populations
+MARMOT::write_cluster_labels_template(
+  file.path(resultsDir, "MARMOT_Cluster_Labels.xlsx"),
+  clusters = sce$cluster_id,
+  expr     = assay(sce, exprsToUse)[featuresToCluster, , drop = FALSE]
+)
+message("Saved: MARMOT_Cluster_Labels.xlsx")
 ```
 
 ```{r report_dr_point_size}
@@ -4040,6 +4123,69 @@ if (gimmePDFs) {
     dev.off()
   })
 }
+```
+
+```{r, label = "report_labels_summary", results = 'asis', eval = useLabels}
+# This tab exists only when the clusters have been named (see analysis_labels)
+cat("## Labelled populations\n\n")
+cat("These are the populations named in **MARMOT_Cluster_Labels.xlsx**: ", nlevels(sceLab$population),
+    " populations from ", nlevels(sce$cluster_id), " clusters. QC, clustering and the embeddings are ",
+    "those of the original run; frequencies and DA/DS were recalculated for the populations. ",
+    "The full tables are in Excel_Files/Labelled_populations_DA_DS.xlsx.\n\n", sep = "")
+if (length(clusterLabels$notes)) cat(paste0("- ", clusterLabels$notes, collapse = "\n"), "\n\n")
+if (length(clusterLabels$dropped)) {
+  cat("::: {.callout-warning title='Clusters dropped'}\n\n",
+      "Cluster(s) ", paste(clusterLabels$dropped, collapse = ", "), " were dropped, so frequencies below are ",
+      "out of the remaining cells. Cells this removed from each sample:\n\n", sep = "")
+  print(knitr::kable(setNames(droppedPerSample, c("Sample", "Cells removed", "Cells in sample", "% removed"))))
+  cat("\n\n:::\n\n")
+}
+cat(":::::::: {.panel-tabset}\n\n### UMAP\n\n")
+```
+
+```{r, label = "report_labels_umap", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by labelled population."), fig.height=6, fig.width=8, eval = useLabels}
+labDF <- as.data.frame(umapDFList[[umapsDFToPlot]])
+labDF$population <- factor(unname(kept[as.character(labDF$cluster_id)]), levels = levels(sceLab$population))
+labDF <- labDF[!is.na(labDF$population), , drop = FALSE]
+coloursList$population <- setNames(catalystCols[seq_len(nlevels(sceLab$population))], levels(sceLab$population))
+plotUMAPNice(df = labDF, colour_by = "population", show_density = FALSE, alpha = 0.9,
+             show_cluster_labels = TRUE, cluster_labels = "population", text_size = 14) +
+  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+```
+
+```{r, label = "report_labels_heatmap_tab", results = 'asis', eval = useLabels}
+cat("\n\n### Heatmap\n\n")
+```
+
+```{r, label = "report_labels_heatmap", fig.cap = "Median scaled expression of the clustering markers in each labelled population.", fig.height=6, fig.width=10, eval = useLabels}
+CATALYST::plotExprHeatmap(sceLab, features = as.character(unname(featuresToCluster)), k = "population", by = "cluster_id",
+                          scale = "last", bars = TRUE, perc = TRUE)
+```
+
+```{r, label = "report_labels_abundance_tab", results = 'asis', eval = useLabels}
+cat("\n\n### Frequencies\n\n")
+```
+
+```{r, label = "report_labels_abundance", fig.cap = "Share of each sample's cells in each labelled population, by condition.", fig.height=6, fig.width=12, eval = useLabels}
+CATALYST::plotAbundances(sceLab, k = "population", by = "cluster_id", group_by = "condition")
+```
+
+```{r, label = "report_labels_da_ds", results = 'asis', eval = useLabels}
+cat("\n\n### DA\n\n")
+for (nm in names(labDaList)) {
+  cat("**", nm, "**\n\n", sep = "")
+  tbl <- labDaList[[nm]][order(labDaList[[nm]]$p_adj), c("cluster_id", "logFC", "p_val", "p_adj")]
+  print(knitr::kable(setNames(tbl, c("Population", "log2FC", "p", "adjusted p")), digits = 3, row.names = FALSE))
+  cat("\n\n")
+}
+cat("### DS\n\nThe 20 population and marker pairs with the smallest adjusted p in each comparison.\n\n")
+for (nm in names(labDsList)) {
+  cat("**", nm, "**\n\n", sep = "")
+  tbl <- head(labDsList[[nm]][order(labDsList[[nm]]$p_adj), c("cluster_id", "marker_id", "logFC", "p_val", "p_adj")], 20)
+  print(knitr::kable(setNames(tbl, c("Population", "Marker", "log2FC", "p", "adjusted p")), digits = 3, row.names = FALSE))
+  cat("\n\n")
+}
+cat("::::::::\n\n")
 ```
 
 ## Report provenance
