@@ -4,7 +4,7 @@
 \alias{Mphenograph}
 \title{Pure R PhenoGraph Clustering (MARMOT Edition)}
 \usage{
-Mphenograph(data, k = 30, seed = 2, verbose = FALSE)
+Mphenograph(data, k = 30, seed = 2, verbose = FALSE, nn_idx = NULL)
 }
 \arguments{
 \item{data}{matrix or data.frame; input data (rows = cells, columns = features)}
@@ -14,6 +14,11 @@ Mphenograph(data, k = 30, seed = 2, verbose = FALSE)
 \item{seed}{integer; random seed for Louvain community detection (default: 2)}
 
 \item{verbose}{logical; print progress messages (default: FALSE)}
+
+\item{nn_idx}{optional integer matrix of neighbours already found by
+\code{\link{nearest_neighbours}}, with at least \code{k + 1} columns. Its
+first \code{k + 1} columns are used in place of a new search, which gives
+exactly the same result, since the search is exact.}
 }
 \value{
 A list of two elements (matching Rphenograph return format):
