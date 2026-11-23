@@ -54,7 +54,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   cantBeBlank <- c(
     "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
     "dimRedMethodToUse", "markersToDimRedBy", "runQC", "useQC", "gimmePDFs",
-    "quantileNormaliseAll", "nCores", "ramPerCore", "viridisColour"
+    "quantileNormaliseAll", "nCores", "ramPerCore", "viridisColour", "figureDPI"
   )
   blank <- cantBeBlank[vapply(cantBeBlank, function(p) {
     value <- params_df$Setting[which(params_df$Variable == p)]
@@ -86,7 +86,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   if ("excludeTheseSamples" %in% names(params_list)) {
     params_list$excludeTheseSamples <- trimws(strsplit(as.character(params_list$excludeTheseSamples), ",")[[1]])
   }
-  for (f in c("downsampleTo", "knn", "nCores", "ramPerCore")) {
+  for (f in c("downsampleTo", "knn", "nCores", "ramPerCore", "figureDPI")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
@@ -152,6 +152,15 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   header_src <- system.file("pipeline", "marmot_header.html", package = "MARMOT")
   if (nzchar(header_src)) {
     rmd_content <- gsub("- marmot_header.html", paste0("- ", header_src), rmd_content, fixed = TRUE)
+  }
+  # ... and at the installed toolbar and stylesheet
+  toolbar_src <- system.file("pipeline", "marmot-toolbar.html", package = "MARMOT")
+  if (nzchar(toolbar_src)) {
+    rmd_content <- gsub("include-after-body: marmot-toolbar.html", paste0("include-after-body: ", toolbar_src), rmd_content, fixed = TRUE)
+  }
+  scss_src <- system.file("pipeline", "marmot.scss", package = "MARMOT")
+  if (nzchar(scss_src)) {
+    rmd_content <- gsub(", marmot.scss]", paste0(", ", scss_src, "]"), rmd_content, fixed = TRUE)
   }
 
   # Copy metadata into the results folder for reproducibility

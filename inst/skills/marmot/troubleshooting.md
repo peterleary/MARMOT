@@ -239,7 +239,7 @@ Fixes (any of):
 
 - Set `downsampleTo` to `100000` (or similar) in `Pipeline Settings`.
 - Lower `ramPerCore` and/or `nCores` so the auto-cap kicks in earlier.
-- On Windows, RAM detection sometimes fails silently — see the `import_fcs_scan` warning in the rendered HTML. If it did fail, set `ramPerCore` explicitly to a value matching the actual machine.
+- On Windows, RAM detection sometimes fails silently — see the `analysis_fcs_scan` warning in the rendered HTML. If it did fail, set `ramPerCore` explicitly to a value matching the actual machine.
 - Close other apps; rerun.
 
 If the user is running in Apptainer / Singularity on an HPC and the error is unintuitive, **try increasing the SLURM `--mem=` allocation first** before chasing other causes. See `setup.md` → *Apptainer RAM gotcha*.

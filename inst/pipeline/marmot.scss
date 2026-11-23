@@ -1,0 +1,137 @@
+/*-- scss:defaults --*/
+
+// MARMOT report styling. The folder tabs, the colour-by-depth layer and the
+// tab-number style are adapted from fgczQuartoTemplate's fgcz.scss.
+
+// Tab colours, one hue per nesting level, taken from the MARMOT banner and
+// palettes. Each level has a SELECTED fill and text, and an UNSELECTED fill
+// and text. Swap any hex to re-tune a level.
+$tab1-sel: #4a3728; $tab1-sel-fg: #ffffff; $tab1-un: #efe8e2; $tab1-un-fg: #4a3728; // L1 marmot brown
+$tab2-sel: #2e7d79; $tab2-sel-fg: #ffffff; $tab2-un: #dceeed; $tab2-un-fg: #1f5653; // L2 alpine teal
+$tab3-sel: #c8682a; $tab3-sel-fg: #ffffff; $tab3-un: #f8e6d8; $tab3-un-fg: #7a3c12; // L3 sunset orange
+$tab4-sel: #b3261e; $tab4-sel-fg: #ffffff; $tab4-un: #f5dcda; $tab4-un-fg: #7a1712; // L4 Swiss red
+$tab5-sel: #5f6368; $tab5-sel-fg: #ffffff; $tab5-un: #eceded; $tab5-un-fg: #3c4043; // L5 granite grey
+
+/*-- scss:rules --*/
+
+// ─────────────────────────────────────────────────────────────────
+// Folder tabs. Each tab is a box with rounded top corners sitting on the
+// row's bottom line, and its content is a bordered card below it.
+// ─────────────────────────────────────────────────────────────────
+.panel-tabset {
+  margin-top: 0.5rem;
+  margin-bottom: 1.25rem;
+
+  > .nav-tabs {
+    border-bottom: 2px solid $border-color;
+    gap: 0.15rem;
+    margin-bottom: 0;
+    padding: 0;
+
+    .nav-link {
+      margin-bottom: -2px;
+      border: 2px solid transparent;
+      border-top-left-radius: 0.375rem;
+      border-top-right-radius: 0.375rem;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      font-weight: 500;              // not bolder when active: that would widen tabs
+      padding: 0.4rem 0.9rem;
+    }
+  }
+
+  > .tab-content {
+    border: 2px solid $border-color;
+    border-top: none;
+    border-bottom-left-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    padding: 1rem 1.25rem;
+    background-color: $card-bg;
+  }
+}
+
+// Nested tabsets need only a little room from the content above them.
+.panel-tabset .panel-tabset {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Colour by depth: one hue per nesting level.
+// ─────────────────────────────────────────────────────────────────
+@mixin tab-level($sel, $sel-fg, $un, $un-fg) {
+  &:not(.active):not(:hover) {
+    background-color: $un;
+    border-color: color-mix(in srgb, #{$sel} 25%, #fff);
+    color: $un-fg;
+  }
+  &:hover:not(.active) {
+    background-color: color-mix(in srgb, #{$sel} 22%, #{$un});
+    border-color: $sel;
+    color: $un-fg;
+  }
+  &.active {
+    background-color: $sel;
+    border-color: $sel;
+    color: $sel-fg;
+    -webkit-text-stroke: 0.3px currentColor;   // a touch bolder without widening the tab
+  }
+}
+
+.panel-tabset > .nav-tabs .nav-link {
+  @include tab-level($tab1-sel, $tab1-sel-fg, $tab1-un, $tab1-un-fg);
+}
+.panel-tabset .panel-tabset > .nav-tabs .nav-link {
+  @include tab-level($tab2-sel, $tab2-sel-fg, $tab2-un, $tab2-un-fg);
+}
+.panel-tabset .panel-tabset .panel-tabset > .nav-tabs .nav-link {
+  @include tab-level($tab3-sel, $tab3-sel-fg, $tab3-un, $tab3-un-fg);
+}
+.panel-tabset .panel-tabset .panel-tabset .panel-tabset > .nav-tabs .nav-link {
+  @include tab-level($tab4-sel, $tab4-sel-fg, $tab4-un, $tab4-un-fg);
+}
+.panel-tabset .panel-tabset .panel-tabset .panel-tabset .panel-tabset > .nav-tabs .nav-link {
+  @include tab-level($tab5-sel, $tab5-sel-fg, $tab5-un, $tab5-un-fg);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tab numbers (1, 1.1, 1.1.1 …), added by the script in marmot_header.html.
+// ─────────────────────────────────────────────────────────────────
+.nav-tabs .nav-link .marmot-tabnum {
+  font-weight: 700;
+  opacity: 0.75;
+  margin-right: 0.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// A figure with a note beside it (adapted from fgczQuartoTemplate). Use as:
+//   ::::: {.fig-row}
+//   :::: {.fig-main}   <plot chunk>   ::::
+//   :::: {.fig-side}   ::: {.callout-tip} … :::   ::::
+//   :::::
+// On narrow screens the note drops below the figure.
+// ─────────────────────────────────────────────────────────────────
+.fig-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin: 0.5rem 0 1.25rem;
+}
+.fig-row .fig-main { flex: 0 0 60%; min-width: 0; }
+.fig-row .fig-main figure,
+.fig-row .fig-main .cell-output-display,
+.fig-row .fig-main img { width: 100%; max-width: 100%; height: auto; }
+.fig-row .fig-side { flex: 1 1 auto; min-width: 0; }
+.fig-row .fig-side > :first-child { margin-top: 0; }
+@media (max-width: 768px) {
+  .fig-row { flex-direction: column; }
+  .fig-row .fig-main { flex: 1 1 auto; }
+}
+
+// Captions: smaller and muted, under the figure
+figcaption, .figure-caption {
+  font-size: 0.85rem;
+  color: $text-muted;
+  text-align: center;
+}

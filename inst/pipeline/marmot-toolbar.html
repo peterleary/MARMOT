@@ -1,0 +1,1623 @@
+<!-- ════════════════════════════════════════════════════════════════════
+     MARMOT report toolbar: Find, Download, View source
+     Adapted from fgczQuartoTemplate (fgcz-plot-finder.html).
+     Wired into a report as an after-body include:
+         include-after-body: marmot-toolbar.html
+
+     A horizontal row of compact icon buttons pinned at the top-right, just
+     below the MARMOT banner. They are icon-only — no visible text label — and
+     rely on `title` / `aria-label` for the browser tooltip and screen readers:
+       🔍  FIND — searchable graphical list of every figure & table; clicking
+                  an entry opens the tab(s) it lives in (Quarto hides
+                  inactive-tab content) then scrolls + flashes it.
+       📥  DOWNLOAD — bundles the checked items into a single ZIP: a tick-box
+                  gallery of every static plot, plus two whole-report extras,
+                  the .qmd source and a standalone .html copy. Plots save at
+                  the resolution knitr embedded them at (the report's fig-dpi);
+                  the browser only has that raster. The qmd is the source
+                  Quarto embeds under `code-tools: true`, and the html is a
+                  snapshot of the live page — an extra the report cannot supply
+                  is shown disabled with the reason. When an extra is included
+                  the plots move into plots/ so nothing collides at the root.
+      </>  VIEW SOURCE — opens Quarto's own view-source overlay (the whole
+                  .qmd, verbatim) in place, for a quick look without going
+                  through the Download panel. Only appears when the report was
+                  rendered with `code-tools: true`; drives Quarto's native
+                  machinery (`#quarto-view-source` / the embedded-source modal
+                  / the native code-tools button, whichever exists) rather than
+                  reimplementing it.
+
+     "Show code" per plot/table: a labelled figure or table chunk (`#| label:
+     fig-xxx` / `#| label: tbl-xxx`, with a matching `fig-cap:`/`tbl-cap:`)
+     gets a small `</>` badge — in the top-right corner of the figure/table
+     itself (decorateInlineCode()) AND on its card in the Find panel — click
+     either to open View Source already scrolled to and highlighting that
+     exact chunk. Fully automatic: resolved entirely client-side from what's
+     already in the rendered page (crossrefIdFor() reads the crossref id
+     Quarto stamps on the figure/table's ancestor div, chunkRangeForId() finds
+     the matching `label:` line and its enclosing fence in the embedded
+     source), so an unlabelled chunk — most of them, today — just shows
+     nothing extra, in either place. No render-time hook or Lua filter needed.
+
+     Self-contained: no external libraries, no network calls (CSP- and
+     embed-resources-safe). The ZIP is built with a tiny hand-rolled
+     store-only (no-compression) writer — fine because PNG/JPEG are already
+     compressed. If JS is disabled the report is unchanged and the buttons
+     never appear.
+
+     Source: the search + download + view-source buttons of ezRun's
+     marmot-plot-finder.html (commit uzh/ezRun@32bed9ee, 2026-06-30).
+
+     Tab numbering came from that file too, but does NOT live here: it sits in
+     fgcz_header_quarto.html, which every report includes unconditionally. This
+     toolbar is opt-in, and numbering should not depend on whether a report
+     asked for buttons. The finder does benefit from it either way — crumbFor()
+     reads tab labels via textContent, so when numbering is on the breadcrumbs
+     read "1.1 Sepal" for free.
+     ════════════════════════════════════════════════════════════════════ -->
+<style>
+  /* ── Top-right toolbar: a horizontal row glued just below the banner. The JS
+     tracks the banner while it scrolls, then keeps the toolbar 12px from the
+     viewport top. The value here is the pre-JS fallback: 12px plus the banner's
+     approximate 95px height. Buttons keep their ids so the JS wiring is
+     unchanged. */
+  .marmot-pf-toolbar {
+    position: fixed; top: 107px; right: .75rem; transform: none;
+    z-index: 1080; display: flex; flex-direction: row; align-items: stretch;
+    gap: 0;                                         /* buttons glued together */
+  }
+  .marmot-pf-toolbar button {
+    display: flex; align-items: center; justify-content: center;
+    padding: .5rem .55rem;                          /* compact, icon-sized */
+    border: none; cursor: pointer; line-height: 1;
+    background: #4a3728; color: #fff;
+    font-size: .72rem; font-weight: 600;            /* label text (on hover) */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    white-space: nowrap;
+  }
+  /* Pre-JS fallback: rounds the outer corners assuming all buttons are
+     visible. Once JS runs it recomputes rounding from the buttons actually
+     visible (any of the three can be independently hidden), overriding this. */
+  .marmot-pf-toolbar button:first-child {
+    border-top-left-radius: .55rem; border-bottom-left-radius: .55rem;
+  }
+  .marmot-pf-toolbar button:last-child {
+    border-top-right-radius: .55rem; border-bottom-right-radius: .55rem;
+  }
+  .marmot-pf-toolbar button + button { border-left: 1px solid rgba(255, 255, 255, .25); }
+  .marmot-pf-toolbar button:hover { filter: brightness(1.12); }
+  .marmot-pf-toolbar .ic { font-size: 1.15rem; }      /* icon size */
+  /* The `</>` view-source glyph is three characters where the emoji icons are
+     one, so it renders wider than 🔍/📥 at the shared icon size -- shrink and
+     tighten it to match their visual width instead of swapping to a less
+     precise emoji. */
+  .marmot-pf-toolbar #marmot-src-btn .ic { font-size: .85rem; letter-spacing: -.05em; }
+  /* The controls are icon-only — no visible text label, at rest or on hover.
+     Each button still carries `title` and `aria-label`, so the browser tooltip
+     and screen readers announce what it does. */
+
+  /* ── Slide-out panels (off-screen until .open). Both share styling. ── */
+  .marmot-pf-panel {
+    position: fixed; top: 0; right: 0; z-index: 1081;
+    width: 360px; max-width: 90vw; height: 100vh; background: #fff;
+    box-shadow: -2px 0 12px rgba(0, 0, 0, .25);
+    transform: translateX(100%);          /* parked off-screen to the right */
+    transition: transform .2s ease;
+    display: flex; flex-direction: column;
+  }
+  .marmot-pf-panel.open { transform: translateX(0); }   /* slid into view */
+
+  .marmot-pf-head {
+    padding: .75rem 1rem; border-bottom: 1px solid #dee2e6;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .marmot-pf-head h2 { font-size: 1rem; margin: 0; flex: 1; }
+  .marmot-pf-close {
+    background: none; border: none; font-size: 1.4rem; line-height: 1;
+    cursor: pointer; color: #666;
+  }
+  .marmot-pf-list {
+    list-style: none; margin: 0; padding: 0 .5rem 1rem;
+    overflow-y: auto; flex: 1;             /* scrolls if the list is long */
+  }
+  .marmot-pf-item { padding: .5rem .6rem; border-radius: .375rem; cursor: pointer; }
+  .marmot-pf-item:hover { background: var(--bs-gray-100, #f8f9fa); }
+  .marmot-pf-item .lbl { display: block; font-weight: 500; }
+  .marmot-pf-item .crumb { display: block; font-size: .78rem; color: #6c757d; }
+
+  .marmot-pf-empty { padding: 1rem; color: #6c757d; font-size: .9rem; }
+
+  /* Flash outline applied to a target for ~2s after you jump to it. */
+  .marmot-pf-flash {
+    outline: 3px solid #4a3728;
+    outline-offset: 4px; border-radius: 2px;
+  }
+
+  /* ── Download-pane bits. ────────────────────────────────────────────── */
+  /* Whole-report extras (qmd / html): plain rows above the plot gallery, so
+     they read as "what else goes in the ZIP" rather than as another plot. */
+  .marmot-dl-extras {
+    flex: 0 0 auto; overflow: visible;      /* don't compete with the gallery's scroll */
+    padding: .6rem 1rem .25rem; margin: 0;
+    border-bottom: 1px solid #dee2e6;
+  }
+  .marmot-dl-opt { padding: .25rem 0; font-size: .85rem; }
+  .marmot-dl-opt label { cursor: pointer; display: block; }
+  .marmot-dl-opt .lbl { font-weight: 500; margin-left: .3rem; }
+  .marmot-dl-opt .crumb {
+    display: block; margin-left: 1.4rem; font-size: .75rem; color: #6c757d;
+  }
+  /* An option the report cannot supply — greyed, unticked and non-interactive,
+     with .crumb carrying the reason. */
+  .marmot-dl-opt.disabled { opacity: .55; }
+  .marmot-dl-opt.disabled label { cursor: default; }
+
+  .marmot-pf-selall { margin: .6rem 1rem .25rem; font-size: .85rem; }
+  .marmot-pf-selall label { cursor: pointer; }
+  #marmot-dl-list {
+    display: grid; gap: .6rem; padding: 0 1rem 1rem;
+  }
+  #marmot-dl-list .marmot-pf-item {
+    padding: 0; border: 1px solid #dee2e6; border-radius: .5rem;
+    overflow: hidden; background: #fff; min-height: 220px;
+  }
+  #marmot-dl-list .marmot-pf-item:hover { border-color: #4a3728; }
+  .marmot-dl-card {
+    position: relative; display: flex; flex-direction: column;
+    min-height: 220px; cursor: pointer;
+  }
+  .marmot-dl-card input {
+    position: absolute; top: .45rem; left: .45rem; z-index: 1; margin: 0;
+    box-shadow: 0 0 0 2px #fff; border-radius: .2rem;
+  }
+  .marmot-dl-thumb {
+    height: 145px; display: flex; align-items: center; justify-content: center;
+    flex: 0 0 145px; min-height: 145px;
+    background: var(--bs-gray-100, #f8f9fa); overflow: hidden;
+  }
+  .marmot-dl-thumb img, .marmot-dl-thumb svg { max-width: 100%; max-height: 145px; }
+  .marmot-dl-thumb.placeholder { color: #adb5bd; font-size: 1.35rem; }
+  .marmot-dl-meta {
+    flex: 0 0 auto; min-width: 0; padding: .45rem .55rem;
+    border-top: 1px solid #f0f0f0;
+  }
+  .marmot-dl-meta .lbl {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    font-size: .78rem; font-weight: 600; line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: normal;
+  }
+  .marmot-dl-meta .crumb {
+    display: block; margin-top: .2rem; font-size: .68rem; color: #6c757d;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .marmot-pf-foot { padding: .75rem 1rem; border-top: 1px solid #dee2e6; }
+  .marmot-pf-dlbtn {
+    width: 100%; padding: .5rem; border: none; border-radius: .375rem;
+    background: #4a3728; color: #fff; font-weight: 600;
+    cursor: pointer;
+  }
+  .marmot-pf-dlbtn:hover { filter: brightness(1.1); }
+  .marmot-pf-dlbtn:disabled { opacity: .5; cursor: default; }
+  .marmot-pf-note { font-size: .75rem; color: #6c757d; margin-top: .5rem; }
+
+  /* ── Results gallery (graphical TOC): one full-width card per result. ─ */
+  .marmot-toc-panel { width: 440px; }                  /* wider than the lists */
+  #marmot-toc-search {
+    margin: .75rem 1rem; padding: .4rem .6rem; border: 1px solid #ced4da;
+    border-radius: .375rem; font-size: .9rem;
+  }
+  .marmot-toc-grid {
+    display: grid; gap: .6rem; align-content: start;
+    grid-template-columns: 1fr;
+    padding: 0 1rem 1rem; overflow-y: auto; flex: 1;   /* scrolls when long */
+  }
+  .marmot-toc-section-head {
+    grid-column: 1 / -1; padding: .35rem .1rem .25rem;
+    border-bottom: 1px solid #dee2e6; color: #495057;
+    font-size: .74rem; font-weight: 700; line-height: 1.25;
+    overflow-wrap: anywhere; white-space: normal;
+  }
+  .marmot-toc-cell {
+    border: 1px solid #dee2e6; border-radius: .5rem; overflow: hidden;
+    background: #fff; cursor: pointer; display: flex; flex-direction: column;
+    min-width: 0; min-height: 240px;
+  }
+  .marmot-toc-cell:hover { border-color: #4a3728; }
+  .marmot-toc-thumb {
+    height: 145px; display: flex; align-items: center; justify-content: center;
+    flex: 0 0 145px; background: var(--bs-gray-100, #f8f9fa); overflow: hidden;
+  }
+  .marmot-toc-thumb img, .marmot-toc-thumb svg { max-width: 100%; max-height: 145px; }
+  .marmot-toc-thumb.placeholder { color: #adb5bd; font-size: 1.8rem; }
+  .marmot-toc-thumb.table {
+    align-items: stretch; justify-content: stretch; padding: .5rem;
+  }
+  .marmot-toc-mini-table {
+    width: 100%; border-collapse: collapse; table-layout: fixed;
+    font-size: .62rem; line-height: 1.25; color: #495057; background: #fff;
+  }
+  .marmot-toc-mini-table th,
+  .marmot-toc-mini-table td {
+    padding: .16rem .22rem; border-bottom: 1px solid #dee2e6;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .marmot-toc-mini-table th { font-weight: 700; background: #f1f3f5; }
+  .marmot-toc-cap {
+    flex: 0 0 auto; padding: .35rem .5rem; border-top: 1px solid #f0f0f0;
+  }
+  .marmot-toc-cap .lbl {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    font-size: .75rem; font-weight: 500; line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: normal;
+  }
+  /* Per-item "show code" affordance: only rendered for a labelled fig-/tbl-
+     item whose chunk can be located in the embedded source (see
+     chunkRangeForId()), so most reports never show it at all. */
+  .marmot-toc-code {
+    display: inline-flex; align-items: center; margin-top: .3rem;
+    padding: .08rem .4rem; border: 1px solid #dee2e6; border-radius: .3rem;
+    background: #fff; font-size: .68rem; font-weight: 600;
+    color: #4a3728; cursor: pointer;
+  }
+  .marmot-toc-code:hover { background: var(--bs-gray-100, #f8f9fa); }
+  /* Same action, surfaced directly on a labelled figure/table in the report
+     body itself -- absolutely positioned in its corner so it adds no layout
+     weight and works the same regardless of which surrounding layout (bare
+     figure, .fig-row/.fig-main, .fig-grid) the figure sits in. */
+  .marmot-inline-code {
+    position: absolute; top: .4rem; right: .4rem; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    width: 1.7rem; height: 1.7rem; padding: 0; border: none; border-radius: .35rem;
+    background: rgba(74, 55, 40, .85); color: #fff; font-size: .8rem;
+    font-weight: 700; line-height: 1; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+  }
+  .marmot-inline-code:hover { background: #2e7d79; }
+  /* Highlight applied to the source lines of the chunk jumped to. inline (not
+     block) so it decorates only the matched text, not a synthetic full-width
+     row -- these spans are cloned verbatim into the Download panel's "Qmd
+     source" extra, so they must not alter the reconstructed .qmd text. */
+  .marmot-src-hl {
+    background: rgba(255, 210, 0, .45);
+    box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  }
+</style>
+
+<!-- Top-right toolbar -->
+<div class="marmot-pf-toolbar">
+  <button id="marmot-pf-btn" title="Find figures and tables" aria-label="Find figures and tables"><span class="ic">🔍</span></button>
+  <button id="marmot-dl-btn" title="Download plots" aria-label="Download plots"><span class="ic">📥</span></button>
+  <button id="marmot-src-btn" title="View source (the .qmd)" aria-label="View source"><span class="ic">&lt;/&gt;</span></button>
+</div>
+
+<!-- DOWNLOAD panel -->
+<div id="marmot-dl-panel" class="marmot-pf-panel" aria-hidden="true">
+  <div class="marmot-pf-head">
+    <h2>Download</h2>
+    <button class="marmot-pf-close" data-close="marmot-dl-panel" aria-label="Close">×</button>
+  </div>
+  <!-- Whole-report extras, ticked independently of the per-plot gallery below.
+       An extra the report cannot supply is shown disabled with the reason
+       rather than silently producing an empty file. -->
+  <ul id="marmot-dl-extras" class="marmot-pf-list marmot-dl-extras">
+    <li class="marmot-dl-opt" id="marmot-dl-opt-qmd">
+      <label>
+        <input type="checkbox" class="marmot-dl-extra" data-what="qmd">
+        <span class="lbl">Qmd source</span>
+        <span class="crumb"></span>
+      </label>
+    </li>
+    <li class="marmot-dl-opt" id="marmot-dl-opt-html">
+      <label>
+        <input type="checkbox" class="marmot-dl-extra" data-what="html">
+        <span class="lbl">HTML page</span>
+        <span class="crumb"></span>
+      </label>
+    </li>
+  </ul>
+  <div class="marmot-pf-selall">
+    <label><input type="checkbox" id="marmot-dl-all" checked> Select all plots</label>
+  </div>
+  <ul id="marmot-dl-list" class="marmot-pf-list"></ul>
+  <div class="marmot-pf-foot">
+    <button id="marmot-dl-go" class="marmot-pf-dlbtn">Download ZIP</button>
+    <div class="marmot-pf-note">
+      Plots download at the resolution embedded in the report (its fig-dpi).
+      Interactive (plotly) charts aren't listed — export those from their own toolbar.
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS panel — a graphical table of contents for figures and tables -->
+<div id="marmot-toc-panel" class="marmot-pf-panel marmot-toc-panel" aria-hidden="true">
+  <div class="marmot-pf-head">
+    <h2>Find figures &amp; tables</h2>
+    <button class="marmot-pf-close" data-close="marmot-toc-panel" aria-label="Close">×</button>
+  </div>
+  <input id="marmot-toc-search" type="search" placeholder="Filter figures, tables, or sections…" />
+  <div id="marmot-toc-grid" class="marmot-toc-grid"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ─── which buttons the author enabled ──────────────────────────────
+  // Precedence: (1) `marmot-buttons:` injected by the Quarto extension;
+  // (2) the token below, patched in a staged copy by fgcz_render(); (3) all
+  // three buttons when the toolbar was included manually without either
+  // mechanism.
+  var MARMOT_BUTTONS;
+  if (window.MARMOT_BUTTONS && window.MARMOT_BUTTONS.length) {
+    MARMOT_BUTTONS = window.MARMOT_BUTTONS;
+  } else {
+    MARMOT_BUTTONS = "__MARMOT_BUTTONS__".split(/\s+/).filter(Boolean);
+    if (MARMOT_BUTTONS.length === 1 && MARMOT_BUTTONS[0] === "__MARMOT_" + "BUTTONS__") {
+      MARMOT_BUTTONS = ["search", "download", "source"];
+    }
+  }
+  var MARMOT_BUTTON_IDS = { search: "marmot-pf-btn", download: "marmot-dl-btn", source: "marmot-src-btn" };
+
+  // ─── tab / breadcrumb helpers ──────────────────────────────────────
+
+  // Selector matching the nav-link (tab button) that controls a pane #id.
+  // Memoised: panes share ancestors, so without the cache crumbFor() would
+  // re-run the same document.querySelector once per item per tab-depth. The
+  // link element's identity is stable (only its classes toggle), so the cache
+  // stays valid for the page's lifetime.
+  var _linkCache = {};
+  function linkForPane(id) {
+    if (id in _linkCache) return _linkCache[id];
+    return (_linkCache[id] = document.querySelector(
+      '[aria-controls="' + id + '"], [data-bs-target="#' + id + '"], ' +
+      'a.nav-link[href="#' + id + '"]'
+    ));
+  }
+
+  function textOf(el) {
+    return el ? el.textContent.trim().replace(/\s+/g, ' ') : '';
+  }
+
+  // Breadcrumb (outer → inner) of tab labels enclosing an element.
+  function crumbFor(el) {
+    var parts = [], pane = el.closest('.tab-pane');
+    while (pane) {
+      var link = pane.id ? linkForPane(pane.id) : null;
+      if (link) parts.unshift(textOf(link));
+      pane = pane.parentElement ? pane.parentElement.closest('.tab-pane') : null;
+    }
+    return parts;
+  }
+
+  function headingBelongsTo(el, h) {
+    var pane = h.closest('.tab-pane');
+    while (pane) {
+      if (!pane.contains(el)) return false;
+      pane = pane.parentElement ? pane.parentElement.closest('.tab-pane') : null;
+    }
+    return true;
+  }
+
+  // Section path from the nearest preceding document headings. Tab labels are
+  // handled by crumbFor(); this catches ordinary # / ## / ### sections too.
+  function headingPathFor(el) {
+    var root = document.querySelector('main.content') ||
+      document.querySelector('main') || document.body;
+    var stack = [];
+    root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (h) {
+      if (h.closest('.quarto-title-block, .nav, [role="tablist"], .marmot-pf-panel')) return;
+      if (!headingBelongsTo(el, h)) return;
+      if (!(h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+      var txt = textOf(h);
+      if (!txt) return;
+      var level = parseInt(h.tagName.slice(1), 10);
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      stack.push({ level: level, text: txt });
+    });
+    return stack.map(function (part) { return part.text; });
+  }
+
+  function compactPath(parts) {
+    var out = [];
+    parts.forEach(function (part) {
+      part = (part || '').trim();
+      if (part && out[out.length - 1] !== part) out.push(part);
+    });
+    return out;
+  }
+
+  function locationFor(el) {
+    return compactPath(headingPathFor(el).concat(crumbFor(el)));
+  }
+
+  function locationText(it) {
+    return it.crumb.join(' › ');
+  }
+
+  function showBootstrapTab(link) {
+    if (!(link && window.bootstrap && window.bootstrap.Tab)) return false;
+    var Tab = window.bootstrap.Tab;
+    var tab = Tab.getOrCreateInstance ? Tab.getOrCreateInstance(link) : new Tab(link);
+    tab.show();
+    return true;
+  }
+
+  function notifyHtmlWidgetsShown() {
+    if (window.jQuery) {
+      window.jQuery(document).trigger('shown.htmlwidgets');
+    } else if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('resize'));
+    }
+  }
+
+  // Activate one tab. Use Bootstrap's API when present so htmlwidgets receive
+  // the shown.bs.tab lifecycle event they use to resize hidden widgets.
+  function activate(pane) {
+    var link = pane.id ? linkForPane(pane.id) : null;
+    if (showBootstrapTab(link)) return;
+    if (link) {
+      var nav = link.closest('.nav-tabs') || link.closest('.nav');
+      if (nav) nav.querySelectorAll('.nav-link').forEach(function (a) {
+        a.classList.remove('active'); a.setAttribute('aria-selected', 'false');
+      });
+      link.classList.add('active'); link.setAttribute('aria-selected', 'true');
+    }
+    var content = pane.closest('.tab-content');
+    if (content) content.querySelectorAll(':scope > .tab-pane').forEach(function (p) {
+      p.classList.remove('active', 'show');
+    });
+    pane.classList.add('active', 'show');
+  }
+
+  // Open every ancestor tab of `el` (outer → inner), then scroll + flash.
+  function reveal(el) {
+    var chain = [], pane = el.closest('.tab-pane');
+    while (pane) {
+      chain.unshift(pane);
+      pane = pane.parentElement ? pane.parentElement.closest('.tab-pane') : null;
+    }
+    chain.forEach(activate);
+    notifyHtmlWidgetsShown();
+    closeAll();
+    setTimeout(function () {            // let the tab switches lay out first
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('marmot-pf-flash');
+      setTimeout(function () { el.classList.remove('marmot-pf-flash'); }, 2000);
+    }, 60);
+  }
+
+  // ─── index of figures + tables ─────────────────────────────────────
+
+  // Pull a plotly chart's title out of its embedded htmlwidget JSON
+  // (layout.title — a plain string in older plotly, {text:…} in newer). The
+  // <script> is in the static DOM at load, so this works before plotly draws.
+  function plotlyTitle(widget) {
+    try {
+      if (!widget.id) return null;
+      var s = document.querySelector(
+        'script[type="application/json"][data-for="' + widget.id + '"]');
+      if (!s) return null;
+      var t = JSON.parse(s.textContent).x.layout.title;
+      t = (t && typeof t === 'object') ? t.text : t;
+      return t ? String(t).trim() : null;
+    } catch (e) { return null; }
+  }
+
+  function htmlText(html) {
+    var div = document.createElement('div');
+    div.innerHTML = html || '';
+    return textOf(div);
+  }
+
+  function htmlwidgetData(widget) {
+    try {
+      if (!widget || !widget.id) return null;
+      var s = document.querySelector(
+        'script[type="application/json"][data-for="' + widget.id + '"]');
+      return s ? JSON.parse(s.textContent).x : null;
+    } catch (e) { return null; }
+  }
+
+  function datatableInfo(widget) {
+    var x = htmlwidgetData(widget);
+    if (!x) return { caption: null, preview: null };
+
+    var headers = [];
+    if (x.container) {
+      var div = document.createElement('div');
+      div.innerHTML = x.container;
+      headers = Array.prototype.map.call(div.querySelectorAll('thead th'), textOf);
+    }
+    var data = Array.isArray(x.data) ? x.data : [];
+    var rows = [];
+    var nrow = data.length && Array.isArray(data[0]) ? data[0].length : 0;
+    for (var r = 0; r < Math.min(nrow, 4); r++) {
+      var row = [];
+      for (var c = 0; c < Math.min(data.length, 4); c++) {
+        row.push(data[c] && data[c][r] != null ? String(data[c][r]) : '');
+      }
+      rows.push(row);
+    }
+
+    return {
+      caption: htmlText(x.caption),
+      preview: rows.length ? { headers: headers.slice(0, 4), rows: rows } : null
+    };
+  }
+
+  function datatableWidget(el) {
+    if (!el) return null;
+    if (
+      el.classList &&
+      el.classList.contains('html-widget') &&
+      el.classList.contains('datatables')
+    ) {
+      return el;
+    }
+    return el.querySelector ? el.querySelector('div.html-widget.datatables') : null;
+  }
+
+  function plotlyWidget(el) {
+    if (!el) return null;
+    if (
+      el.classList &&
+      el.classList.contains('plotly') &&
+      el.classList.contains('html-widget')
+    ) {
+      return el;
+    }
+    return el.querySelector ? el.querySelector('div.plotly.html-widget') : null;
+  }
+
+  function plotlyCaption(widget) {
+    var n = widget ? widget.nextSibling : null;
+    while (n) {
+      if (n.nodeType === Node.TEXT_NODE && !n.textContent.trim()) {
+        n = n.nextSibling;
+        continue;
+      }
+      if (
+        n.nodeType === Node.ELEMENT_NODE &&
+        n.tagName &&
+        n.tagName.toLowerCase() === 'script'
+      ) {
+        n = n.nextSibling;
+        continue;
+      }
+      if (
+        n.nodeType === Node.ELEMENT_NODE &&
+        n.tagName &&
+        n.tagName.toLowerCase() === 'p' &&
+        n.parentElement &&
+        n.parentElement.classList.contains('cell-output-display')
+      ) {
+        return textOf(n);
+      }
+      return null;
+    }
+    return null;
+  }
+
+  function buildIndex() {
+    var items = [], seenImgs = new Set(), seenTables = new Set(), seenPlotly = new Set();
+
+    // 1) Figures (Quarto crossref floats + any plain <figure>).
+    document.querySelectorAll('figure').forEach(function (fig) {
+      if (fig.classList.contains('quarto-float-tbl')) return;
+      var cap = fig.querySelector('figcaption');
+      var img = fig.querySelector('img');
+      if (img) seenImgs.add(img);
+      var plotly = fig.querySelector('div.plotly.html-widget');
+      if (plotly) {
+        seenPlotly.add(plotly);
+        items.push({
+          type: 'fig',
+          interactive: true,
+          label: cap ? textOf(cap) : (plotlyCaption(plotly) || plotlyTitle(plotly)),
+          el: fig
+        });
+        return;
+      }
+      items.push({ type: 'fig', label: cap ? textOf(cap) : null, el: fig });
+    });
+
+    // 2) Bare plot images (knitr output that has no fig-cap → no <figure>).
+    document.querySelectorAll('.cell-output-display img').forEach(function (img) {
+      if (seenImgs.has(img)) return;
+      items.push({ type: 'fig', label: null, el: img });
+    });
+
+    // 3) Interactive plotly charts. Plotly widgets inside Quarto figure floats
+    //    are indexed as their outer figure in pass 1 so their figcaption is
+    //    preserved. Bare plotly widgets are still findable here. Flag
+    //    interactive so the bulk download skips them (plotly exports via its
+    //    own modebar camera button).
+    document.querySelectorAll('div.plotly.html-widget').forEach(function (w) {
+      if (seenPlotly.has(w)) return;
+      var fig = w.closest('figure.quarto-float-fig');
+      if (fig) {
+        var cap = fig.querySelector('figcaption');
+        seenPlotly.add(w);
+        items.push({
+          type: 'fig',
+          interactive: true,
+          label: cap ? textOf(cap) : (plotlyCaption(w) || plotlyTitle(w)),
+          el: fig
+        });
+        return;
+      }
+      items.push({
+        type: 'fig',
+        interactive: true,
+        el: w,
+        label: plotlyCaption(w) || plotlyTitle(w)
+      });
+    });
+
+    // 4) Quarto table floats. DT tables inside them are still table floats,
+    //    so index the outer float as a table and use the embedded widget JSON
+    //    for the thumbnail preview. This avoids showing them as generic figure
+    //    placeholders labelled only "Table 1".
+    document.querySelectorAll('figure.quarto-float-tbl').forEach(function (fig) {
+      var widget = datatableWidget(fig);
+      var info = datatableInfo(widget);
+      var cap = fig.querySelector('caption');
+      var figCap = fig.querySelector('figcaption');
+      seenTables.add(fig);
+      if (widget) seenTables.add(widget);
+      items.push({
+        type: 'tbl',
+        label: info.caption || (cap ? textOf(cap) : (figCap ? textOf(figCap) : null)),
+        preview: info.preview,
+        el: fig
+      });
+    });
+
+    // 5) Interactive tables. DT / ezInteractiveTableRmd render as htmlwidgets
+    //    that initialise via JS AFTER page load, so target the htmlwidget
+    //    CONTAINER (always in the DOM); its <caption> is filled by the time
+    //    the panel is opened (we rebuild the index on every open).
+    document.querySelectorAll('div.html-widget.datatables, .dt-container').forEach(function (wrap) {
+      var widget = datatableWidget(wrap);
+      var root = wrap.closest('figure.quarto-float-tbl') ||
+        wrap.closest('div.html-widget.datatables') ||
+        wrap;
+      if (seenTables.has(root)) return;
+      seenTables.add(root);
+      if (widget) seenTables.add(widget);
+      var cap = wrap.querySelector('caption') || root.querySelector('caption');
+      var info = datatableInfo(widget || root);
+      items.push({
+        type: 'tbl',
+        label: cap ? textOf(cap) : info.caption,
+        preview: info.preview,
+        el: wrap
+      });
+    });
+
+    // Collected in passes (figures, bare imgs, plotly, tables), so they're
+    // grouped by TYPE, not by where they sit on the page. Re-sort into document
+    // order so the finder list mirrors the report top-to-bottom.
+    items.sort(function (a, b) {
+      if (a.el === b.el) return 0;
+      var pos = a.el.compareDocumentPosition(b.el);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1; // a comes before b
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;  // a comes after b
+      return 0;
+    });
+
+    // Resolve labels (caption → report location → generic), attach a location,
+    // and de-duplicate identical labels with " (n)".
+    var counts = {};
+    items.forEach(function (it) {
+      it.crumb = locationFor(it.el);
+      if (!it.label) {
+        // No caption/title: fall back to the full report location. Same-named
+        // deep tabs (e.g. several "Sepal" panes) then stay distinguishable by
+        // their path instead of only a "(2)/(3)" suffix.
+        it.label = it.crumb.length ? locationText(it)
+                                   : (it.type === 'tbl' ? 'Table' : 'Figure');
+      }
+      counts[it.label] = (counts[it.label] || 0) + 1;
+      if (counts[it.label] > 1) it.label += ' (' + counts[it.label] + ')';
+    });
+    return items;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  // ─── DOWNLOAD panel ────────────────────────────────────────────────
+
+  var dlListEl, dlPanel, dlAllEl, dlGoEl, dlExtrasEl, DL_INDEX = null;
+
+  function isInteractivePlotItem(it) {
+    if (it.interactive) return true;
+    if (!it.el) return false;
+    if (it.el.matches && it.el.matches('div.plotly.html-widget')) return true;
+    return Boolean(it.el.querySelector && it.el.querySelector('div.plotly.html-widget'));
+  }
+
+  // Downloadable plots only: static rasters. Interactive (plotly) charts can't
+  // be re-rendered to a file client-side — users export those via plotly's own
+  // camera button — so they're excluded here despite being findable.
+  function plotItems() {
+    return buildIndex().filter(function (it) { return it.type === 'fig' && !isInteractivePlotItem(it); });
+  }
+
+  // The .qmd source, if the report was rendered with `code-tools: true` —
+  // Quarto then embeds it verbatim in the view-source modal. Without that flag
+  // the source simply isn't in the file, and the option is offered as disabled
+  // rather than silently producing an empty .qmd.
+  function qmdSource() {
+    var modal = document.getElementById('quarto-embedded-source-code-modal');
+    var pre = modal && modal.querySelector('pre');
+    if (!pre) return null;
+    var clone = pre.cloneNode(true);
+    // Strip the hover "Copy to Clipboard" control; its text is not source.
+    clone.querySelectorAll('button, .code-copy-button').forEach(function (b) { b.remove(); });
+    var txt = clone.textContent;
+    return txt && txt.trim() ? txt : null;
+  }
+
+  // ─── per-plot "show code": jump to & highlight the producing chunk ─────
+  // Quarto's embedded-source modal already renders each source line as its
+  // own <span id="cbN-M"> (Pandoc's line-numbered syntax highlighting), so
+  // the chunk behind a labelled figure/table can be found by searching those
+  // spans directly — no need to rebuild anything, which matters because
+  // qmdSource() clones this same <pre> to reconstruct the downloadable .qmd
+  // and Quarto's own "Copy to Clipboard" control lives inside it too.
+  function sourceLineSpans() {
+    var modal = document.getElementById('quarto-embedded-source-code-modal');
+    var code = modal && modal.querySelector('pre > code');
+    if (!code) return [];
+    return Array.prototype.filter.call(code.children, function (el) {
+      return el.tagName === 'SPAN' && el.id;
+    });
+  }
+
+  // The crossref id ("fig-xxx"/"tbl-xxx") behind a figure/table item, or null
+  // when its chunk wasn't labelled. Quarto puts the id on an ANCESTOR div
+  // (".quarto-figure"/".quarto-float"), not on the <figure> element itself
+  // that buildIndex() indexes as `it.el` — confirmed by inspecting real
+  // rendered output for both a labelled figure and a labelled table, where in
+  // both cases the inner <figure> carries no id of its own.
+  function crossrefIdFor(it) {
+    var el = it.el;
+    if (el.id && /^(fig|tbl)-/.test(el.id)) return el.id;
+    var wrap = el.closest && el.closest('[id^="fig-"], [id^="tbl-"]');
+    if (wrap) return wrap.id;
+    // MARMOT: no crossref id, so use the chunk name from the figure's file name
+    var link = (el.closest && el.closest('a.lightbox')) ||
+               (el.querySelector && el.querySelector('a.lightbox'));
+    return link ? chunkKeyForLink(link) : null;
+  }
+
+  // MARMOT: Quarto names each figure file after its chunk ("<chunk>-1.png"), and
+  // the zoom link keeps that name, so the chunk behind a figure is readable
+  // from its link. Returns "chunk:<name>", or null.
+  function chunkKeyForLink(link) {
+    var m = (link.getAttribute('href') || '').match(/figure-html\/(.+)-\d+\.(png|jpe?g|svg|pdf)$/i);
+    return m ? 'chunk:' + decodeURIComponent(m[1]) : null;
+  }
+
+  // The line-span range of the chunk that produced #id ("fig-xxx"/"tbl-xxx"),
+  // or null when it can't be resolved: the id isn't a Quarto cross-ref label,
+  // no `label: <id>` chunk option matches it (the chunk wasn't labelled), or
+  // its enclosing ```{...} / ``` fence can't be found.
+  function chunkRangeForId(id) {
+    if (id && id.indexOf('chunk:') === 0) return chunkRangeForName(id.slice(6));
+    if (!id || !/^(fig|tbl)-/.test(id)) return null;
+    var lines = sourceLineSpans();
+    if (!lines.length) return null;
+    var idRe = new RegExp(
+      'label:\\s*["\']?' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '["\']?\\s*$'
+    );
+    var labelAt = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (idRe.test(textOf(lines[i]))) { labelAt = i; break; }
+    }
+    if (labelAt === -1) return null;
+    var start = -1;
+    for (var s = labelAt; s >= 0; s--) {
+      var t = textOf(lines[s]);
+      if (/^```+\{/.test(t)) { start = s; break; }
+      if (/^```+\s*$/.test(t)) break; // hit a closing fence first: not inside a chunk
+    }
+    if (start === -1) return null;
+    var end = -1;
+    for (var e = labelAt; e < lines.length; e++) {
+      if (/^```+\s*$/.test(textOf(lines[e]))) { end = e; break; }
+    }
+    if (end === -1) return null;
+    return lines.slice(start, end + 1);
+  }
+
+  // MARMOT: the line-span range of the chunk named `name`, whose header reads
+  // ```{r name ...} or ```{r, label = "name" ...}.
+  function chunkRangeForName(name) {
+    var lines = sourceLineSpans();
+    if (!lines.length) return null;
+    var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var headRe = new RegExp('^```+\\{r[ ,]+(?:label\\s*=\\s*["\']' + esc + '["\']|' + esc + '(?=[ ,}]))');
+    var start = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (headRe.test(textOf(lines[i]))) { start = i; break; }
+    }
+    if (start === -1) return null;
+    for (var e = start + 1; e < lines.length; e++) {
+      if (/^```+\s*$/.test(textOf(lines[e]))) return lines.slice(start, e + 1);
+    }
+    return null;
+  }
+
+  // Open the view-source modal (if not already) and highlight + scroll to the
+  // chunk behind #id. Returns whether a chunk was actually found, so callers
+  // can skip offering the action at all when it would do nothing.
+  function showChunkForId(id) {
+    var range = chunkRangeForId(id);
+    if (!range) return false;
+    document.querySelectorAll('.marmot-src-hl').forEach(function (el) {
+      el.classList.remove('marmot-src-hl');
+    });
+    range.forEach(function (el) { el.classList.add('marmot-src-hl'); });
+    var modal = document.getElementById('quarto-embedded-source-code-modal');
+    if (modal && window.bootstrap && window.bootstrap.Modal) {
+      window.bootstrap.Modal.getOrCreateInstance(modal).show();
+    }
+    setTimeout(function () {                // let the modal finish opening first
+      range[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return true;
+  }
+
+  // The same "show code" action, surfaced directly on a labelled figure/table
+  // in the report body itself, not only inside the Find panel. Independent of
+  // buildIndex()/TOC_INDEX — scans every element Quarto stamped a crossref id
+  // on, so it also covers labelled items a user never opens Find to see.
+  function decorateInlineCode() {
+    document.querySelectorAll('[id^="fig-"], [id^="tbl-"]').forEach(function (wrap) {
+      if (!chunkRangeForId(wrap.id)) return;
+      if (getComputedStyle(wrap).position === 'static') {
+        wrap.style.position = 'relative';
+      }
+      var badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'marmot-inline-code';
+      badge.title = 'Show code for this ' + (wrap.id.indexOf('tbl-') === 0 ? 'table' : 'plot');
+      badge.setAttribute('aria-label', badge.title);
+      badge.textContent = '</>';
+      badge.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showChunkForId(wrap.id);
+      });
+      wrap.appendChild(badge);
+    });
+    // MARMOT: figures without a crossref id, matched to their chunk by file name
+    document.querySelectorAll('a.lightbox[href*="figure-html/"]').forEach(function (link) {
+      var key = chunkKeyForLink(link);
+      // The badge sits on the picture's own top-right corner, so it stays next
+      // to the figure however narrow the figure is drawn.
+      var wrap = link;
+      if (!key || wrap.querySelector(':scope > .marmot-inline-code')) return;
+      if (wrap.closest('[id^="fig-"], [id^="tbl-"]')) return;   // already has a badge
+      if (!chunkRangeForId(key)) return;
+      // Move the figure's width from the picture onto its link, so the link
+      // hugs the picture and the badge lands on the picture's corner.
+      var img = link.querySelector('img');
+      if (img && img.style.width) {
+        link.style.width = img.style.width;
+        img.style.width = '100%';
+      }
+      wrap.style.position = 'relative';
+      wrap.style.display = 'inline-block';
+      var badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'marmot-inline-code';
+      badge.title = 'Show code for this plot';
+      badge.setAttribute('aria-label', badge.title);
+      badge.textContent = '</>';
+      badge.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        showChunkForId(key);
+      });
+      wrap.appendChild(badge);
+    });
+  }
+
+  // A standalone copy of the report. This is a snapshot of the LIVE DOM, not
+  // the original file off disk — a file:// page cannot re-read itself without
+  // tripping CSP. It is self-contained (reports render with embed-resources),
+  // but it carries whatever state the page is in, so close our own panels in
+  // the clone first.
+  function htmlSnapshot() {
+    var root = document.documentElement.cloneNode(true);
+    root.querySelectorAll('.marmot-pf-panel').forEach(function (p) {
+      p.classList.remove('open');
+      p.setAttribute('aria-hidden', 'true');
+    });
+    return '<!DOCTYPE html>\n' + root.outerHTML;
+  }
+
+  // Enable/disable one extra row and set the sub-label explaining what it will
+  // yield — or why it cannot.
+  function setExtraOpt(id, available, note) {
+    var li = document.getElementById(id);
+    if (!li) return;
+    var cb = li.querySelector('.marmot-dl-extra');
+    li.classList.toggle('disabled', !available);
+    cb.disabled = !available;
+    if (!available) cb.checked = false;
+    li.querySelector('.crumb').textContent = note;
+  }
+
+  // Any tickable extra that is actually ticked.
+  function wantsExtra(what) {
+    var cb = dlExtrasEl &&
+      dlExtrasEl.querySelector('.marmot-dl-extra[data-what="' + what + '"]');
+    return Boolean(cb && cb.checked && !cb.disabled);
+  }
+
+  // The ZIP is buildable if ANY plot or ANY extra is ticked — a report with no
+  // static figures can still yield its source and page.
+  function syncGo() {
+    var anyPlot = Boolean(dlListEl.querySelector('.marmot-dl-cb:checked'));
+    var anyExtra = wantsExtra('qmd') || wantsExtra('html');
+    dlGoEl.disabled = !(anyPlot || anyExtra);
+  }
+
+  function renderExtras() {
+    var qmd = qmdSource();
+    setExtraOpt('marmot-dl-opt-qmd', Boolean(qmd),
+      qmd ? 'The Quarto source of this report'
+          : 'Source not embedded (needs code-tools: true)');
+    setExtraOpt('marmot-dl-opt-html', true, 'This report as a standalone page');
+  }
+
+  function renderDownloads() {
+    renderExtras();
+    DL_INDEX = plotItems();
+    dlListEl.innerHTML = '';
+    if (!DL_INDEX.length) {
+      dlListEl.innerHTML = '<li class="marmot-pf-empty">No plots to download.</li>';
+      dlAllEl.checked = false;
+      syncGo();                       // extras alone may still be downloadable
+      return;
+    }
+    dlAllEl.checked = true;
+    DL_INDEX.forEach(function (it, i) {
+      var li = document.createElement('li');
+      li.className = 'marmot-pf-item';
+      var label = document.createElement('label');
+      label.className = 'marmot-dl-card';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'marmot-dl-cb';
+      cb.dataset.i = i;
+      cb.checked = true;
+      label.appendChild(cb);
+      label.appendChild(figureThumb(it, 'marmot-dl-thumb'));
+      var meta = document.createElement('span');
+      meta.className = 'marmot-dl-meta';
+      var loc = locationText(it);
+      meta.innerHTML = '<span class="lbl">' + escapeHtml(it.label) + '</span>' +
+        (loc ? '<span class="crumb">' + escapeHtml(loc) + '</span>' : '');
+      label.appendChild(meta);
+      li.appendChild(label);
+      dlListEl.appendChild(li);
+    });
+    syncGo();
+  }
+
+  function openDownload() {
+    closeAll();
+    renderDownloads();
+    dlPanel.classList.add('open');
+    dlPanel.setAttribute('aria-hidden', 'false');
+  }
+
+  // ── report metadata + download filenames ───────────────────────────
+  function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+  function timestampForFilename(date) {
+    return date.getFullYear() +
+      pad2(date.getMonth() + 1) +
+      pad2(date.getDate()) + '-' +
+      pad2(date.getHours()) +
+      pad2(date.getMinutes()) +
+      pad2(date.getSeconds());
+  }
+
+  function downloadZipFilename() {
+    return 'MARMOT_plots_' + timestampForFilename(new Date()) + '.zip';
+  }
+
+  // ── tiny ZIP writer (STORE method, no compression) ──────────────────
+  function u16(v) { return new Uint8Array([v & 0xff, (v >>> 8) & 0xff]); }
+  function u32(v) {
+    return new Uint8Array([v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff]);
+  }
+  function concat(arrs) {
+    var len = 0; arrs.forEach(function (a) { len += a.length; });
+    var out = new Uint8Array(len), p = 0;
+    arrs.forEach(function (a) { out.set(a, p); p += a.length; });
+    return out;
+  }
+  var _crcTable;
+  function crc32(bytes) {
+    if (!_crcTable) {
+      _crcTable = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        _crcTable[n] = c >>> 0;
+      }
+    }
+    var crc = -1;
+    for (var i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ _crcTable[(crc ^ bytes[i]) & 0xff];
+    return (crc ^ -1) >>> 0;
+  }
+
+  function zipDosDateTime(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) date = new Date();
+    if (date.getFullYear() < 1980) date = new Date(1980, 0, 1, 0, 0, 0);
+    return {
+      time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+      date: ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+    };
+  }
+
+  function makeZip(files) {           // files: [{name, bytes:Uint8Array}]
+    var enc = new TextEncoder(), local = [], central = [], offset = 0, now = new Date();
+    files.forEach(function (f) {
+      var nameBytes = enc.encode(f.name);
+      var crc = crc32(f.bytes), size = f.bytes.length;
+      var stamp = zipDosDateTime(f.modified || now);
+      var header = concat([
+        u32(0x04034b50), u16(20), u16(0), u16(0),    // sig, ver, flags, method(store)
+        u16(stamp.time), u16(stamp.date),            // mod time, mod date
+        u32(crc), u32(size), u32(size),              // crc, comp size, uncomp size
+        u16(nameBytes.length), u16(0)                // name len, extra len
+      ]);
+      local.push(header, nameBytes, f.bytes);
+      central.push(concat([
+        u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), // sig, ver made, ver needed, flags, method
+        u16(stamp.time), u16(stamp.date),                  // mod time, mod date
+        u32(crc), u32(size), u32(size),                    // crc, comp size, uncomp size
+        u16(nameBytes.length), u16(0), u16(0),             // name, extra, comment len
+        u16(0), u16(0), u32(0),                            // disk #, internal/external attrs
+        u32(offset)                                        // local header offset
+      ]), nameBytes);
+      offset += header.length + nameBytes.length + size;
+    });
+    var cSize = 0; central.forEach(function (c) { cSize += c.length; });
+    var end = concat([
+      u32(0x06054b50), u16(0), u16(0),
+      u16(files.length), u16(files.length),
+      u32(cSize), u32(offset), u16(0)
+    ]);
+    return new Blob(local.concat(central).concat([end]), { type: 'application/zip' });
+  }
+
+  // ── extracting a plot's bytes ───────────────────────────────────────
+  function b64ToBytes(b64) {
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function extFor(mime) {
+    return ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+      'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' })[mime] || 'png';
+  }
+  function dataUriToFile(uri, baseName) {
+    var comma = uri.indexOf(',');
+    if (uri.slice(0, 5) !== 'data:' || comma < 0) return null;
+    var header = uri.slice(5, comma), data = uri.slice(comma + 1);
+    var isB64 = /;base64$/i.test(header);
+    var mime = header.replace(/;base64$/i, '') || 'application/octet-stream';
+    var bytes = isB64 ? b64ToBytes(data.replace(/\s+/g, ''))
+                      : new TextEncoder().encode(decodeURIComponent(data));
+    return { name: baseName + '.' + extFor(mime), bytes: bytes };
+  }
+  // Turn an indexed figure into a {name, bytes} file, or null if unreadable.
+  function plotToFile(item, baseName) {
+    var el = item.el;
+    var img = el.tagName === 'IMG' ? el : el.querySelector('img');
+    if (img && img.src && img.src.indexOf('data:') === 0) {
+      return dataUriToFile(img.src, baseName);   // embedded raster (PNG/JPEG)
+    }
+    var svg = el.tagName && el.tagName.toLowerCase() === 'svg' ? el : el.querySelector('svg');
+    if (svg) {                                   // inline vector figure
+      return { name: baseName + '.svg',
+        bytes: new TextEncoder().encode(new XMLSerializer().serializeToString(svg)) };
+    }
+    return null;                                 // non-embedded src — can't read offline
+  }
+  function sanitise(s) {
+    return s.replace(/[^A-Za-z0-9._ -]/g, '').trim().replace(/\s+/g, '_').slice(0, 80) || 'plot';
+  }
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+
+  function doDownload() {
+    var files = [], used = {}, skipped = 0;
+    var wantQmd = wantsExtra('qmd'), wantHtml = wantsExtra('html');
+    // With an extra in the bundle the plots move into plots/ so they cannot
+    // collide with the .qmd/.html at the ZIP root. A plots-only download keeps
+    // its historic flat layout, so existing habits are undisturbed.
+    var prefix = (wantQmd || wantHtml) ? 'plots/' : '';
+
+    dlListEl.querySelectorAll('.marmot-dl-cb').forEach(function (cb) {
+      if (!cb.checked) return;
+      var it = DL_INDEX[+cb.dataset.i];
+      var base = sanitise(it.label), name = base, n = 1;
+      while (used[name]) name = base + '_' + (++n);  // unique base name
+      var f = plotToFile(it, name);
+      if (f) {
+        used[name] = true;
+        f.name = prefix + f.name;
+        files.push(f);
+      } else {
+        skipped++;
+      }
+    });
+
+    var stem = downloadZipFilename().replace(/\.zip$/i, '');
+    if (wantQmd) {
+      var src = qmdSource();
+      if (src) {
+        files.push({ name: stem + '.qmd', bytes: new TextEncoder().encode(src) });
+      }
+    }
+    if (wantHtml) {
+      files.push({
+        name: stem + '.html',
+        bytes: new TextEncoder().encode(htmlSnapshot())
+      });
+    }
+
+    if (!files.length) {
+      alert('Nothing selected to download.\n(Images must be embedded in the report.)');
+      return;
+    }
+    downloadBlob(makeZip(files), downloadZipFilename());
+    if (skipped) {
+      // A couple of plots had non-embedded sources; tell the user honestly.
+      setTimeout(function () {
+        alert(skipped + ' plot(s) could not be read (source not embedded) and were skipped.');
+      }, 300);
+    }
+  }
+
+  // ─── RESULTS panel (graphical TOC) ─────────────────────────────────
+
+  var tocGridEl, tocSearchEl, tocPanel, TOC_INDEX = null;
+
+  function cloneMiniRow(row, maxCells) {
+    var out = document.createElement('tr');
+    Array.prototype.slice.call(row.children, 0, maxCells).forEach(function (cell) {
+      var clone = document.createElement(cell.tagName.toLowerCase() === 'th' ? 'th' : 'td');
+      clone.textContent = textOf(cell);
+      out.appendChild(clone);
+    });
+    return out.children.length ? out : null;
+  }
+
+  function tableThumb(it) {
+    var wrap = document.createElement('div');
+    wrap.className = 'marmot-toc-thumb table';
+    var source = it.el.querySelector ? it.el.querySelector('table') : null;
+    if (!source && !it.preview) {
+      wrap.className += ' placeholder';
+      wrap.textContent = 'Tbl';
+      return wrap;
+    }
+
+    var mini = document.createElement('table');
+    mini.className = 'marmot-toc-mini-table';
+    if (it.preview) {
+      if (it.preview.headers && it.preview.headers.length) {
+        var theadFromData = document.createElement('thead');
+        var trHead = document.createElement('tr');
+        it.preview.headers.forEach(function (txt) {
+          var th = document.createElement('th');
+          th.textContent = txt;
+          trHead.appendChild(th);
+        });
+        theadFromData.appendChild(trHead);
+        mini.appendChild(theadFromData);
+      }
+      var tbodyFromData = document.createElement('tbody');
+      it.preview.rows.forEach(function (row) {
+        var tr = document.createElement('tr');
+        row.forEach(function (txt) {
+          var td = document.createElement('td');
+          td.textContent = txt;
+          tr.appendChild(td);
+        });
+        tbodyFromData.appendChild(tr);
+      });
+      mini.appendChild(tbodyFromData);
+      wrap.appendChild(mini);
+      return wrap;
+    }
+
+    var headRow = source.querySelector('thead tr');
+    if (headRow) {
+      var thead = document.createElement('thead');
+      var miniHeadRow = cloneMiniRow(headRow, 4);
+      if (miniHeadRow) {
+        thead.appendChild(miniHeadRow);
+        mini.appendChild(thead);
+      }
+    }
+    var body = document.createElement('tbody');
+    Array.prototype.slice.call(source.querySelectorAll('tbody tr'), 0, 4).forEach(function (row) {
+      var miniRow = cloneMiniRow(row, 4);
+      if (miniRow) body.appendChild(miniRow);
+    });
+    if (body.children.length) mini.appendChild(body);
+    if (!mini.children.length) {
+      wrap.className += ' placeholder';
+      wrap.textContent = 'Tbl';
+      return wrap;
+    }
+    wrap.appendChild(mini);
+    return wrap;
+  }
+
+  var plotlyThumbCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+  function finitePositive(x) {
+    x = Number(x);
+    return isFinite(x) && x > 0 ? x : null;
+  }
+
+  function plotlyThumbSize(widget, x) {
+    var layout = x && x.layout ? x.layout : {};
+    var graph = widget.querySelector ? widget.querySelector('.js-plotly-plot') : null;
+    graph = graph || widget;
+    var full = graph._fullLayout || {};
+    var width = finitePositive(layout.width) ||
+      finitePositive(full.width) ||
+      finitePositive(widget.clientWidth) ||
+      finitePositive(widget.offsetWidth) ||
+      640;
+    var height = finitePositive(layout.height) ||
+      finitePositive(full.height) ||
+      finitePositive(widget.clientHeight) ||
+      finitePositive(widget.offsetHeight) ||
+      400;
+    return {
+      width: Math.max(320, Math.min(1200, Math.round(width))),
+      height: Math.max(220, Math.min(900, Math.round(height)))
+    };
+  }
+
+  function clonePlainObject(x) {
+    var out = {};
+    if (!x || typeof x !== 'object') return out;
+    Object.keys(x).forEach(function (k) { out[k] = x[k]; });
+    return out;
+  }
+
+  function setThumbImage(wrap, url, label) {
+    wrap.innerHTML = '';
+    wrap.classList.remove('placeholder');
+    wrap.classList.add('plotly');
+    var img = document.createElement('img');
+    img.src = url;
+    img.alt = label || 'interactive figure';
+    img.loading = 'lazy';
+    wrap.appendChild(img);
+  }
+
+  function plotlyThumbPromise(widget) {
+    if (!widget || !window.Plotly || !window.Plotly.newPlot || !window.Plotly.toImage) {
+      return null;
+    }
+    var cached = plotlyThumbCache ? plotlyThumbCache.get(widget) : null;
+    if (cached) return cached;
+
+    var x = htmlwidgetData(widget);
+    if (!x || !Array.isArray(x.data)) return null;
+    var size = plotlyThumbSize(widget, x);
+    var promise = new Promise(function (resolve, reject) {
+      var host = document.createElement('div');
+      host.style.position = 'fixed';
+      host.style.left = '-10000px';
+      host.style.top = '0';
+      host.style.width = size.width + 'px';
+      host.style.height = size.height + 'px';
+      host.style.opacity = '0';
+      host.style.pointerEvents = 'none';
+      document.body.appendChild(host);
+
+      var layout = clonePlainObject(x.layout);
+      layout.width = size.width;
+      layout.height = size.height;
+      layout.autosize = false;
+      var config = clonePlainObject(x.config);
+      config.staticPlot = true;
+      config.displayModeBar = false;
+      config.responsive = false;
+
+      window.Plotly.newPlot(host, x.data, layout, config)
+        .then(function () {
+          return window.Plotly.toImage(host, {
+            format: 'png',
+            width: size.width,
+            height: size.height,
+            scale: 1
+          });
+        })
+        .then(resolve)
+        .catch(reject)
+        .finally(function () {
+          if (window.Plotly && window.Plotly.purge) window.Plotly.purge(host);
+          host.remove();
+        });
+    });
+
+    if (plotlyThumbCache) {
+      plotlyThumbCache.set(widget, promise);
+      promise.then(function (url) {
+        plotlyThumbCache.set(widget, url);
+      }).catch(function () {
+        plotlyThumbCache.delete(widget);
+      });
+    }
+    return promise;
+  }
+
+  function renderPlotlyThumb(it, wrap) {
+    var widget = plotlyWidget(it.el);
+    if (!widget) return;
+    var cached = plotlyThumbCache ? plotlyThumbCache.get(widget) : null;
+    if (typeof cached === 'string') {
+      setThumbImage(wrap, cached, it.label);
+      return;
+    }
+    var promise = cached || plotlyThumbPromise(widget);
+    if (!promise || !promise.then) return;
+    promise.then(function (url) {
+      if (url) setThumbImage(wrap, url, it.label);
+    }).catch(function () {});
+  }
+
+  function figureThumb(it, className) {
+    var wrap = document.createElement('div');
+    wrap.className = className;
+    var el = it.el;
+    var img = el.tagName === 'IMG' ? el
+      : (el.querySelector ? el.querySelector('img') : null);
+    if (!it.interactive && img && img.src) {
+      var t = document.createElement('img');
+      t.src = img.src; t.alt = it.label || 'figure'; t.loading = 'lazy';
+      wrap.appendChild(t);
+      return wrap;
+    }
+    var svg = (el.tagName && el.tagName.toLowerCase() === 'svg') ? el
+      : (el.querySelector ? el.querySelector('svg') : null);
+    if (!it.interactive && svg) {
+      wrap.appendChild(svg.cloneNode(true));
+      return wrap;
+    }
+    wrap.className += ' placeholder';
+    wrap.textContent = it.interactive ? '📈' : '🖼️';
+    if (it.interactive) renderPlotlyThumb(it, wrap);
+    return wrap;
+  }
+
+  // A small thumbnail for a result: reuse embedded figure images, clone inline
+  // SVGs, build a compact table preview, or ask Plotly to rasterize an
+  // interactive chart from its embedded htmlwidget JSON.
+  function tocThumb(it) {
+    if (it.type === 'tbl') return tableThumb(it);
+    return figureThumb(it, 'marmot-toc-thumb');
+  }
+
+  function renderToc(filter) {
+    filter = (filter || '').toLowerCase();
+    tocGridEl.innerHTML = '';
+    var shown = 0, lastLoc = null;
+    TOC_INDEX.forEach(function (it) {
+      var loc = locationText(it);
+      var hay = (it.label + ' ' + loc).toLowerCase();
+      if (filter && hay.indexOf(filter) === -1) return;
+      shown++;
+      if (loc !== lastLoc) {
+        var head = document.createElement('div');
+        head.className = 'marmot-toc-section-head';
+        head.textContent = loc || 'Document';
+        tocGridEl.appendChild(head);
+        lastLoc = loc;
+      }
+      var cell = document.createElement('div');
+      cell.className = 'marmot-toc-cell';
+      cell.title = loc ? (it.label + '\n' + loc) : it.label;
+      cell.appendChild(tocThumb(it));
+      var cap = document.createElement('div');
+      cap.className = 'marmot-toc-cap';
+      cap.innerHTML = '<span class="lbl">' + escapeHtml(it.label) + '</span>';
+      // Offered only for a labelled fig-/tbl- item whose chunk actually
+      // resolves in the embedded source — most items (unlabelled chunks, or
+      // no code-tools at all) show nothing extra here.
+      var crossrefId = crossrefIdFor(it);
+      if (chunkRangeForId(crossrefId)) {
+        var codeBtn = document.createElement('button');
+        codeBtn.type = 'button';
+        codeBtn.className = 'marmot-toc-code';
+        codeBtn.title = 'Show the code for this ' + (it.type === 'tbl' ? 'table' : 'plot');
+        codeBtn.setAttribute(
+          'aria-label',
+          'Show the code for this ' + (it.type === 'tbl' ? 'table' : 'plot')
+        );
+        codeBtn.textContent = '</> Show code';
+        codeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          closeAll();
+          showChunkForId(crossrefId);
+        });
+        cap.appendChild(codeBtn);
+      }
+      cell.appendChild(cap);
+      cell.addEventListener('click', function () { reveal(it.el); });
+      tocGridEl.appendChild(cell);
+    });
+    if (!shown) {
+      var empty = document.createElement('div');
+      empty.className = 'marmot-pf-empty';
+      empty.textContent = filter ? 'No matches.' : 'No figures or tables found.';
+      tocGridEl.appendChild(empty);
+    }
+  }
+
+  function openToc() {
+    closeAll();
+    // Figures and tables, in document order. Rebuilt on every open so late-init
+    // widgets, especially DT tables, are included.
+    TOC_INDEX = buildIndex().filter(function (it) {
+      return it.type === 'fig' || it.type === 'tbl';
+    });
+    renderToc(tocSearchEl.value);
+    tocPanel.classList.add('open');
+    tocPanel.setAttribute('aria-hidden', 'false');
+    tocSearchEl.focus();
+  }
+
+  // ─── shared open/close + wiring ────────────────────────────────────
+
+  function closeAll() {
+    [dlPanel, tocPanel].forEach(function (p) {
+      p.classList.remove('open'); p.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    dlPanel   = document.getElementById('marmot-dl-panel');
+    tocPanel  = document.getElementById('marmot-toc-panel');
+    dlListEl  = document.getElementById('marmot-dl-list');
+    dlExtrasEl = document.getElementById('marmot-dl-extras');
+    dlAllEl   = document.getElementById('marmot-dl-all');
+    dlGoEl    = document.getElementById('marmot-dl-go');
+    tocGridEl = document.getElementById('marmot-toc-grid');
+    tocSearchEl = document.getElementById('marmot-toc-search');
+
+    decorateInlineCode();
+
+    // Keep the toolbar a constant gap below the visible banner, then pin it at
+    // that same gap from the viewport top once the banner has scrolled away.
+    var GAP_PX = 12;
+    var toolbar = document.querySelector('.marmot-pf-toolbar');
+    var banner = document.querySelector('.marmot-banner');
+    if (toolbar && banner) {
+      var ticking = false;
+      var positionToolbar = function () {
+        ticking = false;
+        toolbar.style.top = (
+          GAP_PX + Math.max(0, banner.getBoundingClientRect().bottom)
+        ) + 'px';
+      };
+      var onViewportChange = function () {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(positionToolbar);
+        }
+      };
+      positionToolbar();
+      window.addEventListener('scroll', onViewportChange, { passive: true });
+      window.addEventListener('resize', onViewportChange);
+    }
+
+    document.getElementById('marmot-pf-btn').addEventListener('click', openToc);
+    document.getElementById('marmot-dl-btn').addEventListener('click', openDownload);
+    // View source — drives Quarto's own "View Source" machinery rather than
+    // reimplementing it: prefer the #quarto-view-source action, fall back to
+    // showing the embedded-source modal directly, else click the native
+    // code-tools button. Quarto's exact markup varies with the code-tools
+    // options, so each is tried in turn.
+    document.getElementById('marmot-src-btn').addEventListener('click', function () {
+      var viewSrc = document.getElementById('quarto-view-source');
+      if (viewSrc) { viewSrc.click(); return; }
+      var modal = document.getElementById('quarto-embedded-source-code-modal');
+      if (modal && window.bootstrap && window.bootstrap.Modal) {
+        window.bootstrap.Modal.getOrCreateInstance(modal).show();
+        return;
+      }
+      var native = document.querySelector('.code-tools-button');
+      if (native) native.click();
+    });
+    document.querySelectorAll('.marmot-pf-close').forEach(function (b) {
+      b.addEventListener('click', closeAll);
+    });
+    tocSearchEl.addEventListener('input', function () { renderToc(tocSearchEl.value); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeAll();
+    });
+
+    // Select-all toggles every checkbox in the plot gallery. It deliberately
+    // does NOT reach the qmd/html extras — those are whole-report outputs, not
+    // plots, and are ticked independently.
+    dlAllEl.addEventListener('change', function () {
+      dlListEl.querySelectorAll('.marmot-dl-cb').forEach(function (cb) {
+        cb.checked = dlAllEl.checked;
+      });
+      syncGo();
+    });
+    // Any tick anywhere can make the ZIP (un)buildable, so re-evaluate the
+    // button from both lists.
+    dlListEl.addEventListener('change', syncGo);
+    dlExtrasEl.addEventListener('change', syncGo);
+    dlGoEl.addEventListener('click', doDownload);
+
+    // Hide buttons not selected by the author. Content checks below may hide
+    // selected buttons as well when there is nothing for them to act on.
+    Object.keys(MARMOT_BUTTON_IDS).forEach(function (name) {
+      if (MARMOT_BUTTONS.indexOf(name) === -1) {
+        document.getElementById(MARMOT_BUTTON_IDS[name]).style.display = 'none';
+      }
+    });
+
+    // Show each button only when there's something for it to act on.
+    var probe = buildIndex();
+    var figs = probe.filter(function (it) { return it.type === 'fig'; });
+    var browsable = probe.filter(function (it) { return it.type === 'fig' || it.type === 'tbl'; });
+    if (!browsable.length) document.getElementById('marmot-pf-btn').style.display = 'none';
+    if (!figs.some(function (it) { return !it.interactive; })) {
+      document.getElementById('marmot-dl-btn').style.display = 'none';
+    }
+    // The source button needs one of Quarto's own view-source hooks to exist
+    // — absent unless the report was rendered with `code-tools: true`.
+    var hasSource = Boolean(
+      document.getElementById('quarto-view-source') ||
+      document.getElementById('quarto-embedded-source-code-modal') ||
+      document.querySelector('.code-tools-button')
+    );
+    if (!hasSource) document.getElementById('marmot-src-btn').style.display = 'none';
+
+    // CSS rounds the DOM's structural first/last child, which is wrong
+    // whenever a structural endpoint happens to be the button that's hidden
+    // (any of the three can be hidden independently — by author choice or by
+    // having nothing to act on). Recompute explicitly from the buttons that
+    // are actually visible instead.
+    var visible = ['marmot-pf-btn', 'marmot-dl-btn', 'marmot-src-btn'].filter(function (id) {
+      return document.getElementById(id).style.display !== 'none';
+    });
+    visible.forEach(function (id, i) {
+      var left = i === 0 ? '.55rem' : '0';
+      var right = i === visible.length - 1 ? '.55rem' : '0';
+      document.getElementById(id).style.borderRadius =
+        left + ' ' + right + ' ' + right + ' ' + left;
+    });
+  });
+})();
+</script>

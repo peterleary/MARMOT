@@ -39,7 +39,7 @@ export function validateSettings(settings) {
   }
 
   // Numeric fields must parse correctly
-  const numericFields = ["nCores", "ramPerCore", "downsampleTo"];
+  const numericFields = ["nCores", "ramPerCore", "downsampleTo", "figureDPI"];
   for (const field of numericFields) {
     const setting = settings.find((s) => s.variable === field);
     if (setting && setting.setting !== "" && isNaN(Number(setting.setting))) {

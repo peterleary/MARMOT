@@ -62,6 +62,7 @@ pub fn create_new_metadata() -> MetadataFile {
         ("nCores", "4", "Number of CPU cores for parallel execution"),
         ("ramPerCore", "6", "RAM (GB) allocated per core"),
         ("viridisColour", "lapaz", "Colour palette. Viridis: magma, inferno, plasma, viridis, cividis, rocket, mako, turbo. Scico: bam, berlin, brocO, corkO, lapaz, lisbon, romaO, vikO. Diverging: BrBG, PiYG, PRGn, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral. Fun: Marmot, Swiss, Lucky"),
+        ("figureDPI", "120", "Resolution of the figures in the report, in dots per inch. Higher is sharper but makes the report bigger"),
         ("excludeTheseSamples", "", "Sample IDs to leave out of the analysis, separated by commas. Leave blank to include every sample"),
         ("RDataFolder", "", "Path to previous R_files folder to reload (leave blank for fresh run)"),
     ];

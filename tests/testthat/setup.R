@@ -947,7 +947,7 @@ validate_pipeline_output <- function(result, expected_cells = NULL) {
   if (requireNamespace("qs2", quietly = TRUE) && file.exists(da_ds_path)) {
     da_ds <- qs2::qs_read(da_ds_path, nthreads = 1)
     expect_true(is.list(da_ds))
-    # Expected slots written by the QMD (write_results_to_file chunk)
+    # Expected slots written by the QMD (save_results chunk)
     expect_true(all(c("daList", "dsList", "selectedClustersList",
                       "clustersToMapList", "daPValToUse") %in% names(da_ds)))
     # sceDS is saved without its expression data, and gets it back from the SCE

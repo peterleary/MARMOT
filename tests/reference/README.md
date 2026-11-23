@@ -71,3 +71,41 @@ and for MARMOT's own methods (MfastPG, Mphenograph, Mparc, Mpacmap). In our
 tests the Python PARC also repeated, and the Python PaCMAP repeats now that
 the pipeline sets its seed. Both depend on the installed Python packages, so
 check them again if those change.
+
+## The quick check for report changes
+
+Running the whole pipeline to check a change that only alters how the report
+is drawn wastes most of an hour. Three more scripts make that a few minutes:
+
+- `change_level.R` looks at the uncommitted changes and says how much
+  checking they need: `report` (only chunks that run when results are
+  reloaded), `analysis` (a chunk that is skipped on reload, so the pipeline
+  has to run again) or `everything` (code outside the pipeline QMD).
+- `report_snapshot.R` summarises what a report shows: every line of text, a
+  digest of every figure and interactive table, and a digest of every PDF,
+  Excel and CSV file written beside it. Code listings are left out.
+- `report_compare.R` says exactly what differs between two snapshots.
+
+`quick_check.sh` ties them together. It redraws the report from a saved run
+(the pipeline's reload mode, which skips the analysis) twice, once with the
+last commit and once with the working tree, and compares the two:
+
+```bash
+MARMOT_QUICK=/path/to/folder tests/reference/quick_check.sh
+```
+
+`$MARMOT_QUICK` is a folder outside the repository holding `seed/`: one
+metadata sheet and the `R_files` folder of a finished run made with it. The
+script refuses to run if `change_level.R` says the change needs more than a
+redraw.
+
+What it cannot see:
+
+- Anything drawn by a chunk that is skipped on reload (the QC and cofactor
+  figures, for example). Those need a full run.
+- Anything the saved run does not exercise. If the seed data has no
+  significant DA clusters, a change to how DA clusters are labelled changes
+  nothing in the report, and the check passes.
+
+So it is a fast first check, not a replacement for the full reference runs
+before a step is merged.
