@@ -21,6 +21,23 @@
   as.numeric(difftime(e, s, units = "secs"))
 }
 
+#' Versions of the key packages
+#'
+#' The versions of MARMOT and of the packages that shape its results, as a
+#' named list. A package that is not installed gives `NA`. Used by the run
+#' log and the report's provenance tab.
+#'
+#' @return A named list of version strings.
+#' @export
+marmot_package_versions <- function() {
+  pkgs <- c("MARMOT", "diffcyt", "CATALYST", "flowCore", "anndataR", "quarto",
+            "ggplot2", "SingleCellExperiment", "S4Vectors", "FlowSOM",
+            "limma", "edgeR", "jsonlite", "qs2")
+  stats::setNames(lapply(pkgs, function(p) tryCatch(
+    as.character(utils::packageVersion(p)), error = function(e) NA_character_
+  )), pkgs)
+}
+
 #' The run log
 #'
 #' The pipeline writes a small JSON file, `marmot_run_log.json`, as it goes:
@@ -47,12 +64,7 @@ NULL
 #' @export
 run_log_start <- function(path, settings = list()) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  pkgs <- c("MARMOT", "diffcyt", "CATALYST", "flowCore", "anndataR", "quarto",
-            "ggplot2", "SingleCellExperiment", "S4Vectors", "FlowSOM",
-            "limma", "edgeR", "jsonlite", "qs2")
-  pkg_versions <- stats::setNames(lapply(pkgs, function(p) tryCatch(
-    as.character(utils::packageVersion(p)), error = function(e) NA_character_
-  )), pkgs)
+  pkg_versions <- marmot_package_versions()
   sysinfo <- Sys.info()
   .run_log_write(path, list(
     system   = list(r_version = R.version.string,

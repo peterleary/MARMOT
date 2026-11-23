@@ -146,18 +146,6 @@ resultsDir <- NULL
 ## Done editing? Knit away!
 ```
 
-```{r, label = "settings_summary", results = 'asis'}
-cat("::: {.callout-note collapse='true' title='Pipeline Settings Summary'}\n\n")
-cat("- **Clustering method:** ", clusteringMethodToUse, "\n")
-cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (knn = ", knn, ")\n")
-cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n")
-cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n")
-cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n")
-cat("- **Cores:** ", nCores, "\n")
-cat("- **scGate:** ", if (runScGate) "Enabled" else "Disabled", "\n")
-cat(":::\n\n")
-```
-
 <!-- ════════════════════════════════════════════════════════
      PART 2: SET-UP. Packages, palettes and helper functions. Nothing here touches the data.
      ════════════════════════════════════════════════════════ -->
@@ -512,6 +500,9 @@ mergeBy <- dplyr::case_when(
 )
 if (is.na(mergeBy)) stop("Unsupported clustering method: ", clusteringMethodToUse)
 
+# Warnings found during the analysis, shown together in the Overview tab
+overviewWarnings <- character()
+
 # Heatmap colour palette
 hmPalToUse <- if (greyscalePlots) {
   RColorBrewer::brewer.pal(9, "Greys")
@@ -832,9 +823,9 @@ if (needs_cap) {
 }
 ```
 
-```{r analysis_memory_cap_notice, results = "asis", eval = is.null(RDataFolder)}
+```{r analysis_memory_cap_notice, results = "hide", eval = is.null(RDataFolder)}
 if (needs_cap) {
-  cat(sprintf(
+  overviewWarnings <- c(overviewWarnings, sprintf(
     paste0("::: {.callout-warning title='RAM Cap Applied'}\n",
            "Your dataset has **%s cells** across %d samples, but this machine ",
            "can safely hold **%s cells** in memory (%.0f GB system RAM, ",
@@ -850,9 +841,9 @@ if (needs_cap) {
 }
 ```
 
-```{r analysis_downsample_notice, results = "asis", eval = is.null(RDataFolder)}
+```{r analysis_downsample_notice, results = "hide", eval = is.null(RDataFolder)}
 if (!is.null(downsampleTo)) {
-  cat(sprintf(
+  overviewWarnings <- c(overviewWarnings, sprintf(
     paste0("::: {.callout-warning title='Quick look: downsampled run'}\n",
            "This run took at most **%s cells** from each FCS file ",
            "(%d of your %d files had more than that). ",
@@ -2100,9 +2091,49 @@ dr_point_size <- max(0.05, min(0.5, 25 / sqrt(n_dr_cells)))
      PART 6: REPORT. Display only: nothing below changes a result.
      ════════════════════════════════════════════════════════ -->
 
-Started on `r paste(timeRun)`
-
 ::::::::::::: panel-tabset
+## Overview
+
+```{r, label = "report_overview", results = 'asis'}
+.n_samples    <- length(unique(sce$sample_id))
+.n_conditions <- length(unique(sce$condition))
+.n_clusters   <- nlevels(sce$cluster_id)
+.plural <- function(n, word) paste0("**", format(n, big.mark = ","), "** ", word, if (n != 1) "s")
+cat(.plural(.n_samples, "sample"), " in ", .plural(.n_conditions, "condition"), ", ",
+    .plural(ncol(sce), "cell"), " analysed, clustered with **", clusteringMethodToUse,
+    "** (k = ", knn, ") into ", .plural(.n_clusters, "cluster"), " and drawn with **",
+    dimRedMethodToUse, "**.\n\n", sep = "")
+.started <- as.POSIXlt(timeRun, format = "%Y-%m-%d_%H.%M.%S")
+cat(sprintf("Started on %d %s %d at %02d:%02d.\n\n", .started$mday, month.name[.started$mon + 1],
+            .started$year + 1900, .started$hour, .started$min))
+if (!is.null(RDataFolder)) {
+  cat("This report was redrawn from saved results, so warnings from the original run are not shown here.\n\n")
+}
+
+# QC warnings: the details are also in the QC tab
+if (exists("qc_skip_reason")) {
+  overviewWarnings <- c(overviewWarnings, paste0("::: {.callout-warning title='QC Skipped'}\n\n", qc_skip_reason, "\n\n:::\n"))
+} else if (runQC %in% c("FlowAI", "PeacoQC") && !useQC && is.null(RDataFolder)) {
+  overviewWarnings <- c(overviewWarnings, paste0(
+    "::: {.callout-warning title='QC Not Applied'}\n\n",
+    "You ran QC using ", runQC, ", but chose **not** to apply it, so the results in this report include every cell. ",
+    "The QC tab shows what QC would have removed.\n\n:::\n"))
+}
+cat(overviewWarnings, sep = "\n")
+```
+
+```{r, label = "report_overview_settings", results = 'asis'}
+cat("::: {.callout-note collapse='true' title='Pipeline Settings Summary'}\n\n")
+cat("- **Clustering method:** ", clusteringMethodToUse, "\n", sep = "")
+cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (knn = ", knn, ")\n", sep = "")
+cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n", sep = "")
+cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n", sep = "")
+cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n", sep = "")
+cat("- **Cores:** ", nCores, "\n", sep = "")
+cat("- **scGate:** ", if (runScGate) "Enabled" else "Disabled", "\n", sep = "")
+cat(":::\n\n")
+```
+
 ## QC
 
 :::::::::: panel-tabset
@@ -3723,19 +3754,30 @@ if (gimmePDFs) {
 }
 ```
 
-## Session Info
+## Report provenance
 
-```{r, label = "report_provenance_folder"}
+```{r, label = "report_provenance_folder", results = 'asis'}
+cat("Made with **MARMOT ", as.character(utils::packageVersion("MARMOT")), "** and ", R.version.string, ".\n\n", sep = "")
 if (is.null(RDataFolder)) {
-  cat("The files generated in this report have been saved in:", rFilesDir)
+  cat("The files generated in this report have been saved in: `", rFilesDir, "`\n\n", sep = "")
 } else {
-  cat("The results in this report were generated using the files in", RDataFolder)
+  cat("This report was redrawn from the saved results in: `", RDataFolder, "`\n\n", sep = "")
 }
 ```
+
+```{r, label = "report_provenance_versions"}
+.versions <- MARMOT::marmot_package_versions()
+kable(data.frame(Package = names(.versions), Version = unlist(.versions), row.names = NULL)) |>
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "left")
+```
+
+::: {.callout-note collapse="true" title="Every package loaded (sessionInfo)"}
 
 ```{r, label = "report_provenance_session", include = TRUE}
 sessionInfo()
 ```
+
+:::
 
 ```{r setup_run_log_finish, include = FALSE}
 if (exists("log_path")) MARMOT::run_log_finish(log_path)
