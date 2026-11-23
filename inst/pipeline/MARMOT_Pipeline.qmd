@@ -610,6 +610,17 @@ md$sample_id <- factor(md$sample_id, levels = md$sample_id)
 # Apply condition ordering if available
 conditionOrder <- smd$`Conditions Order` |> na.omit()
 
+nameNotes <- character()   # names spelt differently and lined up, for the Overview
+
+# Samples to exclude may be spelt differently from File Data's sample IDs too.
+# One that matches nothing is not excluded, and the Overview says so.
+if (!is.null(excludeTheseSamples)) {
+  sampleExcludeMatch <- MARMOT::match_names(excludeTheseSamples, as.character(md$sample_id))
+  nameNotes <- c(nameNotes, MARMOT::describe_name_matches(sampleExcludeMatch$notes, "sample to exclude", "'File Data'"))
+  excludeTheseSamples <- stats::na.omit(sampleExcludeMatch$matched)
+  if (!length(excludeTheseSamples)) excludeTheseSamples <- NULL
+}
+
 # Every sample needs a condition, spelt exactly as in 'Conditions Order'.
 # Otherwise its cells end up with no condition, and the run stops much later
 # with a puzzling error. (Samples about to be excluded are not checked.)
@@ -620,14 +631,19 @@ if (anyNA(condsInUse)) {
        ". Please fill in their condition.")
 }
 if (length(conditionOrder) > 0) {
-  notInOrder <- setdiff(unique(as.character(condsInUse)), conditionOrder)
+  # A condition spelt differently ("control", "Control ", "Treated-A") counts
+  # as the one in 'Conditions Order', whose spelling is used from here on
+  condMatch <- MARMOT::match_names(unique(as.character(condsInUse)), conditionOrder)
+  notInOrder <- condMatch$notes$wanted[condMatch$notes$how == "missing"]
   if (length(notInOrder)) {
     quoteCond <- function(x) paste0("'", x, "'")
     stop("❌ These conditions in 'File Data' are missing from 'Conditions Order' on the 'Study Data' sheet: ",
          paste(quoteCond(notInOrder), collapse = ", "), ". 'Conditions Order' has: ",
-         paste(quoteCond(conditionOrder), collapse = ", "),
-         ". They must match exactly, capitals and spaces included.")
+         paste(quoteCond(conditionOrder), collapse = ", "), ".")
   }
+  md$condition <- condMatch$matched[match(as.character(md$condition), unique(as.character(condsInUse)))] |>
+    dplyr::coalesce(as.character(md$condition))   # excluded samples keep theirs
+  nameNotes <- c(nameNotes, MARMOT::describe_name_matches(condMatch$notes, "condition", "'Conditions Order'"))
 }
 
 if (length(conditionOrder) > 0) {
@@ -646,7 +662,8 @@ names(useMarkers) <- gsub("-|\\ |\\/", "_", useMarkers)
 # Named lookup prevents ifelse recycling when param_df has extra scatter/time channels
 mt_mask <- !is.na(smd$`Marker Type`)
 include_col <- colnames(smd)[grep("include|cluster", colnames(smd))]
-markerType <- setNames(smd$`Marker Type`[mt_mask], smd[[include_col]][mt_mask])
+# "Type", "STATE " and the like all count: only "type" and "state" are used below
+markerType <- setNames(tolower(trimws(smd$`Marker Type`[mt_mask])), smd[[include_col]][mt_mask])
 
 # Define feature type from marker type
 featureType <- if ("Marker Type" %in% names(smd)) {
@@ -674,15 +691,38 @@ if (homogeneousPanel) {
 # Markers to exclude
 removeMarkers <- na.omit(smd$`Markers to exclude completely`)
 
-# Cofactors
-cfToUse <- as.numeric(na.omit(smd$`Cofactors for markers to use`))
+# Cofactors: each one belongs to the marker on the same row
+cfToUse <- suppressWarnings(as.numeric(smd$`Cofactors for markers to use`[!is.na(smd[[include_col]])]))
+if (anyNA(cfToUse)) {
+  stop("❌ Every marker in '", include_col, "' needs a cofactor (a number) on the same row in ",
+       "'Cofactors for markers to use'. Please check: ",
+       paste(useMarkers[is.na(cfToUse)], collapse = ", "))
+}
 
 # Contrasts
 # Filter out empty or malformed contrasts (e.g. bare " over " from empty dropdowns)
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
 contrastsToTest <- trimws(contrastsToTest)
 contrastsToTest <- gsub("\\s+", " ", contrastsToTest)
-contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest)]
+contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest, ignore.case = TRUE)]
+# Each side may be spelt differently from the conditions ("treated over control");
+# it is rewritten with the conditions' own spelling. A contrast that still does
+# not match is left as typed, and the DA/DS step says so clearly.
+contrastCondNames <- if (length(conditionOrder)) conditionOrder else unique(as.character(md$condition))
+for (i in seq_along(contrastsToTest)) {
+  ctr <- contrastsToTest[[i]]
+  for (cut in gregexpr("(?i)(?= over )", ctr, perl = TRUE)[[1]]) {
+    m <- MARMOT::match_names(c(substr(ctr, 1, cut - 1), substr(ctr, cut + 6, nchar(ctr))), contrastCondNames)
+    if (!anyNA(m$matched) && m$matched[1] != m$matched[2]) {
+      contrastsToTest[[i]] <- paste(m$matched[1], "over", m$matched[2])
+      break
+    }
+  }
+  if (contrastsToTest[[i]] != ctr) {
+    nameNotes <- c(nameNotes, sprintf("The contrast '%s' was read as '%s'.", ctr, contrastsToTest[[i]]))
+  }
+}
+contrastsToTest <- as.character(contrastsToTest)
 contrastsToTestS <- paste(contrastsToTest, collapse = ",")
 cTTForPlots <- contrastsToTest
 
@@ -708,8 +748,9 @@ if (all(is.na(raw_subsamp))) {
 }
 
 # Identify all condition columns
+# Hyphens in extra column names become dots, in File Data too, so the two agree
+names(md) <- gsub("-", ".", names(md))
 conditions <- c("condition", setdiff(names(md), c("file_name", "sample_id", "condition")))
-conditions <- gsub("-", ".", conditions)
 
 # Exclude samples if specified
 if (!is.null(excludeTheseSamples)) {
@@ -777,16 +818,19 @@ conditionCols <- setNames(
 
 message("📥 Scanning FCS files...")
 
-# Match metadata file_name entries to files on disk by strict basename equality.
-# Extra files in fcsDir are ignored; any md$file_name not found on disk is fatal.
-disk_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = FALSE)
-missing <- setdiff(md$file_name, disk_files)
+# Match File Data's file names to the files on disk. A name spelt differently
+# ("sample_01.FCS" for "Sample-01.fcs") still finds its file, and the Overview
+# says so. Extra files in fcsDir are ignored; a name with no file is fatal.
+disk_files <- list.files(fcsDir, pattern = "\\.fcs$", full.names = FALSE, ignore.case = TRUE)
+fileMatch <- MARMOT::match_names(md$file_name, disk_files)
+missing <- fileMatch$notes$wanted[fileMatch$notes$how == "missing"]
 if (length(missing)) {
   stop("FCS files listed in metadata not found in ", fcsDir, ":\n  ",
        paste(missing, collapse = "\n  "))
 }
-fcs_files <- file.path(fcsDir, md$file_name)
-fcs_names <- md$file_name
+nameNotes <- c(nameNotes, MARMOT::describe_name_matches(fileMatch$notes, "file", "the FCS folder"))
+fcs_files <- file.path(fcsDir, fileMatch$matched)   # the files as they are on disk
+fcs_names <- md$file_name                            # ... and as File Data names them
 
 # ── Header scan — get cell counts without loading data ────────────────────────
 fcs_headers <- sapply(fcs_files, function(f) {
@@ -893,13 +937,53 @@ if (!is.null(downsampleTo)) {
 
 ```{r analysis_panel_cofactors, results = "hide", eval = is.null(RDataFolder)}
 
-# Extract parameter metadata from one frame (just need pData, not expression data)
-.tmp_ff <- flowCore::read.FCS(fcs_files[1], transformation = FALSE,
-                               truncate_max_range = FALSE, which.lines = 1)
-param_df <- pData(parameters(.tmp_ff)) |>
-  as.data.frame() |>
+# Line the files up. Exports from different days or datasets may spell a
+# marker differently ("IL7R", "Il7R", "IL-7R"), order the channels differently,
+# or put a marker on another channel. Every file's header is read, and its
+# channels are matched to the first file's, ignoring capitals, spaces,
+# hyphens and underscores; markers in the sheet take the sheet's spelling.
+# Each file is lined up as it is read (see analysis_qc_* and analysis_fcs_load),
+# and the report's Overview says what was done.
+fcsLineup <- MARMOT::plan_fcs_lineup(fcs_files, sheet_markers = useMarkers)
+if (nrow(fcsLineup$missing)) {
+  stop("❌ These markers in '", include_col, "' are missing from some FCS files:\n  ",
+       paste0(fcsLineup$missing$marker, ": not in ", fcsLineup$missing$files, collapse = "\n  "),
+       "\nEvery file needs every marker you analyse.")
+}
+nameNotes <- c(nameNotes, fcsLineup$notes)   # everything lined up, for the Overview (see the end of this chunk)
+MARMOT::run_log_record(log_path, "fcs_lineup", list(notes = as.list(fcsLineup$notes)))
+
+# The panel, from the lined-up channels (just the names, not the data)
+param_df <- data.frame(name = fcsLineup$reference$channel, desc = fcsLineup$reference$marker) |>
   dplyr::mutate(desc = ifelse(is.na(desc), name, desc))
-rm(.tmp_ff)
+
+# 'Markers to exclude completely' may be spelt differently from the files too
+markerExcludeMatch <- MARMOT::match_names(removeMarkers, param_df$desc)
+nameNotes <- c(nameNotes, MARMOT::describe_name_matches(
+  markerExcludeMatch$notes[markerExcludeMatch$notes$how != "missing", ], "marker to exclude", "the FCS files"))
+removeMarkers <- c(removeMarkers, stats::na.omit(markerExcludeMatch$matched))
+
+# 'Marker Pairs' ("Tregs: FoxP3 CD25") take the spelling of the markers in the
+# panel, so every later step can find them exactly
+if ("Marker Pairs" %in% colnames(smd)) {
+  for (r in which(!is.na(smd[["Marker Pairs"]]))) {
+    parts <- strsplit(smd[["Marker Pairs"]][[r]], "\\:\\s*")[[1]]
+    if (length(parts) < 2) next
+    pairMarkers <- strsplit(trimws(parts[[2]]), "\\s+")[[1]]
+    pairMatch <- MARMOT::match_names(pairMarkers, useMarkers)
+    nameNotes <- c(nameNotes, MARMOT::describe_name_matches(
+      pairMatch$notes, paste0("marker in the pair '", parts[[1]], "'"), "your markers"))
+    pairMarkers <- dplyr::coalesce(pairMatch$matched, pairMarkers)
+    smd[["Marker Pairs"]][[r]] <- paste0(parts[[1]], ": ", paste(pairMarkers, collapse = " "))
+  }
+}
+
+if (length(nameNotes)) {
+  overviewWarnings <- c(overviewWarnings, paste0(
+    "::: {.callout-note title='Names lined up'}\n\n",
+    "Your files did not all spell or arrange things the same way, so MARMOT lined them up:\n\n",
+    paste0("- ", nameNotes, collapse = "\n"), "\n\n:::\n"))
+}
 
 # Build panel
 panel <- param_df |>
@@ -1007,7 +1091,8 @@ if (runQC == "FlowAI") {
                       i, length(fcs_files), basename(fcs_files[i]),
                       format(originalCellCounts[i], big.mark = ",")))
       ff <- flowCore::read.FCS(fcs_files[i], transformation = FALSE,
-                                truncate_max_range = FALSE)
+                                truncate_max_range = FALSE) |>
+        MARMOT::lineup_fcs_frame(fcsLineup, basename(fcs_files[i]))
       flow_auto_qc(
         fcsfiles       = ff,
         folder_results = qc_dir,
@@ -1019,12 +1104,12 @@ if (runQC == "FlowAI") {
       # a flag (below 10,000 = keep). The kept cells are taken from the
       # original file with that flag, and numbered so each can be traced back.
       flagged <- flowCore::read.FCS(
-        file.path(qc_dir, sub("\\.fcs$", "_QC.fcs", basename(fcs_files[i]))),
+        file.path(qc_dir, sub("\\.fcs$", "_QC.fcs", basename(fcs_files[i]), ignore.case = TRUE)),
         transformation = FALSE, truncate_max_range = FALSE)
       keep <- flowCore::exprs(flagged)[, paste0("remove_from_", metricsQC)] < 10000
       stopifnot(length(keep) == nrow(ff))
       flowCore::write.FCS(MARMOT::add_event_numbers(ff)[keep, ],
-                          file.path(qc_dir, sub("\\.fcs$", "_QC_highQ.fcs", basename(fcs_files[i]))))
+                          file.path(qc_dir, sub("\\.fcs$", "_QC_highQ.fcs", basename(fcs_files[i]), ignore.case = TRUE)))
       rm(ff, flagged, keep); invisible(gc())
     }
     MARMOT::qc_cache_write_stamp(qc_dir, qc_stamp)
@@ -1093,7 +1178,8 @@ if (runQC == "PeacoQC") {
                       i, length(fcs_files), fcs_name,
                       format(originalCellCounts[i], big.mark = ",")))
       ff <- flowCore::read.FCS(fcs_files[i], transformation = FALSE,
-                                truncate_max_range = FALSE)
+                                truncate_max_range = FALSE) |>
+        MARMOT::lineup_fcs_frame(fcsLineup, basename(fcs_files[i]))
       ff_t <- flowCore::transform(ff, asinh_transforms)
 
       # PeacoQC judges the transformed data, but the cells it keeps are saved
@@ -1108,7 +1194,7 @@ if (runQC == "PeacoQC") {
       qc_fcs_dir <- file.path(qc_dir, fcs_name, "fcs_files")
       dir.create(qc_fcs_dir, showWarnings = FALSE, recursive = TRUE)
       flowCore::write.FCS(MARMOT::add_event_numbers(ff)[peaco$GoodCells, ],
-                          file.path(qc_fcs_dir, gsub("\\.fcs$", "_QC.fcs", fcs_name)))
+                          file.path(qc_fcs_dir, sub("\\.fcs$", "_QC.fcs", fcs_name, ignore.case = TRUE)))
       rm(ff, ff_t, peaco); invisible(gc())
     }
 
@@ -1147,6 +1233,8 @@ message("📥 Loading FCS data into memory...")
 # each cell can be traced back. QC'd files were numbered when QC wrote them.
 read_and_cap <- function(f, number_events = FALSE) {
   ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  # Original files are lined up here; QC'd files were lined up before QC wrote them
+  if (number_events) ff <- MARMOT::lineup_fcs_frame(ff, fcsLineup, basename(f))
   if (number_events) ff <- MARMOT::add_event_numbers(ff)
   if (needs_cap && nrow(ff) > per_sample_cap) {
     set.seed(2)
@@ -1158,27 +1246,32 @@ read_and_cap <- function(f, number_events = FALSE) {
 # Load only the data that will actually be used for analysis
 if (useQC && runQC == "FlowAI" && exists("qc_dir") && dir.exists(qc_dir)) {
   # useQC=TRUE, FlowAI: load only QC'd FCS files
-  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ\\.fcs", ignore.case = TRUE)
-  fcsFilesQC <- fcsFilesQC[grep(paste(gsub("\\.fcs", "", md$file_name), collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
-  fcsNamesQC <- sub("_QC_highQ\\.fcs$", "", basename(fcsFilesQC))
+  # Each QC'd file is found by the exact name FlowAI's step wrote it under,
+  # and takes its File Data name ("S_1" must not pick up "S_10")
+  expectedQC <- sub("\\.fcs$", "_QC_highQ.fcs", basename(fcs_files), ignore.case = TRUE)
+  fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC_highQ\\.fcs$", ignore.case = TRUE)
+  fcsFilesQC <- fcsFilesQC[basename(fcsFilesQC) %in% expectedQC]
 
   framesList <- list()
   framesList[["FlowAI"]] <- setNames(
     lapply(fcsFilesQC, read_and_cap),
-    paste0(fcsNamesQC, ".fcs")
+    fcs_names[match(basename(fcsFilesQC), expectedQC)]
   )
   invisible(lapply(framesList[["FlowAI"]], range, type = "data"))
 
 } else if (useQC && runQC == "PeacoQC" && exists("qc_dir") && dir.exists(qc_dir)) {
   # useQC=TRUE, PeacoQC: load only QC'd FCS files
+  # Each QC'd file is found by the exact folder and name PeacoQC's step wrote
+  # it under, and takes its File Data name ("S_1" must not pick up "S_10")
+  expectedQC <- file.path(fcs_names, "fcs_files", sub("\\.fcs$", "_QC.fcs", fcs_names, ignore.case = TRUE))
   fcsFilesQC <- list.files(qc_dir, full.names = TRUE, pattern = "_QC\\.fcs$", recursive = TRUE, ignore.case = TRUE)
-  fcsFilesQC <- fcsFilesQC[grep(paste(md$file_name, collapse = "|"), fcsFilesQC, ignore.case = TRUE)]
-  fcsNamesQC <- sub("_QC\\.fcs$", "", basename(fcsFilesQC))
+  qcRelative <- file.path(basename(dirname(dirname(fcsFilesQC))), "fcs_files", basename(fcsFilesQC))
+  fcsFilesQC <- fcsFilesQC[qcRelative %in% expectedQC]
 
   framesList <- list()
   framesList[["PeacoQC"]] <- setNames(
     lapply(fcsFilesQC, read_and_cap),
-    paste0(fcsNamesQC, ".fcs")
+    fcs_names[match(qcRelative[qcRelative %in% expectedQC], expectedQC)]
   )
   invisible(lapply(framesList[["PeacoQC"]], range, type = "data"))
 
@@ -1686,7 +1779,8 @@ if (is.null(RDataFolder) && runScGate) {
 
     for (x in names(models)) {
       if (!models[[x]][[1]] %in% rownames(scData)) {
-        hit <- agrep(models[[x]][[1]], rownames(scData), value = TRUE)
+        # Seurat writes underscores as hyphens; match as everywhere else
+        hit <- stats::na.omit(MARMOT::match_names(models[[x]][[1]], rownames(scData))$matched)
         if (length(hit) == 0) {
           warning("No marker match for '", models[[x]][[1]], "' in model '", x, "' — skipping model.")
           next
@@ -1694,7 +1788,8 @@ if (is.null(RDataFolder) && runScGate) {
         models[[x]][[1]] <- hit[[1]]
       }
       if (!models[[x]][[2]] %in% rownames(scData)) {
-        hit <- agrep(models[[x]][[2]], rownames(scData), value = TRUE)
+        # Seurat writes underscores as hyphens; match as everywhere else
+        hit <- stats::na.omit(MARMOT::match_names(models[[x]][[2]], rownames(scData))$matched)
         if (length(hit) == 0) {
           warning("No marker match for '", models[[x]][[2]], "' in model '", x, "' — skipping model.")
           next
@@ -2446,6 +2541,7 @@ if (runMarkerPairPlots) {
     toPlot <- markerPairs[grep(paste0("^", x), markerPairs)]
     plots <- setNames(lapply(toPlot, function(y) {
       markersToPlot <- strsplit(strsplit(y, "\\: ")[[1]][[2]], " ")[[1]]
+      markersToPlot <- dplyr::coalesce(MARMOT::match_names(markersToPlot, names(es))$matched, markersToPlot)
       clr_vals <- coloursList[[paste0(mergeBy, knn)]]
       if (!quantileNormaliseAll) {
         median_es <- do.call(rbind, lapply(unique(es[[mergeBy]]), function(cl) {
@@ -3408,12 +3504,12 @@ invisible(lapply(names(scgate_models), function(mpt) {
   m1 <- scgate_models[[mpt]][[1]]
   m2 <- scgate_models[[mpt]][[2]]
   if (!m1 %in% rownames(sce)) {
-    hit <- agrep(m1, rownames(sce), value = TRUE)
+    hit <- stats::na.omit(MARMOT::match_names(m1, rownames(sce))$matched)
     if (length(hit) == 0) return(invisible(NULL))
     m1 <- hit[[1]]
   }
   if (!m2 %in% rownames(sce)) {
-    hit <- agrep(m2, rownames(sce), value = TRUE)
+    hit <- stats::na.omit(MARMOT::match_names(m2, rownames(sce))$matched)
     if (length(hit) == 0) return(invisible(NULL))
     m2 <- hit[[1]]
   }
