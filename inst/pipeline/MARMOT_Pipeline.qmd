@@ -318,6 +318,14 @@ build_da_heatmap_inputs <- function(sce, k, assay = "exprs",
 
   list(x = x, z = z, lgd_aes = lgd_aes)
 }
+
+# The start of a PDF file name, made from the name of a group of clusters:
+# "Contrast 1: A over B Up" becomes "Contrast_1_A_over_B_Up".
+pdf_name_stem <- function(name) {
+  cx <- name |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
+  sx <- name |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
+  paste0(cx, "_", sx)
+}
 ```
 
 ```{r setup_embedding_plot}
@@ -2784,9 +2792,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
     g <- g + theme(panel.border = element_blank(), panel.spacing.x = unit(1, "lines"))
     g <- g + ylab("Proportion [%]") + xlab("Sample ID")
     print(g)
-    cx <- names(dfList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
-    sx <- names(dfList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
-    return(list("g" = g, "cx" = cx, "sx" = sx))
+    return(list("g" = g, "stem" = pdf_name_stem(names(dfList)[[i]])))
   } else {
     cat("There are no DA clusters in this group.\n")
   }
@@ -2800,7 +2806,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
 if (gimmePDFs) {
   lapply(names(selectedBarplotList), function(x) {
     if (is.null(selectedBarplotList[[x]])) return(NULL)
-    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(selectedBarplotList[[x]][["cx"]], "_", selectedBarplotList[[x]][["sx"]], "_barplot.pdf"))), width = 10, height = 5)
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(selectedBarplotList[[x]][["stem"]], "_barplot.pdf"))), width = 10, height = 5)
     print(selectedBarplotList[[x]][["g"]])
     dev.off()
   })
@@ -3675,10 +3681,8 @@ for (i in seq_along(selectedClustersList)) {
     )
     print(h1)
     heatmapClustersList[[i]] <- h1
-    cx <- names(selectedClustersList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
-    sx <- names(selectedClustersList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
     if (gimmePDFs) {
-      pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(cx, "_", sx, "_heatmaps.pdf"))), width = 10, height = ceiling(length(cl)*0.5)+1)
+      pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(pdf_name_stem(names(selectedClustersList)[[i]]), "_heatmaps.pdf"))), width = 10, height = ceiling(length(cl)*0.5)+1)
       print(h1)
       dev.off()
     }
@@ -3747,16 +3751,14 @@ plot_da_clusters <- function(i, by_condition = FALSE) {
 DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
   gp <- plot_da_clusters(i)
   print(gp)
-  cx <- names(clustersToMapList)[[i]] |> gsub(pattern = ": .*", replacement = "", x = _) |> gsub(pattern = "Contrast ", replacement = "Contrast_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
-  sx <- names(clustersToMapList)[[i]] |> gsub(pattern = ".*\\: ", replacement = "", x = _) |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "\\/", replacement = "", x = _)
-  return(list("gp" = gp, "cx" = cx, "sx" = sx))
+  return(list("gp" = gp, "stem" = pdf_name_stem(names(clustersToMapList)[[i]])))
 }), names(clustersToMapList))
 ```
 
 ```{r, label = "report_da_dr_save", include = FALSE}
 if (gimmePDFs) {
   lapply(names(DRSelectedClusters), function(x) {
-    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(DRSelectedClusters[[x]][["cx"]], "_", DRSelectedClusters[[x]][["sx"]], "_", dimRedMethodToUse, "_full.pdf"))), width = 5, height = 5)
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(DRSelectedClusters[[x]][["stem"]], "_", dimRedMethodToUse, "_full.pdf"))), width = 5, height = 5)
     print(DRSelectedClusters[[x]][["gp"]])
     dev.off()
   })
