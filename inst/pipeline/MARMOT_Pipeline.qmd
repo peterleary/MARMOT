@@ -44,6 +44,10 @@ format:
           </style>
 
     # ──────────────────────────────────────────────
+    # Toolbar (top right): Find, Download, View source
+    include-after-body: marmot-toolbar.html
+
+    # ──────────────────────────────────────────────
     # Figure defaults
     fig-dpi: 120
 
