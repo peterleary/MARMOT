@@ -66,7 +66,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   
   # Settings where a blank cell means "none" (NULL), not "use MARMOT's default":
   # a blank downsampleTo is every cell, not the default cap.
-  nullable_vars <- c("downsampleTo", "RDataFolder", "excludeTheseSamples")
+  nullable_vars <- c("downsampleTo", "RDataFolder", "excludeTheseSamples", "batchColumn")
   nullable_nas <- params_df$Variable[params_df$Variable %in% nullable_vars &
                                        is.na(params_df$Setting)]
 

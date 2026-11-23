@@ -38,6 +38,15 @@ export function validateSettings(settings) {
     }
   }
 
+  // Batch correction works with the graph clustering methods only
+  const batchSetting = settings.find((s) => s.variable === "batchColumn");
+  const methodSetting = settings.find((s) => s.variable === "clusteringMethodToUse");
+  const graphMethods = ["MfastPG", "Mphenograph", "Mparc", "PARC", "Rphenograph"];
+  if (batchSetting && String(batchSetting.setting ?? "").trim() !== "" &&
+      methodSetting && !graphMethods.includes(methodSetting.setting)) {
+    errors.push(`Batch correction works with ${graphMethods.join(", ")}, not ${methodSetting.setting}. Choose one of those, or leave the batch column blank.`);
+  }
+
   // Numeric fields must parse correctly
   const numericFields = ["nCores", "ramPerCore", "downsampleTo", "figureDPI"];
   for (const field of numericFields) {

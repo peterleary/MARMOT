@@ -103,6 +103,13 @@ export const FIELD_DEFINITIONS = {
     info: "Resolution of the report's figures, in dots per inch. Higher is sharper but makes the report bigger.",
     min: 50,
   },
+  batchColumn: {
+    type: "text",
+    label: "Batch column",
+    placeholder: "e.g. Batch (blank = no batch correction)",
+    info: "The File Data column that says which batch each sample is in. MARMOT then corrects for batch with Harmony before clustering, and allows for it in DA and DS. Leave blank for no batch correction.",
+    lockedOnReload: true,
+  },
   excludeTheseSamples: {
     type: "text",
     label: "Samples to leave out",
@@ -143,7 +150,7 @@ export const SETTING_GROUPS = [
   },
   {
     label: "Preprocessing",
-    fields: ["downsampleTo", "excludeTheseSamples", "quantileNormaliseAll", "RDataFolder"],
+    fields: ["downsampleTo", "excludeTheseSamples", "quantileNormaliseAll", "batchColumn", "RDataFolder"],
   },
   {
     label: "Resources",

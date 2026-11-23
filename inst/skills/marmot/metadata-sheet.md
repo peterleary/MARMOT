@@ -32,7 +32,7 @@ A three-column key-value table: `Variable` | `Setting` | `Info`. The `Info` colu
 | `markersToDimRedBy` | `type` | `all`, `type`, or `state`. Note the template default here is `type`, not `all`. |
 | `runQC` | `PeacoQC` | `None`, `FlowAI`, or `PeacoQC`. |
 
-The sheet also has `useQC`, `runScGate`, `gimmePDFs`, `greyscalePlots`, `quantileNormaliseAll`, `nCores`, `ramPerCore`, `viridisColour` (default `lapaz`), `figureDPI` (figure resolution, default 120), `excludeTheseSamples` (sample IDs separated by commas) and `RDataFolder`. A setting whose row is missing takes MARMOT's default. Settings from older versions (`runInParallel`, `themeToUse`, `condaDir`, `parcScriptDir`) are ignored with a message. `marmot()` itself takes only `metadata`, `name` and `render`.
+The sheet also has `useQC`, `runScGate`, `gimmePDFs`, `greyscalePlots`, `quantileNormaliseAll`, `nCores`, `ramPerCore`, `viridisColour` (default `lapaz`), `figureDPI` (figure resolution, default 120), `batchColumn` (the File Data column naming each sample's batch; blank means no batch correction), `excludeTheseSamples` (sample IDs separated by commas) and `RDataFolder`. A setting whose row is missing takes MARMOT's default. Settings from older versions (`runInParallel`, `themeToUse`, `condaDir`, `parcScriptDir`) are ignored with a message. `marmot()` itself takes only `metadata`, `name` and `render`.
 
 ## `Study Data` sheet
 
