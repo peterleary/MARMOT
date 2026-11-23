@@ -789,7 +789,19 @@
     var el = it.el;
     if (el.id && /^(fig|tbl)-/.test(el.id)) return el.id;
     var wrap = el.closest && el.closest('[id^="fig-"], [id^="tbl-"]');
-    return wrap ? wrap.id : null;
+    if (wrap) return wrap.id;
+    // MARMOT: no crossref id, so use the chunk name from the figure's file name
+    var link = (el.closest && el.closest('a.lightbox')) ||
+               (el.querySelector && el.querySelector('a.lightbox'));
+    return link ? chunkKeyForLink(link) : null;
+  }
+
+  // MARMOT: Quarto names each figure file after its chunk ("<chunk>-1.png"), and
+  // the zoom link keeps that name, so the chunk behind a figure is readable
+  // from its link. Returns "chunk:<name>", or null.
+  function chunkKeyForLink(link) {
+    var m = (link.getAttribute('href') || '').match(/figure-html\/(.+)-\d+\.(png|jpe?g|svg|pdf)$/i);
+    return m ? 'chunk:' + decodeURIComponent(m[1]) : null;
   }
 
   // The line-span range of the chunk that produced #id ("fig-xxx"/"tbl-xxx"),
@@ -797,6 +809,7 @@
   // no `label: <id>` chunk option matches it (the chunk wasn't labelled), or
   // its enclosing ```{...} / ``` fence can't be found.
   function chunkRangeForId(id) {
+    if (id && id.indexOf('chunk:') === 0) return chunkRangeForName(id.slice(6));
     if (!id || !/^(fig|tbl)-/.test(id)) return null;
     var lines = sourceLineSpans();
     if (!lines.length) return null;
@@ -821,6 +834,24 @@
     }
     if (end === -1) return null;
     return lines.slice(start, end + 1);
+  }
+
+  // MARMOT: the line-span range of the chunk named `name`, whose header reads
+  // ```{r name ...} or ```{r, label = "name" ...}.
+  function chunkRangeForName(name) {
+    var lines = sourceLineSpans();
+    if (!lines.length) return null;
+    var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var headRe = new RegExp('^```+\\{r[ ,]+(?:label\\s*=\\s*["\']' + esc + '["\']|' + esc + '(?=[ ,}]))');
+    var start = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (headRe.test(textOf(lines[i]))) { start = i; break; }
+    }
+    if (start === -1) return null;
+    for (var e = start + 1; e < lines.length; e++) {
+      if (/^```+\s*$/.test(textOf(lines[e]))) return lines.slice(start, e + 1);
+    }
+    return null;
   }
 
   // Open the view-source modal (if not already) and highlight + scroll to the
@@ -862,6 +893,27 @@
       badge.addEventListener('click', function (e) {
         e.stopPropagation();
         showChunkForId(wrap.id);
+      });
+      wrap.appendChild(badge);
+    });
+    // MARMOT: figures without a crossref id, matched to their chunk by file name
+    document.querySelectorAll('a.lightbox[href*="figure-html/"]').forEach(function (link) {
+      var key = chunkKeyForLink(link);
+      var wrap = link.closest('.cell-output-display') || link.parentElement;
+      if (!key || !wrap || wrap.querySelector(':scope > .marmot-inline-code')) return;
+      if (wrap.closest('[id^="fig-"], [id^="tbl-"]')) return;   // already has a badge
+      if (!chunkRangeForId(key)) return;
+      if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+      var badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'marmot-inline-code';
+      badge.title = 'Show code for this plot';
+      badge.setAttribute('aria-label', badge.title);
+      badge.textContent = '</>';
+      badge.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        showChunkForId(key);
       });
       wrap.appendChild(badge);
     });
