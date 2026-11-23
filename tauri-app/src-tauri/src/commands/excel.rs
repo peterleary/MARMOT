@@ -65,6 +65,7 @@ pub fn create_new_metadata() -> MetadataFile {
         ("figureDPI", "120", "Resolution of the figures in the report, in dots per inch. Higher is sharper but makes the report bigger"),
         ("excludeTheseSamples", "", "Sample IDs to leave out of the analysis, separated by commas. Leave blank to include every sample"),
         ("RDataFolder", "", "Path to previous R_files folder to reload (leave blank for fresh run)"),
+        ("batchColumn", "", "Optional. The File Data column that says which batch each sample is in (for example Batch). Leave blank for no batch correction"),
     ];
 
     let pipeline_settings: Vec<PipelineSetting> = default_settings

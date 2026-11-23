@@ -164,3 +164,67 @@ test_that("a condition spelt differently from Conditions Order is lined up, and 
   expect_match(text, "Names lined up", fixed = TRUE)
   expect_match(text, "treat-ment", fixed = TRUE)
 })
+
+test_that("batch correction runs, mixes the batches and keeps the report honest", {
+  skip_pipeline_deps()
+  skip_if_not_installed("harmony")
+
+  test_dir <- make_realistic_pipeline_data(n_cells = 800)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  sheets <- openxlsx::getSheetNames(meta_path)
+  dat <- setNames(lapply(sheets, function(s) openxlsx::read.xlsx(meta_path, sheet = s, check.names = FALSE, sep.names = " ")), sheets)
+  # Replicate 1 in one batch, replicates 2 and 3 in another: every batch holds every condition
+  dat[["File Data"]]$Batch <- ifelse(grepl("rep1", dat[["File Data"]]$file_name), "day1", "day2")
+  ps <- dat[["Pipeline Settings"]]
+  ps$Setting[ps$Variable == "clusteringMethodToUse"] <- "MfastPG"
+  ps <- rbind(ps, data.frame(Variable = "batchColumn", Setting = "batch"))   # spelt loosely on purpose
+  dat[["Pipeline Settings"]] <- ps
+  wb <- openxlsx::createWorkbook()
+  for (s in sheets) { openxlsx::addWorksheet(wb, s); openxlsx::writeData(wb, s, dat[[s]]) }
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  # A real batch effect: five markers read brighter on day 2
+  for (f in dat[["File Data"]]$file_name[dat[["File Data"]]$Batch == "day2"]) {
+    path <- file.path(test_dir, f)
+    ff <- flowCore::read.FCS(path, transformation = FALSE, truncate_max_range = FALSE)
+    m <- flowCore::exprs(ff)
+    shifted <- c("FJComp-BUV496-A", "FJComp-BUV661-A", "FJComp-BV421-A", "FJComp-BV510-A", "FJComp-PE-A")
+    m[, shifted] <- m[, shifted] * 3 + 3000
+    flowCore::exprs(ff) <- m
+    suppressWarnings(flowCore::write.FCS(ff, path))
+  }
+
+  marmot(metadata = meta_path, name = "Batch", render = TRUE)
+  html <- list.files(test_dir, pattern = "MARMOT_Pipeline_Batch\\.html$", recursive = TRUE, full.names = TRUE)
+  expect_length(html, 1)
+  text <- paste(readLines(html, warn = FALSE), collapse = "\n")
+  expect_match(text, "Batch correction", fixed = TRUE)
+  expect_match(text, "Marker values are not corrected", fixed = TRUE)
+  mix <- as.numeric(regmatches(text, regexec("Batch mixing:</strong> ([0-9.]+) before correction, ([0-9.]+) after", text))[[1]][2:3])
+  expect_true(all(is.finite(mix)))
+  expect_gt(mix[2], mix[1] + 0.2)   # correction mixes the batches
+
+  # The batch term reached the DA model, and the corrected positions were saved
+  sce <- MARMOT:::reconstruct_sce_from_h5ad(list.files(test_dir, "marmot_results\\.h5ad$", recursive = TRUE, full.names = TRUE))
+  expect_true(all(c("PCA_uncorrected", "PCA_harmony", "UMAP_uncorrected") %in% SingleCellExperiment::reducedDimNames(sce)))
+  settings <- jsonlite::fromJSON(list.files(test_dir, "pipeline_settings\\.json$", recursive = TRUE, full.names = TRUE))
+  expect_identical(settings$batchColumn, "Batch")   # the sheet said "batch"; File Data's spelling is kept
+})
+
+test_that("batch correction with FlowSOM stops at the start with a clear message", {
+  skip_pipeline_deps()
+
+  test_dir <- make_realistic_pipeline_data(n_cells = 200)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  sheets <- openxlsx::getSheetNames(meta_path)
+  dat <- setNames(lapply(sheets, function(s) openxlsx::read.xlsx(meta_path, sheet = s, check.names = FALSE, sep.names = " ")), sheets)
+  dat[["File Data"]]$Batch <- ifelse(grepl("rep1", dat[["File Data"]]$file_name), "day1", "day2")
+  dat[["Pipeline Settings"]] <- rbind(dat[["Pipeline Settings"]], data.frame(Variable = "batchColumn", Setting = "Batch"))
+  wb <- openxlsx::createWorkbook()
+  for (s in sheets) { openxlsx::addWorksheet(wb, s); openxlsx::writeData(wb, s, dat[[s]]) }
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+  expect_error(suppressMessages(marmot(metadata = meta_path, name = "BatchSOM", render = TRUE)))
+  expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
+})

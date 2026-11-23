@@ -237,7 +237,7 @@ save_h5ad_data <- function(output_dir, envir = .GlobalEnv) {
 
   # Pipeline settings (key-value as named list of strings)
   settings_vars <- c("clusteringMethodToUse", "dimRedMethodToUse", "knn",
-                     "downsampleTo", "daPValToUse", "kValuesIWant")
+                     "downsampleTo", "daPValToUse", "kValuesIWant", "batchColumn")
   settings_list <- list()
   for (v in settings_vars) {
     val <- safe_get(v)
