@@ -74,6 +74,7 @@ text <- trimws(unlist(strsplit(text, "\n", fixed = TRUE)))
 text <- text[nzchar(text)]
 for (m in masks[order(-nchar(masks))]) text <- gsub(m, "<DIR>", text, fixed = TRUE)
 text <- gsub("[0-9]{4}-[0-9]{2}-[0-9]{2}[_ T][0-9]{2}[.:][0-9]{2}[.:][0-9]{2}", "<TIME>", text)
+text <- gsub("[0-9]{1,2} [A-Z][a-z]+ [0-9]{4} at [0-9]{2}:[0-9]{2}", "<TIME>", text)
 
 # ---- the files beside it -----------------------------------------------------
 

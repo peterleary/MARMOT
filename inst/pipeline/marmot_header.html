@@ -56,24 +56,7 @@
   .quarto-title-block {
     display: none !important;
   }
-  /* Remove borders from tab panels */
-  .tab-content {
-    border: none !important;
-    padding-left: 0 !important;
-  }
-  .tab-content .tab-content {
-    border: none !important;
-    padding: 0 !important;
-  }
-  .tab-pane {
-    border: none !important;
-  }
-  .nav-tabs {
-    border-bottom: 1px solid #dee2e6;
-  }
-  .tab-content > .tab-pane {
-    padding: 8px 0 0 0;
-  }
+  /* Tab styling (folder tabs, colour by depth) lives in marmot.scss */
 </style>
 
 <div class="marmot-banner">
@@ -103,4 +86,87 @@ document.addEventListener('DOMContentLoaded', function() {
     banner.appendChild(brand);
   }
 });
+</script>
+
+<!-- Tab numbering: prepends 1, 1.1, 1.1.1 … to every tab label, counting
+     across sibling tabsets at the same depth. Adapted from fgczQuartoTemplate.
+     Done in JavaScript because Quarto writes all of a tabset's buttons before
+     its panes, so CSS counters would number nested tabs wrongly. -->
+<script>
+(function () {
+  "use strict";
+
+  // First direct child of `parent` carrying class `cls` (Quarto puts the
+  // nav-tabs <ul> and tab-content <div> as direct children of .panel-tabset).
+  function directChild(parent, cls) {
+    for (var i = 0; i < parent.children.length; i++) {
+      if (parent.children[i].classList.contains(cls)) return parent.children[i];
+    }
+    return null;
+  }
+
+  // The tab buttons of ONE tabset (this tabset's own row, not descendants').
+  function tabLinks(ts) {
+    var nav = directChild(ts, 'nav-tabs') || directChild(ts, 'nav');
+    if (!nav) return [];
+    return Array.prototype.slice.call(
+      nav.querySelectorAll(':scope > .nav-item > .nav-link, :scope > .nav-link'));
+  }
+
+  // The tab panes of ONE tabset, in the same order as its links.
+  function tabPanes(ts) {
+    var content = directChild(ts, 'tab-content');
+    if (!content) return [];
+    return Array.prototype.slice.call(content.querySelectorAll(':scope > .tab-pane'));
+  }
+
+  // The shallowest .panel-tabset(s) inside `container`: those with no other
+  // .panel-tabset between them and `container`. From document.body this yields
+  // the top-level tabsets; from a tab-pane it yields that pane's direct
+  // sub-tabsets (skipping any deeper than one level).
+  function shallowTabsets(container) {
+    return Array.prototype.filter.call(
+      container.querySelectorAll('.panel-tabset'),
+      function (ts) {
+        var p = ts.parentElement;
+        while (p && p !== container) {
+          if (p.classList.contains('panel-tabset')) return false;
+          p = p.parentElement;
+        }
+        return true;
+      });
+  }
+
+  // Prepend (or update) the number span on a tab button. The trailing space
+  // keeps the finder's textContent breadcrumb readable ("1.1 Sepal").
+  function applyNumber(link, num) {
+    var badge = link.querySelector(':scope > .marmot-tabnum');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'marmot-tabnum';
+      link.insertBefore(badge, link.firstChild);
+    }
+    badge.textContent = num + ' ';
+  }
+
+  // Number a GROUP of sibling tabsets sharing `prefix` (''=top level), with a
+  // single counter running across the whole group, then recurse into each tab's
+  // pane for the next level down.
+  function numberGroup(tabsets, prefix) {
+    var next = 1;
+    tabsets.forEach(function (ts) {
+      var links = tabLinks(ts), panes = tabPanes(ts);
+      links.forEach(function (link, i) {
+        var num = (prefix ? prefix + '.' : '') + next;
+        applyNumber(link, num);
+        if (panes[i]) numberGroup(shallowTabsets(panes[i]), num);
+        next++;
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    numberGroup(shallowTabsets(document.body), '');
+  });
+})();
 </script>

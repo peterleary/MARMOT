@@ -153,6 +153,11 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   if (nzchar(header_src)) {
     rmd_content <- gsub("- marmot_header.html", paste0("- ", header_src), rmd_content, fixed = TRUE)
   }
+  # ... and at the installed stylesheet
+  scss_src <- system.file("pipeline", "marmot.scss", package = "MARMOT")
+  if (nzchar(scss_src)) {
+    rmd_content <- gsub(", marmot.scss]", paste0(", ", scss_src, "]"), rmd_content, fixed = TRUE)
+  }
 
   # Copy metadata into the results folder for reproducibility
   file.copy(md_fp, file.path(resultsDir, basename(md_fp)), overwrite = TRUE)

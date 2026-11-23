@@ -16,8 +16,8 @@ format:
     # ──────────────────────────────────────────────
     # Light / dark mode
     theme:
-      light: cosmo
-      dark: cyborg
+      light: [cosmo, marmot.scss]
+      dark: [cyborg, marmot.scss]
     color-mode:
       toggle: true
       respect-prefers-color-scheme: true
