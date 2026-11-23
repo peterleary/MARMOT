@@ -228,3 +228,37 @@ test_that("batch correction with FlowSOM stops at the start with a clear message
   expect_error(suppressMessages(marmot(metadata = meta_path, name = "BatchSOM", render = TRUE)))
   expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
 })
+
+test_that("label, then regenerate: populations merge, a cluster drops, and DA/DS run on a reload", {
+  skip_pipeline_deps()
+
+  result <- run_pipeline_test(test_name = "First", n_cells = 300, n_markers = 6)
+  on.exit(unlink(result$test_dir, recursive = TRUE), add = TRUE)
+  labels_path <- file.path(result$results_path, "MARMOT_Cluster_Labels.xlsx")
+  expect_true(file.exists(labels_path))
+
+  tab <- openxlsx::read.xlsx(labels_path, sheet = "Cluster Labels", check.names = FALSE, sep.names = " ")
+  expect_gt(nrow(tab), 2)
+  tab$Label <- NA_character_
+  tab$Label[1:2] <- c("Pop A", "pop-a")         # merge, spelt loosely
+  tab$Label[nrow(tab)] <- "drop"
+  wb <- openxlsx::loadWorkbook(labels_path)
+  openxlsx::writeData(wb, "Cluster Labels", tab)
+  openxlsx::saveWorkbook(wb, labels_path, overwrite = TRUE)
+
+  meta_path <- file.path(result$test_dir, "MARMOT_metadata.xlsx")
+  edit_test_metadata(meta_path, settings = list(RDataFolder = result$results_path))
+  Sys.sleep(1.1)
+  marmot(metadata = meta_path, name = "Labelled", render = TRUE)
+
+  html <- list.files(result$test_dir, pattern = "MARMOT_Pipeline_Labelled\\.html$", recursive = TRUE, full.names = TRUE)
+  expect_length(html, 1)
+  text <- paste(readLines(html, warn = FALSE), collapse = "\n")
+  expect_match(text, "Labelled populations", fixed = TRUE)
+  expect_match(text, "Clusters dropped", fixed = TRUE)
+  expect_match(text, "were merged into", fixed = TRUE)
+  xl <- file.path(result$results_path, "Excel_Files", "Labelled_populations_DA_DS.xlsx")
+  expect_true(file.exists(xl))
+  da <- openxlsx::read.xlsx(xl, sheet = 1)
+  expect_true("Pop A" %in% da$cluster_id)
+})
