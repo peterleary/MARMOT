@@ -102,7 +102,7 @@ test_that("a condition missing from Conditions Order stops the run at the start"
   on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
   meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
   file_data <- openxlsx::read.xlsx(meta_path, sheet = "File Data")
-  file_data$condition[1] <- "control"          # Conditions Order says "Control"
+  file_data$condition[1] <- "Placebo"          # not in Conditions Order at all
   wb <- openxlsx::loadWorkbook(meta_path)
   openxlsx::writeData(wb, "File Data", file_data)
   openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
@@ -110,4 +110,57 @@ test_that("a condition missing from Conditions Order stops the run at the start"
   expect_error(suppressMessages(marmot(metadata = meta_path, name = "BadCond", render = TRUE)))
   # It stopped while reading the metadata, before any results were written
   expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
+})
+
+test_that("files that spell markers and order channels differently are lined up, and the report says so", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 200, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  # One file exported "another week": a marker spelt differently, channels in another order
+  f <- file.path(test_dir, "Sample_003.fcs")
+  ff <- flowCore::read.FCS(f, transformation = FALSE, truncate_max_range = FALSE)
+  ff <- ff[, rev(flowCore::colnames(ff))]
+  d <- flowCore::markernames(ff); d[d == "Marker_1"] <- "MARKER-1"; flowCore::markernames(ff) <- d
+  suppressWarnings(flowCore::write.FCS(ff, f))
+
+  marmot(metadata = file.path(test_dir, "MARMOT_metadata.xlsx"), name = "Lineup", render = TRUE)
+  html <- list.files(test_dir, pattern = "MARMOT_Pipeline_Lineup\\.html$", recursive = TRUE, full.names = TRUE)
+  expect_length(html, 1)
+  text <- paste(readLines(html, warn = FALSE), collapse = "\n")
+  expect_match(text, "Names lined up", fixed = TRUE)
+  expect_match(text, "MARKER-1.{1,12} in 1 file\\(s\\) was taken as .{1,12}Marker_1")
+})
+
+test_that("a marker without a cofactor stops the run with a clear message", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 200, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  cof <- openxlsx::read.xlsx(meta_path, sheet = "Study Data", check.names = FALSE, sep.names = " ")$`Cofactors for markers to use`
+  cof[3] <- NA
+  edit_test_metadata(meta_path, study = list(`Cofactors for markers to use` = cof))
+  expect_error(suppressMessages(marmot(metadata = meta_path, name = "NoCof", render = TRUE)))
+  expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
+})
+
+test_that("a condition spelt differently from Conditions Order is lined up, and the report says so", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 200, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  file_data <- openxlsx::read.xlsx(meta_path, sheet = "File Data")
+  file_data$condition[file_data$condition == "Treatment"] <- "treat-ment"
+  wb <- openxlsx::loadWorkbook(meta_path)
+  openxlsx::writeData(wb, "File Data", file_data)
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  marmot(metadata = meta_path, name = "CondCase", render = TRUE)
+  html <- list.files(test_dir, pattern = "MARMOT_Pipeline_CondCase\\.html$", recursive = TRUE, full.names = TRUE)
+  expect_length(html, 1)
+  text <- paste(readLines(html, warn = FALSE), collapse = "\n")
+  expect_match(text, "Names lined up", fixed = TRUE)
+  expect_match(text, "treat-ment", fixed = TRUE)
 })
