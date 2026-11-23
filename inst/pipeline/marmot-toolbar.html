@@ -268,11 +268,11 @@
     position: absolute; top: .4rem; right: .4rem; z-index: 20;
     display: flex; align-items: center; justify-content: center;
     width: 1.7rem; height: 1.7rem; padding: 0; border: none; border-radius: .35rem;
-    background: rgba(11, 83, 148, .85); color: #fff; font-size: .8rem;
+    background: rgba(74, 55, 40, .85); color: #fff; font-size: .8rem;
     font-weight: 700; line-height: 1; cursor: pointer;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
   }
-  .marmot-inline-code:hover { background: #4a3728; }
+  .marmot-inline-code:hover { background: #2e7d79; }
   /* Highlight applied to the source lines of the chunk jumped to. inline (not
      block) so it decorates only the matched text, not a synthetic full-width
      row -- these spans are cloned verbatim into the Download panel's "Qmd
@@ -899,11 +899,21 @@
     // MARMOT: figures without a crossref id, matched to their chunk by file name
     document.querySelectorAll('a.lightbox[href*="figure-html/"]').forEach(function (link) {
       var key = chunkKeyForLink(link);
-      var wrap = link.closest('.cell-output-display') || link.parentElement;
-      if (!key || !wrap || wrap.querySelector(':scope > .marmot-inline-code')) return;
+      // The badge sits on the picture's own top-right corner, so it stays next
+      // to the figure however narrow the figure is drawn.
+      var wrap = link;
+      if (!key || wrap.querySelector(':scope > .marmot-inline-code')) return;
       if (wrap.closest('[id^="fig-"], [id^="tbl-"]')) return;   // already has a badge
       if (!chunkRangeForId(key)) return;
-      if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+      // Move the figure's width from the picture onto its link, so the link
+      // hugs the picture and the badge lands on the picture's corner.
+      var img = link.querySelector('img');
+      if (img && img.style.width) {
+        link.style.width = img.style.width;
+        img.style.width = '100%';
+      }
+      wrap.style.position = 'relative';
+      wrap.style.display = 'inline-block';
       var badge = document.createElement('button');
       badge.type = 'button';
       badge.className = 'marmot-inline-code';
