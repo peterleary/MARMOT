@@ -62,20 +62,24 @@ Go to the **Install** tab in the app. Here you can:
 #
 ### 2) R Installation
 
-Run the following code in R:
+Run the following code in R. Everything comes ready-built, so nothing needs compiling:
 
 ```r
-# Step 1: Install and load MARMOT
-install.packages("pak")
-pak::pkg_install("peterleary/MARMOT")
-library(MARMOT)
+# Step 1: Install MARMOT
+install.packages("BiocManager")
+install.packages("MARMOT", repos = c("https://peterleary.r-universe.dev", BiocManager::repositories()))
 
-# Step 2: Install additional features (optional but recommended)
+# Step 2: Install everything MARMOT can use, including the original Rphenograph,
+# PARC and PaCMAP (the Python ones are set up with pixi; no conda needed)
 MARMOT::install_marmot_extras()
 
-# Step 3: Verify installation
+# Step 3: Check what works
 MARMOT::check_setup()
 ```
+
+MARMOT includes its own R versions of PhenoGraph, PARC and PaCMAP (Mphenograph, Mparc, Mpacmap) as fallbacks, but recommends the originals. Each report says which ran and whom to cite.
+
+You need [Quarto](https://quarto.org/docs/get-started/) to render reports. RStudio and Positron include it, and MARMOT finds that copy itself.
 
 
 ---

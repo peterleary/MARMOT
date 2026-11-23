@@ -4,7 +4,7 @@ How to get MARMOT installed and ready to run. There are two paths — pick the o
 
 ## Two paths
 
-1. **Tauri desktop app (`MARMOT.app`)** — recommended for users who don't want to touch a terminal. Has a graphical install panel that handles R, conda, and the package for them.
+1. **Tauri desktop app (`MARMOT.app`)** — recommended for users who don't want to touch a terminal. Has a graphical install panel that handles R and the package for them.
 2. **R-based install** — for users already comfortable with R / RStudio.
 
 Always ask which one they're trying to use before walking them through commands.
@@ -16,7 +16,7 @@ Always ask which one they're trying to use before walking them through commands.
    - **macOS (Apple Silicon or Intel)**: `MARMOT_*_aarch64.dmg` (Intel Macs run it via Rosetta — same performance for a webview wrapper).
    - **Windows**: `MARMOT_*_x64-setup.exe`.
    - **Linux x86**: `MARMOT_*_amd64.AppImage`.
-3. Open the app. The first screen is the **Install panel** — it checks for R, conda, and the MARMOT package, and offers to install whatever's missing.
+3. Open the app. The first screen is the **Install panel** — it checks for R and the MARMOT package, and offers to install whatever's missing.
 4. Once the install panel reports everything green, switch to the **Setup** tab to fill in metadata (see `metadata-sheet.md`) and the **Run** tab to launch the pipeline.
 
 If the install panel fails, ask which step it failed on and check `troubleshooting.md`.
@@ -56,29 +56,26 @@ Prerequisites:
 
 - **R ≥ 4.5** (download from <https://cran.r-project.org/>).
 - **RStudio** (optional but recommended): <https://posit.co/download/rstudio-desktop/>.
-- **Quarto** (for rendering reports): <https://quarto.org/docs/get-started/>.
-- **conda** (for the Python helpers — PARC, PaCMAP). On macOS / Apple Silicon, **install miniforge**, not Anaconda: <https://github.com/conda-forge/miniforge>.
+- **Quarto** (for rendering reports): <https://quarto.org/docs/get-started/>. RStudio and Positron include a copy, and MARMOT finds it itself.
+- No compiler and no conda are needed: everything comes ready-built.
 
 Then in R:
 
 ```r
-# 1. Install MARMOT itself
-install.packages("remotes")
-remotes::install_github("peterleary/MARMOT")
+# 1. Install MARMOT itself (ready-built, from MARMOT's r-universe)
+install.packages("BiocManager")
+install.packages("MARMOT", repos = c("https://peterleary.r-universe.dev", BiocManager::repositories()))
 
-# 2. Install the extras (CRAN/Bioconductor batch + GitHub-only packages + Python env)
-library(MARMOT)
-install_marmot_extras()
+# 2. Install everything MARMOT can use, including the original methods
+MARMOT::install_marmot_extras()
+
+# 3. Check what works
+MARMOT::check_setup()
 ```
 
-`install_marmot_extras()` runs in tiers:
+`install_marmot_extras()` reads MARMOT's own DESCRIPTION, so it never misses a package, and installs ready-built copies only (it never compiles). Packages come from MARMOT's r-universe (ready-built MARMOT, Rphenograph and the GitHub-only packages), CRAN and Bioconductor. With `include_python = TRUE` (the default) it also sets up the original Python PARC and PaCMAP with **pixi**, from a lock file shipped with MARMOT: no conda, no compiler, the same versions for everyone. If pixi isn't installed, MARMOT fetches it into its own data folder.
 
-- **Tier 1**: CRAN + Bioconductor packages (batch install).
-- **Tier 2**: GitHub-only packages (Rphenograph, FastPG) — installed one at a time with `tryCatch` so a single failure doesn't abort the rest.
-- **Tier 3**: Seurat (only if `include_suggests = TRUE`).
-- **Python**: creates the conda env from `inst/python/environment.yml`. Default is `include_python = TRUE`. Fails gracefully with the miniforge URL if conda is missing.
-
-Optional flags: `install_marmot_extras(include_suggests = FALSE, include_python = FALSE)` to skip the heavy bits.
+`check_setup()` says in plain words what works and gives the one command that fixes each gap.
 
 ## Path C — Docker / Apptainer (servers and HPC)
 
@@ -142,10 +139,9 @@ If that loads without errors, they're ready to move on to `metadata-sheet.md`.
 
 Cross-link these in `troubleshooting.md`:
 
-- **conda not found** on macOS Apple Silicon → install miniforge, not Anaconda.
-- **Python imports fail on macOS arm64** → `inst/python/marmot_setup.py` patches rpaths and the annoy library on first import; if it didn't run, try `reticulate::py_run_string("import marmot_setup")`.
-- **GitHub-only packages fail to compile** (Rphenograph, FastPG) → these are non-essential because MARMOT bundles pure-R fallbacks (`Mphenograph`, `MfastPG`). See *M-equivalents* below. The user can skip the originals with `install_marmot_extras(include_suggests = FALSE)` and re-try later.
-- **Quarto not on PATH** → install Quarto separately, restart R.
+- **Python PARC/PaCMAP not set up** → run `MARMOT::install_marmot_python()`. It uses pixi (fetched automatically if missing); an existing conda is only a fallback.
+- **Rphenograph missing** → it installs ready-built from MARMOT's r-universe with `install_marmot_extras()`; no compiler needed. Until then MARMOT's `Mphenograph` stands in, and the report says so.
+- **Quarto not found** → MARMOT looks on the search path and inside RStudio and Positron. If none has it, install Quarto and restart R.
 
 ## M-equivalents (MARMOT's bundled fallbacks)
 
@@ -160,8 +156,10 @@ All of MARMOT's algorithms come from external packages that are awkward to insta
 
 **Why we still prefer the originals.** The external packages are the **published methods**. The M-equivalents are AI-assisted reimplementations: faithful ports, but they have not been independently peer-reviewed or benchmarked at the same scale. For any analysis the user plans to publish or rely on for important decisions, **strongly recommend the original**:
 
-- For Phenograph: install Rtools / Xcode CLT, then run `install_marmot_extras()` and let `Rphenograph` install.
-- For PARC / PaCMAP: install miniforge, then `install_marmot_extras(include_python = TRUE)`.
+- For Phenograph: `install_marmot_extras()` installs the original `Rphenograph` ready-built from MARMOT's r-universe.
+- For PARC / PaCMAP: `install_marmot_python()` sets up the originals with pixi.
+
+Every report's provenance tab has a "Methods, and whom to cite" box naming the implementation that ran and its authors.
 
 **Best option if the user cannot install the originals but wants to publish.** Recommend they use **FlowSOM** for clustering and **UMAP** for dimensionality reduction instead of the M-equivalents. FlowSOM is on Bioconductor, well-maintained, peer-reviewed, and is already MARMOT's default clustering method — so no extra install. UMAP is similarly standard and built in. The biological interpretation of their results will not be meaningfully different from a Phenograph + PaCMAP run, and reviewers will have nothing to flag. To switch, set `clusteringMethodToUse = FlowSOM` and `dimRedMethodToUse = UMAP` in the `Pipeline Settings` sheet (these are the defaults, so usually no change needed).
 
@@ -207,6 +205,8 @@ If after all that a user is still stuck, ask them for:
 …and direct them to open an issue.
 
 ## Windows: Rtools
+
+MARMOT itself no longer needs Rtools: everything it installs comes ready-built, including Rphenograph from MARMOT's r-universe. This section matters only when a user installs something else from source.
 
 Rtools is the C/C++/Fortran toolchain R uses to compile packages from source on Windows. It is **not** installed by default with R, and many MARMOT-relevant packages (`Rphenograph`, `FastPG`, anything Rcpp-based) need it. This is the single most common source of install pain on Windows — expect to walk users through it.
 

@@ -174,7 +174,14 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     message("\nYou chose not to render the HTML report. You can either render it yourself in RStudio, or run this function again with `render = TRUE`.\n")
   }
   if (render) {
-    quarto_bin <- Sys.which("quarto")
+    # Quarto on the search path, or the copy inside RStudio or Positron
+    quarto_bin <- .find_quarto()
+    if (nzchar(quarto_bin) && !nzchar(Sys.which("quarto"))) {
+      old_quarto_path <- Sys.getenv("QUARTO_PATH", unset = NA)
+      Sys.setenv(QUARTO_PATH = quarto_bin)
+      on.exit(if (is.na(old_quarto_path)) Sys.unsetenv("QUARTO_PATH") else Sys.setenv(QUARTO_PATH = old_quarto_path),
+              add = TRUE)
+    }
     if (!nzchar(quarto_bin)) {
       stop(
         "Quarto is required to render the HTML report but was not found on your system.\n",

@@ -4199,6 +4199,35 @@ if (is.null(RDataFolder)) {
 }
 ```
 
+```{r, label = "report_provenance_methods", results = 'asis'}
+# Which implementation did the work, and whom to credit. MARMOT's own R
+# versions (the M methods) follow the originals; the originals deserve the
+# citation, and MARMOT recommends using them.
+.cite <- function(pkg) tryCatch(gsub("[[:space:]]+", " ", paste(format(citation(pkg)[[1]], style = "text"), collapse = " ")),
+                                error = function(e) pkg)
+.methods <- c(
+  switch(clusteringMethodToUse,
+    FlowSOM     = paste0("**Clustering:** FlowSOM. ", .cite("FlowSOM")),
+    Rphenograph = paste0("**Clustering:** Rphenograph, the original PhenoGraph for R. ", .cite("Rphenograph")),
+    Mphenograph = "**Clustering:** Mphenograph, MARMOT's R re-implementation of PhenoGraph (Levine et al. 2015, Cell 162:184-197), following Rphenograph (Chen and Granjeaud). Please cite the originals; installing Rphenograph lets MARMOT use it directly.",
+    MfastPG     = "**Clustering:** MfastPG, MARMOT's R re-implementation of FastPG (Bodenheimer et al. 2020, https://github.com/sararselitsky/FastPG), itself based on PhenoGraph (Levine et al. 2015). Please cite the originals.",
+    PARC        = "**Clustering:** PARC, the original Python implementation (Stassen et al., https://github.com/ShobiStassen/PARC).",
+    Mparc       = "**Clustering:** Mparc, MARMOT's R re-implementation of PARC (Stassen et al., https://github.com/ShobiStassen/PARC). Please cite the original; MARMOT::install_marmot_python() sets it up.",
+    paste0("**Clustering:** ", clusteringMethodToUse, ".")),
+  switch(dimRedMethodToUse,
+    pacmap  = "**Embedding:** PaCMAP, the original Python implementation (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP).",
+    Mpacmap = "**Embedding:** Mpacmap, MARMOT's R re-implementation of PaCMAP (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP). Please cite the original; MARMOT::install_marmot_python() sets it up.",
+    NULL),
+  paste0("**UMAP:** ", .cite("uwot")),
+  paste0("**tSNE:** ", .cite("Rtsne")),
+  if (exists("useBatch") && useBatch) paste0("**Batch correction:** Harmony. ", .cite("harmony")),
+  paste0("**Differential abundance and state:** ", .cite("diffcyt")),
+  paste0("**Data handling and many plots:** ", .cite("CATALYST"))
+)
+cat("::: {.callout-note collapse='true' title='Methods, and whom to cite'}\n\n",
+    paste0("- ", .methods, collapse = "\n"), "\n\n:::\n\n", sep = "")
+```
+
 ```{r, label = "report_provenance_versions"}
 .versions <- MARMOT::marmot_package_versions()
 kable(data.frame(Package = names(.versions), Version = unlist(.versions), row.names = NULL)) |>

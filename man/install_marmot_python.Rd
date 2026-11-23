@@ -2,7 +2,7 @@
 % Please edit documentation in R/python_env.R
 \name{install_marmot_python}
 \alias{install_marmot_python}
-\title{Install the p4r conda environment for PARC/PaCMAP}
+\title{Set up the original Python PARC and PaCMAP}
 \usage{
 install_marmot_python(force = FALSE)
 }
@@ -14,7 +14,10 @@ it already exists and appears healthy. Default \code{FALSE}.}
 Invisibly returns \code{TRUE} on success, \code{FALSE} on failure.
 }
 \description{
-Creates (or recreates) the \code{p4r} conda environment from the bundled
-\code{environment.yml}. Requires conda or mamba (e.g.
-\href{https://github.com/conda-forge/miniforge}{miniforge}).
+Builds the Python environment for the original PARC and PaCMAP with pixi,
+from the lock file shipped with MARMOT: ready-made packages from conda-forge,
+the same versions for everyone, nothing compiled and no conda needed. If pixi
+is not installed, MARMOT fetches it (one file) into its own data folder. The
+environment lives there too. If pixi cannot be used, an existing conda or
+mamba is tried instead, as in earlier versions.
 }

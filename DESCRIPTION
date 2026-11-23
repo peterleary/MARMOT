@@ -108,8 +108,11 @@ Suggests:
   Biobase,
   testthat (>= 3.0.0),
   UCell,
-  withr
+  withr,
+  harmony,
+  Rphenograph
 Config/testthat/edition: 3
+Additional_repositories: https://peterleary.r-universe.dev
 Remotes:
   hypebright/fireworks,
   scverse/anndataR

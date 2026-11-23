@@ -28,6 +28,15 @@ marmot_python_status <- function() {
   result <- list(available = FALSE, python_path = NA_character_,
                  conda_path = NA_character_)
 
+  # First, the environment pixi builds in MARMOT's data folder
+  pixi_py <- .pixi_python()
+  if (.python_has_parc_pacmap(pixi_py)) {
+    result$available <- TRUE
+    result$python_path <- pixi_py
+    return(result)
+  }
+  # Otherwise an older conda "p4r" environment, if there is one
+
 
   # Find conda binary (prefer conda over mamba — reticulate::conda_list()
 
@@ -113,7 +122,7 @@ use_marmot_python <- function() {
   ok
 }
 
-#' Install the p4r conda environment for PARC/PaCMAP
+#' Set up the original Python PARC and PaCMAP (pixi first, conda as fallback)
 #'
 #' Creates (or recreates) the \code{p4r} conda environment from the bundled
 #' \code{environment.yml}. Requires conda or mamba (e.g.
@@ -124,6 +133,25 @@ use_marmot_python <- function() {
 #' @return Invisibly returns \code{TRUE} on success, \code{FALSE} on failure.
 #' @export
 install_marmot_python <- function(force = FALSE) {
+
+  # The usual way: pixi, from the lock file shipped with MARMOT. No conda and
+  # no compiler needed; pixi itself is fetched if it is not installed.
+  if (!force && .python_has_parc_pacmap(.pixi_python())) {
+    message("The Python environment for PARC and PaCMAP is ready: ", .pixi_python())
+    return(invisible(TRUE))
+  }
+  pixi_ok <- tryCatch({
+    py <- .install_pixi_env(force = force)
+    .python_has_parc_pacmap(py)
+  }, error = function(e) {
+    message("Setting up with pixi did not work: ", conditionMessage(e))
+    FALSE
+  })
+  if (pixi_ok) {
+    message("PARC and PaCMAP are ready: ", .pixi_python())
+    return(invisible(TRUE))
+  }
+  message("Trying conda instead...")
 
   # Find conda (prefer conda over mamba — reticulate::conda_create uses
   # conda_list internally for verification, which is broken with mamba)
