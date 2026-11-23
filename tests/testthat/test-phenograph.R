@@ -606,3 +606,32 @@ test_that("MfastPG ef parameter affects recall", {
   expect_length(igraph::membership(r_low[[2]]), 2000)
   expect_length(igraph::membership(r_high[[2]]), 2000)
 })
+
+# ============================================================================
+# Shared neighbour search: one search at the largest k serves every k
+# ============================================================================
+
+test_that("the first columns of a larger search are the smaller search", {
+  set.seed(1)
+  x <- matrix(rnorm(3000 * 6), ncol = 6)
+  big <- nearest_neighbours(x, 31)
+  expect_identical(big[, 1:11], nearest_neighbours(x, 11))
+  expect_identical(big[, 1:21], nearest_neighbours(x, 21))
+})
+
+test_that("Mphenograph gives the same clusters with a shared search", {
+  set.seed(1)
+  x <- rbind(matrix(rnorm(1500 * 5), ncol = 5), matrix(rnorm(1500 * 5, mean = 3), ncol = 5))
+  nn <- nearest_neighbours(x, 41)
+  for (k in c(10, 25, 40)) {
+    own    <- Mphenograph(x, k = k, seed = 2)
+    shared <- Mphenograph(x, k = k, seed = 2, nn_idx = nn)
+    expect_identical(as.integer(igraph::membership(shared[[2]])),
+                     as.integer(igraph::membership(own[[2]])))
+  }
+})
+
+test_that("Mphenograph refuses a shared search that is too small", {
+  x <- matrix(rnorm(200 * 3), ncol = 3)
+  expect_error(Mphenograph(x, k = 20, nn_idx = nearest_neighbours(x, 10)), "at least k \\+ 1")
+})

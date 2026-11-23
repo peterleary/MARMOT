@@ -20,6 +20,10 @@
 #' @param k integer; number of nearest neighbours (default: 30)
 #' @param seed integer; random seed for Louvain community detection (default: 2)
 #' @param verbose logical; print progress messages (default: FALSE)
+#' @param nn_idx optional integer matrix of neighbours already found by
+#'   \code{\link{nearest_neighbours}}, with at least \code{k + 1} columns. Its
+#'   first \code{k + 1} columns are used in place of a new search, which gives
+#'   exactly the same result, since the search is exact.
 #'
 #' @return A list of two elements (matching Rphenograph return format):
 #'   \item{[[1]]}{igraph graph object with Jaccard-weighted edges}
@@ -48,7 +52,7 @@
 #' @export
 #' @seealso \code{\link[igraph]{membership}}, \code{\link[igraph]{modularity}},
 #'   \code{\link{MfastPG}}
-Mphenograph <- function(data, k = 30, seed = 2, verbose = FALSE) {
+Mphenograph <- function(data, k = 30, seed = 2, verbose = FALSE, nn_idx = NULL) {
   # --- input validation (matches Rphenograph checks) ---
   if (is.data.frame(data)) data <- as.matrix(data)
   if (!is.matrix(data))
@@ -61,9 +65,13 @@ Mphenograph <- function(data, k = 30, seed = 2, verbose = FALSE) {
   n <- nrow(data)
 
   # --- k-NN search (k+1 because column 1 is self) ---
-  if (verbose) message("Finding ", k, " nearest neighbours for ", n, " cells...")
-  nn  <- RANN::nn2(data, data, k = k + 1, searchtype = "standard")
-  idx <- nn$nn.idx[, -1, drop = FALSE]
+  if (is.null(nn_idx)) {
+    if (verbose) message("Finding ", k, " nearest neighbours for ", n, " cells...")
+    nn_idx <- nearest_neighbours(data, k + 1)
+  } else if (nrow(nn_idx) != n || ncol(nn_idx) < k + 1) {
+    stop("nn_idx must have one row per cell and at least k + 1 columns")
+  }
+  idx <- nn_idx[, 2:(k + 1), drop = FALSE]
 
   # --- Jaccard-weighted edge list ---
   if (verbose) message("Computing Jaccard coefficients...")
@@ -91,6 +99,23 @@ Mphenograph <- function(data, k = 30, seed = 2, verbose = FALSE) {
   }
 
   list(g, community)
+}
+
+
+#' Exact nearest neighbours of every cell
+#'
+#' Finds each cell's \code{k} nearest neighbours, closest first, with the
+#' exact search Mphenograph and Rphenograph use. The first column is
+#' normally the cell itself. Because the search is exact, the first \code{j}
+#' columns are the \code{j} nearest neighbours for any \code{j <= k}, so one
+#' search at the largest k serves every smaller k.
+#'
+#' @param data matrix; rows = cells, columns = features
+#' @param k integer; number of neighbours to find, counting the cell itself
+#' @return An integer matrix, one row per cell and \code{k} columns of row numbers.
+#' @export
+nearest_neighbours <- function(data, k) {
+  RANN::nn2(as.matrix(data), as.matrix(data), k = k, searchtype = "standard")$nn.idx
 }
 
 

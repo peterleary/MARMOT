@@ -1402,14 +1402,24 @@ if (clusteringMethodToUse %in% c("MfastPG", "Mphenograph", "Rphenograph")) {
   # Expression matrix for clustering
   es <- t(assay(sce, exprsToUse)[featuresToCluster, ])
 
+  # Mphenograph and Rphenograph search for neighbours exactly, so a cell's k
+  # nearest neighbours are the first k of its neighbours at the largest k.
+  # Search once, at the largest k, and let every k take its share: the
+  # clusters are exactly the same, and the slowest step runs only once.
+  if (clusteringMethodToUse %in% c("Mphenograph", "Rphenograph")) {
+    message("  ▸ Finding the ", max(kValuesIWant), " nearest neighbours of each cell, once for every k...")
+    nnShared <- MARMOT::nearest_neighbours(es, k = max(kValuesIWant) + 1)
+  }
+
   cluster_fn <- function(k) {
     set.seed(2)
     if (clusteringMethodToUse == "MfastPG") {
       clusters <- MARMOT::MfastPG(data = es, k = k, seed = 2, verbose = TRUE)
     } else if (clusteringMethodToUse == "Mphenograph") {
-      clusters <- MARMOT::Mphenograph(data = es, k = k, seed = 2, verbose = TRUE)
+      clusters <- MARMOT::Mphenograph(data = es, k = k, seed = 2, verbose = TRUE, nn_idx = nnShared)
     } else if (clusteringMethodToUse == "Rphenograph") {
-      clusters <- Rphenograph::Rphenograph(data = es, k = k)
+      clusters <- Rphenograph::Rphenograph(data = es, k = k,
+                                           knn_fun = function(data, kk) nnShared[, seq_len(kk)])
     }
     ids <- factor(as.character(igraph::membership(clusters[[2]])))
     ids <- factor(ids, levels = gtools::mixedsort(levels(ids)))
