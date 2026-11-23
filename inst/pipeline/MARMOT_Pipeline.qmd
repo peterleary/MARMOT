@@ -47,10 +47,6 @@ format:
     # Toolbar (top right): Find, Download, View source
     include-after-body: marmot-toolbar.html
 
-    # ──────────────────────────────────────────────
-    # Figure defaults
-    fig-dpi: 120
-
 # Execution
 execute:
   echo: false
@@ -94,7 +90,7 @@ knitr::opts_chunk$set(
   fig.width = 6,
   fig.height = 5,
   fig.retina = 2,
-  out.width = "60%",
+  out.width = "40%",
   dev = if (requireNamespace("ragg", quietly = TRUE)) "ragg_png" else "png"
 )
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
@@ -140,6 +136,7 @@ ramPerCore <- 6
 
 ## 🎨 Aesthetics
 viridisColour <- "lapaz"   # Viridis, Scico, RColorBrewer Diverging, or Fun (Marmot, Swiss, Lucky)
+figureDPI <- 120           # Resolution of the report's figures: higher is sharper, but the report gets bigger
 
 ## 🌉 scGate (optional)
 runScGate <- FALSE    # Set TRUE to run scGate marker-pair gating (requires scGate, UCell, Seurat)
@@ -162,7 +159,7 @@ required_vars <- c(
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "nCores", "viridisColour"
+  "nCores", "viridisColour", "figureDPI"
 )
 
 missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
@@ -503,6 +500,13 @@ mergeBy <- dplyr::case_when(
   TRUE ~ NA_character_  # temp placeholder
 )
 if (is.na(mergeBy)) stop("Unsupported clustering method: ", clusteringMethodToUse)
+
+# Figure resolution for every figure from here on
+if (!is.numeric(figureDPI) || length(figureDPI) != 1 || is.na(figureDPI) || figureDPI < 50 || figureDPI > 600) {
+  stop("Oops! figureDPI should be a number between 50 and 600 (120 is a good start). ",
+       "Please check it in the Pipeline Settings sheet.", call. = FALSE)
+}
+knitr::opts_chunk$set(dpi = figureDPI)
 
 # Warnings found during the analysis, shown together in the Overview tab
 overviewWarnings <- character()
@@ -2196,9 +2200,9 @@ nrowsCofactors <- ceiling(length(useMarkers)/4)
 
 ### Marker Histograms
 
-These are the histograms of all markers using the selected cofactors. Downsampled to 2000 cells per sample.
+These are the histograms of all markers using the selected cofactors.
 
-```{r, label = "report_qc_marker_histograms", fig.height = (nrowsCofactors*2)+1, fig.width = 15}
+```{r, label = "report_qc_marker_histograms", fig.cap = "Density of each transformed marker, one colour per condition. Each curve is scaled to the same height, so compare shapes rather than heights.", fig.height = (nrowsCofactors*2)+1, fig.width = 15}
 y <- assay(sce, "exprs")
 df <- data.frame(t(y), colData(sce), check.names = FALSE)
 gg_df <- melt(df, value.name = "value", variable.name = "antigen", 
@@ -2256,11 +2260,11 @@ n_cells(sce)
 ```
 :::
 
-```{r, label = "report_qc_counts_plot", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
+```{r, label = "report_qc_counts_plot", fig.cap = "Number of cells in each condition.", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
 plotCounts(sce, color_by = "condition") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
-```{r, label = "report_qc_counts_plot_by_sample", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
+```{r, label = "report_qc_counts_plot_by_sample", fig.cap = "Number of cells in each sample, coloured by condition.", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
 plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
 ```
 
@@ -2574,7 +2578,7 @@ if (gimmePDFs) {
 
 ##### All Markers
 
-```{r, label = "report_clusters_heatmap_all_markers", fig.height=max(6, ceiling(length(numbersOfClusters)/2.5)), fig.width=max(10, ceiling(length(useMarkers)/2))}
+```{r, label = "report_clusters_heatmap_all_markers", fig.cap = "Median scaled expression of every marker in each cluster. The bars on the right show each cluster's share of all cells.", fig.height=max(6, ceiling(length(numbersOfClusters)/2.5)), fig.width=max(10, ceiling(length(useMarkers)/2))}
 exH <- plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]])
 ComplexHeatmap::draw(exH, merge_legend = TRUE)
 ```
@@ -2625,7 +2629,7 @@ if (gimmePDFs) {
 
 ##### All Clusters
 
-```{r, label = "report_clusters_heatmap_samples", fig.height=ceiling(length(numbersOfClusters)/3.5), fig.width=(ceiling(length(md$sample_id)/1.2))}
+```{r, label = "report_clusters_heatmap_samples", fig.cap = "Relative frequency of each cluster in each sample, normalised across samples.", fig.height=ceiling(length(numbersOfClusters)/3.5), fig.width=(ceiling(length(md$sample_id)/1.2))}
 pFH <- plotFreqHeatmap(
   x = sce,
   k = clusteringMethodToUse,
@@ -2658,7 +2662,7 @@ if (gimmePDFs) {
 
 ### Ridge Plot
 
-```{r, label = "report_clusters_ridge", fig.height=ceiling(length(useMarkers)/3)*2.5, fig.width=16}
+```{r, label = "report_clusters_ridge", fig.cap = "Distribution of each marker's expression in every cluster.", fig.height=ceiling(length(useMarkers)/3)*2.5, fig.width=16}
 pCE <- plotClusterExprs(sce, k = clusteringMethodToUse, features = NULL)
 pCE$facet$params$ncol <- 12
 pCE$facet$params$nrow <- ceiling(length(useMarkers)/12)
@@ -2679,7 +2683,7 @@ if (gimmePDFs) {
 
 #### Cells per Cluster
 
-```{r, label = "report_clusters_cell_counts", fig.height=4, fig.width=8}
+```{r, label = "report_clusters_cell_counts", fig.cap = "Number of cells in each cluster, all samples together.", fig.height=4, fig.width=8}
 ns <- table(cluster_id = cluster_ids(sce, clusteringMethodToUse), sample_id = sample_ids(sce))
 df <- as.data.frame(ns)
 df$cluster_id <- factor(df$cluster_id, levels = gtools::mixedsort(unique(as.character(df$cluster_id))))
@@ -2695,11 +2699,11 @@ cellsPerClusterBarplot <- ggplot(df, aes(x = cluster_id, y = Freq, fill = cluste
 cellsPerClusterBarplot
 ```
 
-```{r, label = "report_clusters_cell_counts_by_condition", fig.height = ceiling(length(condLevels)/2)*4, fig.width = 16}
+```{r, label = "report_clusters_cell_counts_by_condition", fig.cap = "Number of cells in each cluster, split by condition.", fig.height = ceiling(length(condLevels)/2)*4, fig.width = 16}
 cellsPerClusterBarplot + facet_wrap(~condition, scales = "free") + theme_prism(axis_text_angle = 90) + theme(legend.position = "hide")
 ```
 
-```{r, label = "report_clusters_cell_counts_by_sample", fig.height=(4*(ceiling(length(unique(df$sample_id)))/3)), fig.width = 18}
+```{r, label = "report_clusters_cell_counts_by_sample", fig.cap = "Number of cells in each cluster, one panel per sample.", fig.height=(4*(ceiling(length(unique(df$sample_id)))/3)), fig.width = 18}
 cellsPerClusterBarplot + facet_wrap(~sample_id, ncol = 3, scales = "free")
 ```
 
@@ -2714,7 +2718,7 @@ openxlsx::write.xlsx(
 
 #### Cluster Frequency
 
-```{r, label = "report_clusters_frequency", fig.width = ceiling(length(condLevels)/2)*10, fig.height=5}
+```{r, label = "report_clusters_frequency", fig.cap = "Proportion of each sample's cells in each cluster, grouped by condition.", fig.width = ceiling(length(condLevels)/2)*10, fig.height=5}
 { sorted_ids <- gtools::mixedsort(names(coloursList[[paste0(mergeBy, knn)]]))
   sorted_pal <- coloursList[[paste0(mergeBy, knn)]][sorted_ids]
   plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism(axis_text_angle = 45) + scale_fill_manual(values = sorted_pal, breaks = sorted_ids) }
@@ -2794,7 +2798,7 @@ heightToPlot <- ceiling(nRowsToPlot*5)
 widthToPlot <- ceiling((5*1.2)*nColsToPlot)
 ```
 
-```{r, label = "report_clusters_boxplots", fig.width = widthToPlot, fig.height = heightToPlot}
+```{r, label = "report_clusters_boxplots", fig.cap = "Proportion of cells in each cluster per sample, by condition (arcsine square root transformed, then z-scored per cluster).", fig.width = widthToPlot, fig.height = heightToPlot}
 ## From CATALYST plotFreqHeatmap function
 ns <- table(sce$cluster_id, sce$sample_id)
 fq <- prop.table(ns, 2)
@@ -2900,7 +2904,7 @@ medianScaledDF <- medianScaledDF |>
 openxlsx::write.xlsx(as.data.frame(medianScaledDF), file = file.path(excelDir, "Median_Markers_Per_Sample_Expression.xlsx"))
 ```
 
-```{r, label = "report_markers_boxplots", fig.height = heightToPlot*0.7, fig.width = widthToPlot}
+```{r, label = "report_markers_boxplots", fig.cap = "Median expression of each marker per sample, by condition. The p-values come from the differential state test with all clusters merged.", fig.height = heightToPlot*0.7, fig.width = widthToPlot}
 markerPvalues <- lapply(useMarkers, function(marker) {
   pvals <- lapply(names(dsList)[grep("Merged", names(dsList))], function(ds) { dsList[[ds]]$tbl_DS$p_adj[dsList[[ds]]$tbl_DS$marker_id == marker] }) |> setNames(names(dsList)[grep("Merged", names(dsList))]) |> unlist()
   if(length(pvals) == 0) {pvals <- 1}
@@ -3072,7 +3076,7 @@ if (!is.null(drCellPerCondition)) {
 
 #### Clusters: Selected Cells 
 
-```{r, label = "report_dr_clusters_labelled", fig.height=6, fig.width=7}
+```{r, label = "report_dr_clusters_labelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by cluster, with cluster labels."), fig.height=6, fig.width=7}
 if (is.null(drCellPerCondition)) {
   umapsDFToPlot <- "All"
 } else {
@@ -3132,7 +3136,7 @@ dr1a <- plotUMAPNice(
 dr1a
 ```
 
-```{r, label = "report_dr_clusters_unlabelled", fig.height=6, fig.width=7}
+```{r, label = "report_dr_clusters_unlabelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by cluster, without labels."), fig.height=6, fig.width=7}
 dr1b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.8, show_cluster_labels = FALSE, show_grids = FALSE, text_size = 14) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 dr1b
@@ -3151,7 +3155,7 @@ if (gimmePDFs) {
 
 #### All Samples: Other k values
 
-```{r, label = "report_dr_other_k", fig.height=ceiling(6*length(kValuesIWant)), fig.width=9}
+```{r, label = "report_dr_other_k", fig.cap = paste0("The same ", dimRedMethodToUse, " embedding coloured by the clustering at each k value tested."), fig.height=ceiling(6*length(kValuesIWant)), fig.width=9}
 pDRList <- setNames(lapply(kValuesIWant, function(i) {
   plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = FALSE) +
     guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
@@ -3179,11 +3183,11 @@ dr2a <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by 
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
 ```
 
-```{r, label = "report_dr_by_condition_labelled", fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
+```{r, label = "report_dr_by_condition_labelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding split by condition, coloured by cluster, with the number of cells in each panel."), fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
 dr2a
 ```
 
-```{r, label = "report_dr_by_condition_unlabelled", fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
+```{r, label = "report_dr_by_condition_unlabelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding split by condition, coloured by cluster, without labels."), fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
 dr2b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = FALSE, show_grids = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
   guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
@@ -3201,7 +3205,7 @@ if (gimmePDFs) {
 }
 ```
 
-```{r, label = "report_dr_coloured_by_condition", fig.height=(6+length(conditionOrder)*2.5), fig.width=7}
+```{r, label = "report_dr_coloured_by_condition", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by condition: all conditions together (top) and one panel per condition (bottom)."), fig.height=(6+length(conditionOrder)*2.5), fig.width=7}
 u1_by_cond <- plotUMAPNice(umapDFList[[umapsDFToPlot]], "condition")
 u2_by_cond <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = "condition", show_density = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels))
@@ -3346,7 +3350,7 @@ cat("### scGate Gating \n\n")
 
 #### All
 
-```{r, label = "report_scgate_all", fig.height=6, fig.width=18, eval = show_scgate}
+```{r, label = "report_scgate_all", fig.cap = "Cells passing each scGate gate, one panel per condition.", fig.height=6, fig.width=18, eval = show_scgate}
 print(
   plotUMAPNice(
     df = umapDFList$Downsampled,

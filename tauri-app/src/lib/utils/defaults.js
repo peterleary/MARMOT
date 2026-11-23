@@ -97,6 +97,12 @@ export const FIELD_DEFINITIONS = {
     },
     label: "Colour Palette",
   },
+  figureDPI: {
+    type: "number",
+    label: "Figure Resolution (DPI)",
+    info: "Resolution of the report's figures, in dots per inch. Higher is sharper but makes the report bigger.",
+    min: 50,
+  },
   excludeTheseSamples: {
     type: "text",
     label: "Samples to leave out",
@@ -145,6 +151,6 @@ export const SETTING_GROUPS = [
   },
   {
     label: "Output & Aesthetics",
-    fields: ["gimmePDFs", "greyscalePlots", "viridisColour"],
+    fields: ["gimmePDFs", "greyscalePlots", "viridisColour", "figureDPI"],
   },
 ];

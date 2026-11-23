@@ -103,3 +103,35 @@ $tab5-sel: #5f6368; $tab5-sel-fg: #ffffff; $tab5-un: #eceded; $tab5-un-fg: #3c40
   margin-right: 0.1rem;
   font-variant-numeric: tabular-nums;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// A figure with a note beside it (adapted from fgczQuartoTemplate). Use as:
+//   ::::: {.fig-row}
+//   :::: {.fig-main}   <plot chunk>   ::::
+//   :::: {.fig-side}   ::: {.callout-tip} … :::   ::::
+//   :::::
+// On narrow screens the note drops below the figure.
+// ─────────────────────────────────────────────────────────────────
+.fig-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin: 0.5rem 0 1.25rem;
+}
+.fig-row .fig-main { flex: 0 0 60%; min-width: 0; }
+.fig-row .fig-main figure,
+.fig-row .fig-main .cell-output-display,
+.fig-row .fig-main img { width: 100%; max-width: 100%; height: auto; }
+.fig-row .fig-side { flex: 1 1 auto; min-width: 0; }
+.fig-row .fig-side > :first-child { margin-top: 0; }
+@media (max-width: 768px) {
+  .fig-row { flex-direction: column; }
+  .fig-row .fig-main { flex: 1 1 auto; }
+}
+
+// Captions: smaller and muted, under the figure
+figcaption, .figure-caption {
+  font-size: 0.85rem;
+  color: $text-muted;
+  text-align: center;
+}

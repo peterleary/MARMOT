@@ -54,7 +54,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   cantBeBlank <- c(
     "clusteringMethodToUse", "markersToClusterBy", "kValuesIWant", "knn",
     "dimRedMethodToUse", "markersToDimRedBy", "runQC", "useQC", "gimmePDFs",
-    "quantileNormaliseAll", "nCores", "ramPerCore", "viridisColour"
+    "quantileNormaliseAll", "nCores", "ramPerCore", "viridisColour", "figureDPI"
   )
   blank <- cantBeBlank[vapply(cantBeBlank, function(p) {
     value <- params_df$Setting[which(params_df$Variable == p)]
@@ -86,7 +86,7 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
   if ("excludeTheseSamples" %in% names(params_list)) {
     params_list$excludeTheseSamples <- trimws(strsplit(as.character(params_list$excludeTheseSamples), ",")[[1]])
   }
-  for (f in c("downsampleTo", "knn", "nCores", "ramPerCore")) {
+  for (f in c("downsampleTo", "knn", "nCores", "ramPerCore", "figureDPI")) {
     if (f %in% names(params_list)) {
       params_list[[f]] <- as.numeric(params_list[[f]])
     }
