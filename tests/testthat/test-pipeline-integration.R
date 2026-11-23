@@ -94,3 +94,20 @@ test_that("with scGate off the report has no stray All tab", {
   text <- paste(readLines(html, warn = FALSE), collapse = "\n")
   expect_false(grepl(">\\s*All\\s*</a>", text))
 })
+
+test_that("a condition missing from Conditions Order stops the run at the start", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 200, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+  file_data <- openxlsx::read.xlsx(meta_path, sheet = "File Data")
+  file_data$condition[1] <- "control"          # Conditions Order says "Control"
+  wb <- openxlsx::loadWorkbook(meta_path)
+  openxlsx::writeData(wb, "File Data", file_data)
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  expect_error(suppressMessages(marmot(metadata = meta_path, name = "BadCond", render = TRUE)))
+  # It stopped while reading the metadata, before any results were written
+  expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
+})
