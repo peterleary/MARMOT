@@ -13,7 +13,7 @@
        📥  DOWNLOAD — bundles the checked items into a single ZIP: a tick-box
                   gallery of every static plot, plus two whole-report extras,
                   the .qmd source and a standalone .html copy. Plots save at
-                  the resolution knitr embedded them at (the report's fig-dpi);
+                  the resolution knitr embedded them at (the figureDPI setting);
                   the browser only has that raster. The qmd is the source
                   Quarto embeds under `code-tools: true`, and the html is a
                   snapshot of the live page — an extra the report cannot supply
@@ -322,7 +322,7 @@
   <div class="marmot-pf-foot">
     <button id="marmot-dl-go" class="marmot-pf-dlbtn">Download ZIP</button>
     <div class="marmot-pf-note">
-      Plots download at the resolution embedded in the report (its fig-dpi).
+      Plots download at the resolution embedded in the report (set by figureDPI).
       Interactive (plotly) charts aren't listed — export those from their own toolbar.
     </div>
   </div>

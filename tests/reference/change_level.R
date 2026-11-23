@@ -24,7 +24,9 @@ changed <- changed[nzchar(changed)]
 
 # Files that cannot change what a run produces
 harmless <- grepl("^(tests/|notes/|man/|docs/|images/|tauri-app/|\\.claude/|\\.github/)|\\.md$", changed)
-other_code <- setdiff(changed[!harmless], qmd)
+# The report's look (styles, header, toolbar): redrawing a saved run shows all of it
+report_look <- changed %in% file.path("inst/pipeline", c("marmot.scss", "marmot_header.html", "marmot-toolbar.html"))
+other_code <- setdiff(changed[!harmless & !report_look], qmd)
 
 # Which chunk each line of the QMD belongs to ("" outside a chunk)
 chunk_of_lines <- function(lines) {
@@ -71,10 +73,11 @@ skipped_on_reload <- grepl("^(analysis_|save_results|input_settings|reload_)", c
 
 level <- if (length(other_code)) "everything" else
   if (any(skipped_on_reload)) "analysis" else
-  if (length(chunks_touched) || in_text) "report" else "none"
+  if (length(chunks_touched) || in_text || any(report_look)) "report" else "none"
 
 cat("LEVEL: ", level, "\n", sep = "")
 if (length(other_code)) cat("  code outside the QMD: ", paste(other_code, collapse = ", "), "\n", sep = "")
 if (any(skipped_on_reload)) cat("  chunks not run on reload: ", paste(chunks_touched[skipped_on_reload], collapse = ", "), "\n", sep = "")
 if (any(!skipped_on_reload)) cat("  chunks run on reload: ", paste(chunks_touched[!skipped_on_reload], collapse = ", "), "\n", sep = "")
 if (in_text) cat("  report text outside chunks\n")
+if (any(report_look)) cat("  the report's look: ", paste(changed[report_look], collapse = ", "), "\n", sep = "")
