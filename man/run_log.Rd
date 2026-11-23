@@ -34,6 +34,7 @@ run_log_finish(path)
 The pipeline writes a small JSON file, \code{marmot_run_log.json}, as it goes:
 the R and package versions, the settings, the shape of the data and the
 last chunk reached. If a run crashes, the file still says how far it got.
+A reload writes \code{marmot_run_log_reload.json} beside it instead.
 It never holds cell-level values or anything that identifies a sample.
 }
 \details{

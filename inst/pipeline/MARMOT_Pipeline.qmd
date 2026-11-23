@@ -159,7 +159,7 @@ required_vars <- c(
   "dimRedMethodToUse", "markersToDimRedBy",
   "runQC", "useQC", "RDataFolder", "excludeTheseSamples",
   "greyscalePlots", "gimmePDFs", "quantileNormaliseAll",
-  "nCores", "viridisColour", "figureDPI"
+  "nCores", "ramPerCore", "viridisColour", "figureDPI", "runScGate", "resultsDir"
 )
 
 missing_vars <- required_vars[!vapply(required_vars, exists, logical(1))]
@@ -566,8 +566,13 @@ dir.create(excelDir, showWarnings = FALSE)
 # Shape-only diagnostics for remote debugging. Never writes cell-level values
 # or identifying labels. Written progressively so mid-pipeline crashes still
 # leave a useful file.
-# It sits in the R_files folder (see the `save_folders` chunk).
-log_path <- file.path(if (!is.null(RDataFolder)) RDataFolder else rFilesDir, "marmot_run_log.json")
+# It sits in the R_files folder (see the `save_folders` chunk). A reload keeps
+# its own log beside the original, so the original run's log is never replaced.
+log_path <- if (!is.null(RDataFolder)) {
+  file.path(RDataFolder, "marmot_run_log_reload.json")
+} else {
+  file.path(rFilesDir, "marmot_run_log.json")
+}
 .diag_get <- function(name, default = NA) {
   if (exists(name, envir = .GlobalEnv, inherits = FALSE)) {
     v <- get(name, envir = .GlobalEnv)
@@ -1609,7 +1614,11 @@ if (dimRedMethodToUse == "pacmap") {
 if (dimRedMethodToUse == "Mpacmap") {
   message("Running Mpacmap (R)...")
   es <- as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+  # Put the random-number stream back afterwards, so the UMAP and tSNE below
+  # come out the same whichever method was chosen
+  seedBeforeMpacmap <- .Random.seed
   embedding <- Mpacmap(as.matrix(es), apply_pca = FALSE, verbose = TRUE)
+  assign(".Random.seed", seedBeforeMpacmap, envir = .GlobalEnv)
   colnames(embedding) <- c("x", "y")
   reducedDim(sce, "Mpacmap") <- embedding
 }
@@ -3343,17 +3352,14 @@ if (show_scgate) {
 ```
 
 ```{r, label = "report_scgate_header", results = 'asis', eval = show_scgate}
-cat("### scGate Gating \n\n")
+# The tab set is opened here, not in the text, so it only appears when scGate ran
+cat("### scGate Gating \n\n:::::::: {.panel-tabset}\n\n#### All\n\n")
 ```
-
-:::::::: {.panel-tabset}
-
-#### All
 
 ```{r, label = "report_scgate_all", fig.cap = "Cells passing each scGate gate, one panel per condition.", fig.height=6, fig.width=18, eval = show_scgate}
 print(
   plotUMAPNice(
-    df = umapDFList$Downsampled,
+    df = umapDFList[[umapsDFToPlot]],
     colour_by = "Gated_Cells",
     show_density = FALSE,
     alpha = 1,
@@ -3389,7 +3395,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
 
   # Plot 1: DimPlot — is this cell type?
   p1 <- plotUMAPNice(
-    df = umapDFList$Downsampled,
+    df = umapDFList[[umapsDFToPlot]],
     colour_by = paste0("is_", y),
     show_density = FALSE,
     alpha = 1
@@ -3400,7 +3406,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
 
   # Plot 2: FeaturePlot — UCell score
   ucell_col <- paste0(mpt, "_UCell")
-  p2 <- ggplot(umapDFList$Downsampled, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
+  p2 <- ggplot(umapDFList[[umapsDFToPlot]], aes(x = .data[["x"]], y = .data[["y"]], colour = .data[[ucell_col]])) +
     geom_point(size = dr_point_size, shape = 16) +
     scale_colour_gradientn(colours = hcl.colors(64, "mako")) +
     labs(
@@ -3412,7 +3418,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
   cat("\n\n")
 
   # Plot 3: Joint density — ks::kde weighted scatter
-  df_joint <- umapDFList$Downsampled
+  df_joint <- umapDFList[[umapsDFToPlot]]
   emb_mat <- as.matrix(df_joint[, c("x", "y")])
   w_joint <- rep(0, nrow(df_joint))
   for (mk in c(m1, m2)) {
@@ -3442,9 +3448,8 @@ invisible(lapply(names(scgate_models), function(mpt) {
   print(p3)
   cat("\n\n")
 }))
+cat("::::::::\n\n")   # closes the tab set opened in report_scgate_header
 ```
-
-::::::::
 
 ::::::::::
 

@@ -3,7 +3,7 @@
 # A small JSON file, marmot_run_log.json in the R_files folder, written as the
 # pipeline goes: the versions, the settings, the shape of the data and the
 # last chunk reached. If a run crashes, the file still says how far it got.
-# It never holds cell-level values or anything that identifies a sample, so
+# A reload writes marmot_run_log_reload.json beside it instead. It never holds cell-level values or anything that identifies a sample, so
 # users can share it when asking for help. Nothing in MARMOT reads it back.
 
 .run_log_time <- function() format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
@@ -43,6 +43,7 @@ marmot_package_versions <- function() {
 #' The pipeline writes a small JSON file, `marmot_run_log.json`, as it goes:
 #' the R and package versions, the settings, the shape of the data and the
 #' last chunk reached. If a run crashes, the file still says how far it got.
+#' A reload writes `marmot_run_log_reload.json` beside it instead.
 #' It never holds cell-level values or anything that identifies a sample.
 #'
 #' `run_log_start()` starts a new log, replacing any file already at `path`.
