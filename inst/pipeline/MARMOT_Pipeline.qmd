@@ -609,6 +609,27 @@ md$sample_id <- factor(md$sample_id, levels = md$sample_id)
 
 # Apply condition ordering if available
 conditionOrder <- smd$`Conditions Order` |> na.omit()
+
+# Every sample needs a condition, spelt exactly as in 'Conditions Order'.
+# Otherwise its cells end up with no condition, and the run stops much later
+# with a puzzling error. (Samples about to be excluded are not checked.)
+condsInUse <- md$condition[!md$sample_id %in% excludeTheseSamples]
+if (anyNA(condsInUse)) {
+  stop("❌ Some samples in 'File Data' have no condition: ",
+       paste(md$sample_id[is.na(md$condition) & !md$sample_id %in% excludeTheseSamples], collapse = ", "),
+       ". Please fill in their condition.")
+}
+if (length(conditionOrder) > 0) {
+  notInOrder <- setdiff(unique(as.character(condsInUse)), conditionOrder)
+  if (length(notInOrder)) {
+    quoteCond <- function(x) paste0("'", x, "'")
+    stop("❌ These conditions in 'File Data' are missing from 'Conditions Order' on the 'Study Data' sheet: ",
+         paste(quoteCond(notInOrder), collapse = ", "), ". 'Conditions Order' has: ",
+         paste(quoteCond(conditionOrder), collapse = ", "),
+         ". They must match exactly, capitals and spaces included.")
+  }
+}
+
 if (length(conditionOrder) > 0) {
   md$condition <- factor(md$condition, levels = conditionOrder)
 } else {
