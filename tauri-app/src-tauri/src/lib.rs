@@ -44,6 +44,7 @@ pub fn run() {
             commands::pipeline::cancel_pipeline,
             commands::pipeline::launch_shiny_app,
             commands::preflight::check_metadata,
+            commands::extension::read_extension_summary,
         ])
         // Option A: kill Shiny when the main window is closed
         .on_window_event(move |_window, event| {

@@ -11,6 +11,7 @@
   import InstallPanel from "./lib/components/InstallPanel.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
   import SplashScreen from "./lib/components/SplashScreen.svelte";
+  import ExtensionPanel from "./lib/components/ExtensionPanel.svelte";
   import WelcomePanel from "./lib/components/WelcomePanel.svelte";
   import { metadata } from "./lib/stores/metadata.js";
   import { rscriptPath, rVersion, marmotInstalled, packageStatus, quartoPath, quartoVersion } from "./lib/stores/pipeline.js";
@@ -109,6 +110,7 @@
     { id: "install",  label: "Install",        icon: "&#128230;" },
     { id: "setup",    label: "Pipeline Setup",  icon: "&#9881;" },
     { id: "log",      label: "Run/log",        icon: "&#9654;" },
+    { id: "extension", label: "Annotate & extend", icon: "&#127991;" },
     { id: "shiny",    label: "Shiny",          icon: "&#128202;" },
   ];
 
@@ -239,6 +241,8 @@
       </div>
     {:else if activeTab === "log"}
       <LogPanel />
+    {:else if activeTab === "extension"}
+      <ExtensionPanel onActiveTab={setActiveTab} />
     {:else if activeTab === "shiny"}
       <ShinyPanel />
     {/if}
