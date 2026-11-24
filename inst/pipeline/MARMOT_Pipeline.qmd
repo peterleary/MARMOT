@@ -765,7 +765,6 @@ if (!is.null(excludeTheseSamples)) {
 
 # Sort again by condition
 md <- md[order(md$condition), ]
-md$patient_id <- factor(md$sample_id, levels = md$sample_id)
 md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
 
 # Batch correction (only when batchColumn names a File Data column). The
@@ -774,10 +773,10 @@ md$sample_id  <- factor(md$sample_id, levels = md$sample_id)
 useBatch <- !is.null(batchColumn) && nzchar(trimws(batchColumn))
 batchNotes <- character()
 if (useBatch) {
-  batchMatch <- MARMOT::match_names(gsub("-", ".", batchColumn), setdiff(names(md), c("file_name", "sample_id", "patient_id", "condition")))
+  batchMatch <- MARMOT::match_names(gsub("-", ".", batchColumn), setdiff(names(md), c("file_name", "sample_id", "condition")))
   if (is.na(batchMatch$matched)) {
     stop("❌ The batchColumn setting names '", batchColumn, "', but the File Data sheet has no such column. ",
-         "Its columns are: ", paste(setdiff(names(md), "patient_id"), collapse = ", "), ".")
+         "Its columns are: ", paste(names(md), collapse = ", "), ".")
   }
   nameNotes <- c(nameNotes, MARMOT::describe_name_matches(batchMatch$notes, "batch column", "'File Data'"))
   batchColumn <- batchMatch$matched
