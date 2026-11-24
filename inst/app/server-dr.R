@@ -102,8 +102,9 @@ umapReactive <- eventReactive(
         )
       }
 
-      # Shuffle for fair cluster overdraw (matches SCpubr shuffle=TRUE default)
-      umapDF <- umapDF[sample(nrow(umapDF)), ]
+      # Shuffle for fair cluster overdraw (matches SCpubr shuffle=TRUE default),
+      # in a fixed order, keeping only the columns the map needs
+      umapDF <- map_draw_table(umapDF, c("cluster_id", inputs$umapColumnToPlot, inputs$umapColumnToSplit))
 
       # ── Resolve colour vector ───────────────────────────────────────────
       plot_column  <- inputs$umapColumnToPlot
@@ -226,18 +227,20 @@ umapReactive <- eventReactive(
       # ================================================================
       border_type <- inputs$umapBorderType %||% "Density borders"
 
-      # Rasterisation only compatible with plain "None" borders
-      use_raster <- isTRUE(res$rasterise_auto) && border_type == "None"
+      # Rasterise when the box is ticked (it is ticked for the user on large
+      # runs). Per-cell borders cannot be rasterised and are drawn as points.
+      use_raster <- isTRUE(inputs$rasteriseUMAP) && border_type != "Per-cell borders"
+      raster_px  <- rep(as.integer(round((inputs$rasterUMAP_DPI %||% 300) * 10 / 3)), 2)
 
       umapStatic <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]]))
 
       # ── Rendering path ──────────────────────────────────────────────
-      if (use_raster) {
-        # Raster: scattermore for large datasets, no border support
+      if (use_raster && border_type == "None") {
+        # Raster: scattermore for large datasets
         umapStatic <- umapStatic +
           scattermore::geom_scattermore(
             pointsize = (inputs$pointSizeUMAP * 2) + 0.6,
-            pixels    = c(1000L, 1000L),
+            pixels    = raster_px,
             alpha     = inputs$pointAlphaUMAP,
             aes(colour = .data[[plot_column]])
           ) +
@@ -276,7 +279,20 @@ umapReactive <- eventReactive(
         cell_density <- kde$z[cbind(ix, iy)]
         border_df    <- umapDF[cell_density <= quantile(cell_density, border_density), ]
 
-        umapStatic <- umapStatic +
+        if (use_raster) {
+          # The same three layers, rasterised (as the feature plot does)
+          eff_raster <- (inputs$pointSizeUMAP * 2) + 0.6
+          umapStatic <- umapStatic +
+            scattermore::geom_scattermore(data = border_df, pointsize = eff_raster * border_size,
+                                          pixels = raster_px, color = border_colour) +
+            scattermore::geom_scattermore(pointsize = eff_raster, pixels = raster_px, color = "grey75") +
+            scattermore::geom_scattermore(aes(colour = .data[[plot_column]]),
+                                          pointsize = eff_raster, pixels = raster_px) +
+            guides(colour = guide_legend(
+              override.aes = list(size = 4, colour = "black", fill = colours, shape = 21),
+              ncol = 2
+            ))
+        } else umapStatic <- umapStatic +
           # Layer 1: border (edge cells)
           geom_point(
             data = border_df,

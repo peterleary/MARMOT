@@ -26,6 +26,10 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     choices = dr_choices, selected = dr_map_default(dr_choices),
     options = dr_map_render())
 
+  # Large runs (over 150,000 cells) start rasterised, so the map draws in
+  # seconds; the box is ticked where the user can see and untick it
+  if (isTRUE(res$rasterise_auto)) updateCheckboxInput(session, "rasteriseUMAP", value = TRUE)
+
   # ── Plottable columns (categorical, <100 levels) ──────────────────────
   colsThatCanBePlot <- get_plottable_columns(sce)
 

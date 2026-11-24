@@ -118,12 +118,19 @@ fp_section_header <- function(label) {
   ))
 }
 
+# Set once when the results arrive. The controls below wait for it but do
+# not redraw on every later change to the results (relabelling, subsetting),
+# which used to reset everything the user had set.
+fpDataLoaded <- reactiveVal(FALSE)
+observeEvent(inputDataReactive$Results, once = TRUE, { fpDataLoaded(TRUE) })
+
 output$plotTypeControls <- renderUI({
+  req(fpDataLoaded())
   plot_type <- input$featurePlotType %||% "Feature Plot"
 
   # ── Feature Plot / Nebulosa Plot ───────────────────────────────────────
   if (plot_type %in% c("Feature Plot", "Nebulosa Plot")) {
-    dr_names <- dr_map_choices(inputDataReactive$Results$umapDFList)
+    dr_names <- dr_map_choices(isolate(inputDataReactive$Results$umapDFList))
     fp_dr_default <- dr_map_default(dr_names)
 
     tagList(
@@ -139,7 +146,7 @@ output$plotTypeControls <- renderUI({
         min = 0.1, max = 4, value = 0.3, step = 0.1,
         width = "85%", ticks = FALSE),
       splitLayout(
-        checkboxInput("rasteriseFP", "Rasterise?", value = FALSE),
+        checkboxInput("rasteriseFP", "Rasterise?", value = isTRUE(isolate(inputDataReactive$Results$rasterise_auto))),
         numericInput("rasterFP_DPI", "Raster DPI",
           value = 1024, min = 0, max = 2000, step = 5, width = "85%")
       ),
@@ -1381,6 +1388,9 @@ observeEvent(
 output$umapFeaturePlotOutput <- renderPlot(
   {
     fp <- featurePlotReactive$fp
+    # Say what to do rather than show an empty box
+    validate(need(length(genesReactive$genes) > 0,
+      "Pick one or more markers to plot: choose them in 'Select markers to plot', or paste a list."))
     if (is.null(fp)) return(NULL)
 
     # ComplexHeatmap objects need draw()

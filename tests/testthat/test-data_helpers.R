@@ -535,3 +535,11 @@ test_that("clusterings stay plottable however many clusters they have", {
   cd <- data.frame(cluster_id = factor(1:150), k60 = factor(1:150), cell = 1:150, condition = rep(c("A", "B"), 75))
   expect_identical(get_plottable_columns(cd), c("cluster_id", "k60", "condition"))
 })
+
+test_that("the map table keeps only what the map needs, in the same order every time", {
+  df <- data.frame(x = 1:20, y = 20:1, cluster_id = rep(c("a", "b"), 10), CD3 = runif(20), CD4 = runif(20))
+  a <- map_draw_table(df, c("cluster_id", "condition"))
+  expect_identical(names(a), c("x", "y", "cluster_id"))
+  expect_identical(a, map_draw_table(df, c("cluster_id", "condition")))
+  expect_setequal(a$x, 1:20)
+})

@@ -440,18 +440,35 @@ build_cluster_codes <- function(umap_df) {
 #'   random state is left as it was.
 #' @return Character vector of sampled cell IDs
 sample_cells_by_group <- function(metadata, group_col, cells_per_group, seed = 2L) {
-  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
-  if (had_seed) old_seed <- get(".Random.seed", envir = globalenv())
-  on.exit(if (had_seed) assign(".Random.seed", old_seed, envir = globalenv())
-          else rm(".Random.seed", envir = globalenv()), add = TRUE)
-  set.seed(seed)
-  unlist(lapply(names(cells_per_group), function(x) {
+  with_fixed_seed(seed, unlist(lapply(names(cells_per_group), function(x) {
     group_cells <- rownames(metadata)[!is.na(metadata[[group_col]]) & metadata[[group_col]] == x]
     target <- suppressWarnings(as.numeric(cells_per_group[[x]]))
     if (length(target) != 1 || is.na(target)) target <- length(group_cells)
     n_cells <- max(0, min(floor(target), length(group_cells)))
     group_cells[sample.int(length(group_cells), n_cells)]
-  }))
+  })))
+}
+
+#' Evaluate with a fixed seed, leaving the session's random state as it was
+#' @param seed The seed
+#' @param expr The code to run
+with_fixed_seed <- function(seed, expr) {
+  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+  if (had_seed) old_seed <- get(".Random.seed", envir = globalenv())
+  on.exit(if (had_seed) assign(".Random.seed", old_seed, envir = globalenv())
+          else rm(".Random.seed", envir = globalenv()), add = TRUE)
+  set.seed(seed)
+  expr
+}
+
+#' The table a map is drawn from: only the columns it needs, in a fixed
+#' shuffled order (so no cluster is always drawn on top, and the same
+#' settings always give the same picture)
+#' @param df The map's plotting table
+#' @param cols The columns needed (others are dropped; missing ones ignored)
+map_draw_table <- function(df, cols) {
+  cols <- intersect(unique(c("x", "y", cols)), names(df))
+  df[with_fixed_seed(2L, sample.int(nrow(df))), cols, drop = FALSE]
 }
 
 #' Parse marker pairs from study metadata
