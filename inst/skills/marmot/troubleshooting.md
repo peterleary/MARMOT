@@ -258,7 +258,7 @@ Fix: upgrade to v1.3.1.
 
 ## The diagnostic log (`marmot_run_log.json`)
 
-Every render writes a JSON diagnostic log to the `Results_Files_*/` folder. It records:
+Every render writes a JSON diagnostic log, `marmot_run_log.json`, to the `R_files/` folder inside `Results_Files_*/` (a reload writes `marmot_run_log_reload.json` beside it). It records:
 
 - Pipeline version, timestamp.
 - Data shape: `n_samples`, `n_conditions`, `n_contrasts`, `n_markers_requested`, `homogeneous_panel`.

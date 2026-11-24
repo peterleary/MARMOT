@@ -16,7 +16,7 @@
       },
       "homepage": "https://github.com/peterleary/MARMOT",
       "repository": "https://github.com/peterleary/MARMOT",
-      "license": "MIT",
+      "license": "GPL-3.0-or-later",
       "keywords": [
         "flow-cytometry",
         "spectral-flow",

@@ -21,7 +21,7 @@ From: ghcr.io/peterleary/marmot:latest
 %labels
   ########
   # (Optional) change labels if needed
-  Version 1.3.0
+  Version see the MARMOT base image (ghcr.io/peterleary/marmot)
   Author Peter Leary <peter.leary@uzh.ch>
   #
   ########
@@ -29,10 +29,11 @@ From: ghcr.io/peterleary/marmot:latest
 
 %environment
   export TZ=Europe/Zurich
-  export PATH=/opt/TurboVNC/bin:/opt/miniforge/bin:$PATH
+  export PATH=/opt/TurboVNC/bin:$PATH
   ########
   # (Optional) add your environment variables here
-  export RETICULATE_MINICONDA_PATH=/opt/miniforge
+  # Where the base image keeps MARMOT's Python environment (pixi)
+  export R_USER_DATA_DIR=/opt/marmot-data
   #
   ########
 
@@ -79,7 +80,7 @@ From: ghcr.io/peterleary/marmot:latest
   ########
   # MARMOT customisation:
   # R 4.5.2, Quarto, all R/Bioc packages (MARMOT + dependencies), and the
-  # Python environment (PARC/PaCMAP via miniforge) are pre-installed in the
+  # Python environment (PARC/PaCMAP, set up with pixi) are pre-installed in the
   # base Docker image (ghcr.io/peterleary/marmot). Only RStudio is added here.
 
   apt -y install gdebi

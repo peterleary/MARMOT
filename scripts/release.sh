@@ -6,7 +6,7 @@
 # Example:  ./scripts/release.sh 1.3.3
 #           ./scripts/release.sh 1.3.3 --dry-run
 #
-# Bumps the version in 5 files, commits, pushes main, tags, pushes the tag.
+# Bumps the version in 10 files, commits, pushes main, tags, pushes the tag.
 # CI takes over from there:
 #   - tauri-build.yml auto-publishes the GitHub Release with desktop builds
 #   - docker-publish.yml auto-pushes to ghcr.io/peterleary/marmot:vX.Y.Z
@@ -89,6 +89,7 @@ BUMPED_FILES=(
   tauri-app/src-tauri/Cargo.toml
   tauri-app/package.json
   tauri-app/package-lock.json
+  tauri-app/src/lib/stores/constants.js
 )
 
 # --- Helper: count lines containing $1 in the first 15 lines of file $2 (for package-lock.json) ---
@@ -122,7 +123,7 @@ if [[ -n "$DRIFT" ]]; then
   exit 1
 fi
 
-# --- Bump in 9 files (perl -i for cross-platform: works on mac BSD + GNU sed boxes) ---
+# --- Bump in 10 files (perl -i for cross-platform: works on mac BSD + GNU sed boxes) ---
 echo "==> Bumping version in ${#BUMPED_FILES[@]} files"
 # R package + skill artifacts (5)
 perl -i -pe "s/^Version: \Q$OLD_VERSION\E\$/Version: $NEW_VERSION/" DESCRIPTION
@@ -136,6 +137,8 @@ perl -i -pe "s/^version = \"\Q$OLD_VERSION\E\"\$/version = \"$NEW_VERSION\"/" ta
 perl -i -pe "s/\"version\": \"\Q$OLD_VERSION\E\"/\"version\": \"$NEW_VERSION\"/" tauri-app/package.json
 # package-lock.json: project version lives on lines 3 and 9; restrict to top of file to avoid touching deps
 perl -i -pe "s/\"version\": \"\Q$OLD_VERSION\E\"/\"version\": \"$NEW_VERSION\"/ if \$. <= 15" tauri-app/package-lock.json
+# The version the app shows
+perl -i -pe "s/MARMOT_VERSION = \"\Q$OLD_VERSION\E\"/MARMOT_VERSION = \"$NEW_VERSION\"/" tauri-app/src/lib/stores/constants.js
 
 # --- Post-bump: every file must now contain NEW_VERSION (catches silent regex misses) ---
 echo "==> Verifying every bumped file now contains $NEW_VERSION"
@@ -162,6 +165,7 @@ BUMPED_PATHS=(
   tauri-app/src-tauri/Cargo.toml
   tauri-app/package.json
   tauri-app/package-lock.json
+  tauri-app/src/lib/stores/constants.js
 )
 
 # --- Confirm before destructive steps ---
