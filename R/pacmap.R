@@ -91,7 +91,7 @@ Mpacmap <- function(data,
     if (verbose) message("Applying PCA: ", d, "D -> 100D")
     X_mean <- colMeans(X)
     X <- sweep(X, 2, X_mean)
-    pca_result <- prcomp(X, center = FALSE, rank. = min(100, n - 1, d))
+    pca_result <- stats::prcomp(X, center = FALSE, rank. = min(100, n - 1, d))
     X <- pca_result$x[, seq_len(min(100, ncol(pca_result$x))), drop = FALSE]
     pca_solution <- TRUE
   } else {
@@ -103,7 +103,7 @@ Mpacmap <- function(data,
     X_mean <- colMeans(X)
     X <- sweep(X, 2, X_mean)
     # Still compute PCA for initialization
-    pca_result <- prcomp(X, center = FALSE,
+    pca_result <- stats::prcomp(X, center = FALSE,
                          rank. = min(n_components, n - 1, ncol(X)))
   }
 
@@ -294,7 +294,7 @@ Mpacmap <- function(data,
   } else {
     # Random initialization
     if (!is.null(seed)) set.seed(seed)
-    Y <- matrix(rnorm(n * n_components), n, n_components) * 0.0001
+    Y <- matrix(stats::rnorm(n * n_components), n, n_components) * 0.0001
   }
 
   storage.mode(Y) <- "double"

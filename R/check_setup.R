@@ -19,9 +19,9 @@ check_setup <- function() {
   results$status  <- ifelse(is.na(results$version), "MISSING", "installed")
   has <- function(p) all(p %in% results$package[results$status == "installed"])
   fix <- "MARMOT::install_marmot_extras()"
-  ok <- function(x) cat("  ✅ ", x, "\n", sep = "")
-  no <- function(x, how) cat("  ❌ ", x, "\n       Fix: ", how, "\n", sep = "")
-  maybe <- function(x, how) cat("  ⚠️  ", x, "\n       To add it: ", how, "\n", sep = "")
+  ok <- function(x) cat("  \u2705 ", x, "\n", sep = "")
+  no <- function(x, how) cat("  \u274c ", x, "\n       Fix: ", how, "\n", sep = "")
+  maybe <- function(x, how) cat("  \u26a0\ufe0f  ", x, "\n       To add it: ", how, "\n", sep = "")
 
   cat("\n=== MARMOT setup check ===\n\n")
   cat("MARMOT ", version_of("MARMOT"), ", R ", as.character(getRversion()), "\n\n", sep = "")

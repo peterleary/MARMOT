@@ -33,3 +33,8 @@
 ^\.Rhistory$
 ^\.\.Rcheck$
 ^CLAUDE\.md$
+^tests/reference$
+^scripts$
+^\.claude-plugin$
+^notes$
+^V2_PLAN\.md$

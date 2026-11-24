@@ -626,6 +626,8 @@ load_h5ad_for_shiny <- function(h5ad_path) {
 #' and injecting cluster_codes + experiment_info into metadata.
 #'
 #' @param h5ad_path Path to the marmot_results.h5ad file
+#' @param ad The h5ad already read with anndataR, if the caller has it (so it
+#'   is not read twice); otherwise it is read from `h5ad_path`
 #' @return A SingleCellExperiment object, or NULL if file is missing
 #' @export
 reconstruct_sce_from_h5ad <- function(h5ad_path, ad = NULL) {
