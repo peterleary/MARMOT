@@ -14,7 +14,7 @@ const REQUIRED_FIELDS = [
   "viridisColour",
 ];
 
-export function validateSettings(settings) {
+export function validateSettings(settings, fileData = null) {
   const errors = [];
 
   for (const field of REQUIRED_FIELDS) {
@@ -45,6 +45,16 @@ export function validateSettings(settings) {
   if (batchSetting && String(batchSetting.setting ?? "").trim() !== "" &&
       methodSetting && !graphMethods.includes(methodSetting.setting)) {
     errors.push(`Batch correction works with ${graphMethods.join(", ")}, not ${methodSetting.setting}. Choose one of those, or leave the batch column blank.`);
+  }
+
+  // The batch column must be one of the File Data columns (spaces, hyphens,
+  // underscores and capitals do not count, as in the pipeline)
+  const batchName = String(batchSetting?.setting ?? "").trim();
+  if (batchName !== "" && fileData) {
+    const key = (x) => String(x).toUpperCase().replace(/[\s_-]/g, "");
+    if (!(fileData.headers || []).some((h) => key(h) === key(batchName))) {
+      errors.push(`The batch column "${batchName}" is not a File Data column. Add it to File Data, or choose None.`);
+    }
   }
 
   // Numeric fields must parse correctly

@@ -1,6 +1,6 @@
 <script>
   import { open } from "@tauri-apps/plugin-dialog";
-  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false, onchange = undefined, disabled = false } = $props();
+  let { type = "text", value = $bindable(""), options = [], disabledOptions = [], label = "", info = "", placeholder = "", min = undefined, allowEmpty = false, emptyLabel = "", onchange = undefined, disabled = false } = $props();
 
   async function handleBrowseFolder() {
     const selected = await open({ directory: true, title: `Select ${label || "folder"}` });
@@ -56,7 +56,7 @@
       {#each options as opt}
         {@const unavailable = disabledOptions.includes(opt)}
         <option value={opt} disabled={unavailable} class:unavailable-opt={unavailable}>
-          {opt}{unavailable ? " (not installed)" : ""}
+          {opt === "" && emptyLabel ? emptyLabel : opt}{unavailable ? " (not installed)" : ""}
         </option>
       {/each}
     </select>

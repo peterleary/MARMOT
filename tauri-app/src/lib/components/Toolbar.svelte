@@ -145,7 +145,7 @@
 
   async function handleRun() {
     // Validate
-    const settingsErrors = validateSettings($metadata.pipeline_settings);
+    const settingsErrors = validateSettings($metadata.pipeline_settings, $metadata.file_data);
     const fileErrors = validateFileData($metadata.file_data);
     const allErrors = [...settingsErrors, ...fileErrors];
 

@@ -45,7 +45,19 @@
   });
 
   // Map dynamicOptionsFrom field name → derived options
-  let dynamicOptionsMap = $derived({ kValuesIWant: kValuesOptions() });
+  // Batch column choices: the File Data columns, except the ones MARMOT
+  // already uses for something else. A value already in the sheet is kept
+  // even if no column matches it yet, so nothing is lost silently.
+  let fileDataColumnOptions = $derived(() => {
+    const reserved = ["file_name", "sample_id", "condition"];
+    const cols = (currentMetadata.file_data?.headers || [])
+      .filter(h => h && !reserved.includes(String(h).toLowerCase()));
+    const current = currentMetadata.pipeline_settings.find(s => s.variable === "batchColumn")?.setting || "";
+    if (current && !cols.includes(current)) cols.push(current);
+    return ["", ...cols];
+  });
+
+  let dynamicOptionsMap = $derived({ kValuesIWant: kValuesOptions(), fileDataColumns: fileDataColumnOptions() });
 
   // Auto-select first valid knn value when current value becomes invalid
   $effect(() => {
@@ -117,6 +129,7 @@
             placeholder={def.placeholder || ""}
             min={def.min}
             allowEmpty={def.allowEmpty || false}
+            emptyLabel={def.emptyLabel || ""}
             disabled={reloadActive && !!def.lockedOnReload}
             onchange={(v) => updateSetting(field, v)}
           />
