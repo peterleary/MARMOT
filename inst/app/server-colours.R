@@ -20,16 +20,11 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
   # and server-plots.R, reading ncell from inputDataReactive$Results.)
 
   # ── Update DR selectInput ──────────────────────────────────────────────
-  # Use umapDFList keys (what we actually plot from), not reducedDimNames
-  dr_names <- names(umapDFList)
-  if (length(dr_names) == 0) dr_names <- SingleCellExperiment::reducedDimNames(sce)
-  dr_default <- dr_names[1]
-  for (pref in c("TSNE", "UMAP", "PaCMAP")) {
-    hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
-    if (length(hit) > 0) dr_default <- hit[1]
-  }
-  updateSelectInput(session, "umapDRToPlot",
-    choices = dr_names, selected = dr_default)
+  # Each map once, with a plain name; the cells shown follow the report
+  dr_choices <- dr_map_choices(umapDFList)
+  updateSelectizeInput(session, "umapDRToPlot",
+    choices = dr_choices, selected = dr_map_default(dr_choices),
+    options = dr_map_render())
 
   # ── Plottable columns (categorical, <100 levels) ──────────────────────
   colsThatCanBePlot <- get_plottable_columns(sce)

@@ -62,17 +62,8 @@ umapReactive <- eventReactive(
       req(res)
 
       # ── Resolve DR data frame ───────────────────────────────────────────
-      # UI choices come from reducedDimNames(sce) (e.g. "UMAP", "TSNE"),
-      # but umapDFList keys may be "Downsampled.UMAP" etc.
-      dr_key <- inputs$umapDRToPlot
-      umapDF <- res$umapDFList[[dr_key]]
-      if (is.null(umapDF)) {
-        umapDF <- res$umapDFList[[paste0("Downsampled.", dr_key)]]
-      }
-      if (is.null(umapDF)) {
-        # Fall back to first available entry
-        umapDF <- res$umapDFList[[1]]
-      }
+      # The same cells as the report: the subsample when the report used one
+      umapDF <- dr_map_frame(res$umapDFList, inputs$umapDRToPlot)
       req(!is.null(umapDF))
 
       # ── DA filtering ────────────────────────────────────────────────────
