@@ -83,6 +83,17 @@ test_that("scGate draws its plots when every cell is shown", {
   expect_length(html, 1)
   text <- paste(readLines(html, warn = FALSE), collapse = "\n")
   expect_match(text, "scGate Gating", fixed = TRUE)
+
+  # The gate must actually gate: some cells pass, and they are the ones high
+  # in the gate's markers (once, every cell came out "Negative")
+  h5ad <- list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE, full.names = TRUE)
+  e <- new.env()
+  invisible(capture.output(load_h5ad_to_env(h5ad, envir = e)))
+  gated <- as.character(e$sce$Gated_Cells)
+  expect_true(any(gated == "Pop"))
+  expect_true(all(gated %in% c("Pop", "Negative")))
+  ex <- SummarizedExperiment::assay(e$sce, "exprsTransformed")
+  expect_gt(median(ex["Marker_1", gated == "Pop"]), median(ex["Marker_1", gated != "Pop"]))
 })
 
 test_that("with scGate off the report has no stray All tab", {
