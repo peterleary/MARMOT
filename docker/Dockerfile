@@ -1,86 +1,68 @@
-# MARMOT pre-built pipeline image
-# Everything baked in: R, Bioc packages, Quarto, Python (PARC/PaCMAP)
+# MARMOT pre-built image: R, every package MARMOT uses, Quarto, and the
+# original Python PARC and PaCMAP (set up with pixi). Ready to run the
+# pipeline, and to serve the Explorer (for example under ShinyProxy).
 #
-# Build:
-#   docker build -f docker/Dockerfile --build-arg MARMOT_REF=main -t marmot-prod docker/
+# Build (from the repository root or the docker/ folder; MARMOT itself is
+# fetched from GitHub at MARMOT_REF):
+#   docker build -f docker/Dockerfile --build-arg MARMOT_REF=v2 -t marmot:v2 docker/
 #
-# Run:
-#   docker run --rm -v /path/to/data:/data marmot-prod \
-#     Rscript -e 'MARMOT::marmot("/data/metadata.xlsx", render=TRUE)'
+# Run the pipeline:
+#   docker run --rm -v /path/to/data:/data marmot:v2 \
+#     Rscript -e 'MARMOT::marmot("/data/MARMOT_Metadata.xlsx", name = "MyRun", render = TRUE)'
+#
+# Serve the Explorer on port 3838 (open it with ?data=/path/to/R_files):
+#   docker run --rm -p 3838:3838 -v /path/to/results:/path/to/results marmot:v2 \
+#     Rscript -e 'shiny::runApp(system.file("app", package = "MARMOT"), host = "0.0.0.0", port = 3838)'
 
 FROM rocker/r-ver:4.5.2
 
 ARG TARGETARCH
 ARG MARMOT_REF=main
 
-# ── System dependencies ──────────────────────────────────────────────
+# ── System libraries ─────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcurl4-openssl-dev \
-    libssl-dev \
-    libxml2-dev \
-    libfontconfig1-dev \
-    libfreetype6-dev \
-    libpng-dev \
-    libtiff5-dev \
-    libfftw3-dev \
-    libhdf5-dev \
-    libglpk-dev \
-    libgsl-dev \
-    libtbb-dev \
-    cmake \
-    curl \
-    git \
+    libcurl4-openssl-dev libssl-dev libxml2-dev \
+    libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev \
+    libpng-dev libtiff5-dev libjpeg-dev libwebp-dev \
+    libfftw3-dev libhdf5-dev libglpk-dev libgsl-dev libtbb-dev \
+    cmake curl git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Quarto ───────────────────────────────────────────────────────────
+# ── Quarto (renders the reports) ─────────────────────────────────────
 RUN QUARTO_VER="1.6.43" && \
-    if [ "$TARGETARCH" = "arm64" ]; then \
-      QUARTO_ARCH="linux-arm64"; \
-    else \
-      QUARTO_ARCH="linux-amd64"; \
-    fi && \
+    if [ "$TARGETARCH" = "arm64" ]; then QUARTO_ARCH="linux-arm64"; else QUARTO_ARCH="linux-amd64"; fi && \
     curl -fsSL -o /tmp/quarto.deb \
       "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VER}/quarto-${QUARTO_VER}-${QUARTO_ARCH}.deb" && \
-    dpkg -i /tmp/quarto.deb && \
-    rm /tmp/quarto.deb
+    dpkg -i /tmp/quarto.deb && rm /tmp/quarto.deb
 
-# ── R packages: pak → MARMOT + all dependencies ─────────────────────
-RUN Rscript -e 'install.packages("pak", repos = "https://r-lib.r-universe.dev")'
+# ── Where MARMOT keeps its Python environment: a shared place, so the
+#    environment built here is found by whichever user runs the container
+#    (ShinyProxy and Apptainer do not run as root) ────────────────────
+ENV R_USER_DATA_DIR=/opt/marmot-data
+RUN mkdir -p /opt/marmot-data && chmod 755 /opt/marmot-data
 
-# ── Miniforge (conda for PARC/PaCMAP) ────────────────────────────────
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-      MF_ARCH="aarch64"; \
-    else \
-      MF_ARCH="x86_64"; \
-    fi && \
-    curl -fsSL -o /tmp/miniforge.sh \
-      "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${MF_ARCH}.sh" && \
-    bash /tmp/miniforge.sh -b -p /opt/miniforge && \
-    rm /tmp/miniforge.sh
-ENV PATH="/opt/miniforge/bin:$PATH"
-
-# Change CACHEBUST value to force re-pull of MARMOT from GitHub
+# ── R packages: MARMOT and everything it uses, optional ones included.
+#    MARMOT's r-universe serves Rphenograph and anndataR; Bioconductor
+#    the rest. pak installs in parallel and builds what has no binary. ──
+RUN Rscript -e 'install.packages(c("pak", "BiocManager"), repos = "https://cloud.r-project.org")'
+# Change CACHEBUST to fetch MARMOT again from GitHub
 ARG CACHEBUST=1
-RUN Rscript -e "pak::pkg_install('peterleary/MARMOT@${MARMOT_REF}')"
+RUN Rscript -e 'options(repos = c(MARMOT = "https://peterleary.r-universe.dev", BiocManager::repositories())); \
+    pak::pkg_install(paste0("peterleary/MARMOT@", Sys.getenv("MARMOT_REF")), dependencies = TRUE, ask = FALSE)'
 
-RUN Rscript -e "MARMOT::install_marmot_extras(include_suggests = TRUE, include_python = FALSE)"
-
-# Reinstall qs2 from source so it links against libtbb (pak may use a binary without TBB)
+# qs2 from source, so it links against libtbb (a binary may not)
 RUN Rscript -e 'install.packages("qs2", type = "source", repos = "https://cloud.r-project.org")'
 
-# ── Python: create p4r conda env directly (reticulate::conda_create
-#    has a verification bug in non-interactive Docker builds) ─────────
-RUN conda env create --name p4r --yes \
-      -f "$(Rscript -e 'cat(system.file("python/environment.yml", package="MARMOT"))')"
+# ── Python: the original PARC and PaCMAP, with pixi from MARMOT's lock file
+RUN Rscript -e 'stopifnot(MARMOT::install_marmot_python())' && chmod -R a+rX /opt/marmot-data
 
-# ── Verify everything is installed ───────────────────────────────────
-RUN Rscript -e "MARMOT::check_setup()"
+# ── Check: fail the build if anything is missing ─────────────────────
+RUN Rscript -e 'r <- MARMOT::check_setup(); \
+    miss <- r$package[r$status != "installed"]; \
+    if (length(miss)) stop("Missing: ", paste(miss, collapse = ", "))'
 
-# ── Runtime setup ────────────────────────────────────────────────────
-# Create non-root home for Apptainer UID remapping
-RUN useradd -m -s /bin/bash marmot && \
-    chmod 777 /home/marmot
-
+# ── Runtime: a non-root user, and a writable home for Apptainer ──────
+RUN useradd -m -s /bin/bash marmot && chmod 777 /home/marmot
 WORKDIR /data
-
+EXPOSE 3838
 CMD ["R"]
