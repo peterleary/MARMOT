@@ -21,6 +21,32 @@ labels_sheet_path <- function(res) {
   file.path(normalizePath(file.path(res$dataDir, ".."), mustWork = FALSE), "MARMOT_Cluster_Labels.xlsx")
 }
 
+#' Each cell's labelled population, as the last extension report made them
+#'
+#' @param cluster_id The cluster of each cell
+#' @param rec The record, as read by `MARMOT::read_labelled_populations()`
+#' @param cluster_colours The cluster colours (named by cluster), or NULL
+#' @return A list: `population` (a factor: the populations in the order the
+#'   record lists them, then "dropped"; a cluster the record does not know
+#'   keeps its own name) and `colours` (each population takes the colour of
+#'   its first cluster; "dropped" is grey)
+labelled_population_column <- function(cluster_id, rec, cluster_colours = NULL) {
+  cluster_id <- as.character(cluster_id)
+  pop <- rec$population[match(cluster_id, rec$cluster)]
+  pop[is.na(pop)] <- cluster_id[is.na(pop)]
+  kept <- unique(rec$population[!rec$dropped])
+  lev <- c(kept, setdiff(unique(pop), c(kept, "dropped")), if (any(pop == "dropped")) "dropped")
+  colours <- NULL
+  if (!is.null(cluster_colours)) {
+    first_cluster <- rec$cluster[match(lev, rec$population)]
+    first_cluster[is.na(first_cluster)] <- lev[is.na(first_cluster)]
+    colours <- stats::setNames(unname(cluster_colours[first_cluster]), lev)
+    colours[is.na(colours)] <- "grey60"
+    if ("dropped" %in% lev) colours[["dropped"]] <- "grey85"
+  }
+  list(population = factor(pop, levels = lev), colours = colours)
+}
+
 #' Add the labels sheet to the cluster_id relabel table
 #'
 #' Adds each cluster's size and distinctive markers from the sheet, and the
@@ -213,7 +239,7 @@ get_plottable_columns <- function(sce) {
   all_cols <- colnames(cd)
   # Clusterings are always offered, however many clusters they have; other
   # columns only when they have fewer than 100 values
-  is_clustering <- all_cols %in% c("cluster_id", "relabelled_clusters") |
+  is_clustering <- all_cols %in% c("cluster_id", "relabelled_clusters", "population") |
     grepl("^(k|meta|p)[0-9]+$", all_cols)
   unlist(lapply(seq_along(all_cols), function(i) {
     if (is_clustering[i] || length(unique(cd[[all_cols[i]]])) < 100) all_cols[i] else NULL

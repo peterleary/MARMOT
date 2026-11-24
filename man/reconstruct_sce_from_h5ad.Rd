@@ -8,6 +8,9 @@ reconstruct_sce_from_h5ad(h5ad_path, ad = NULL)
 }
 \arguments{
 \item{h5ad_path}{Path to the marmot_results.h5ad file}
+
+\item{ad}{The h5ad already read with anndataR, if the caller has it (so it
+is not read twice); otherwise it is read from \code{h5ad_path}}
 }
 \value{
 A SingleCellExperiment object, or NULL if file is missing

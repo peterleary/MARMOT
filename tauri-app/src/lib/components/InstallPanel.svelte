@@ -139,9 +139,9 @@
 
   <p class="note green-note"><strong>Prerequisites:</strong> R 4.5+ only.</p>
   <p class="note amber-note">
-    Mparc, Mpacmap, and Mphenograph are convenience R reimplementations bundled with MARMOT.
-    They are provided as fallbacks only &mdash; results may differ from the original implementations.
-    For production use, install the extras below.
+    The marmots worked up their own R versions (MfastPG, Mphenograph, Mparc, Mpacmap) so there is always one that runs,
+    and they do much the same job. But they are fall-backs: not validated or peer-reviewed, and we cannot support them.
+    The marmots would be much happier if you installed the extras below, and used and cited the originals.
   </p>
 
   <button class="btn blue" onclick={handleInstallMarmot} disabled={isRunning}>
@@ -158,8 +158,8 @@
       <p class="hint">
         The original C++ and Python implementations of PARC, PaCMAP, and Rphenograph.
         These are the <em>published reference implementations</em>, significantly faster on large datasets,
-        and the code against which MARMOT was validated.
-        We take no responsibility for differences in results between the R fallbacks and the originals.
+        and the ones to cite.
+        We take no responsibility for differences in results between the marmots' own versions and the originals.
       </p>
     </div>
   </div>
@@ -173,7 +173,7 @@
       </label>
       <label class="row clickable">
         <input type="checkbox" bind:checked={includePython} disabled={isRunning} />
-        <span><strong>Python environment</strong> <span class="detail">PARC + PaCMAP via conda (p4r env)</span></span>
+        <span><strong>Python environment</strong> <span class="detail">PARC + PaCMAP, set up with pixi (no conda needed)</span></span>
       </label>
     </div>
     <div class="col col-right">
@@ -199,8 +199,7 @@
       {:else}
         <pre class="cmd">sudo apt install build-essential libcurl4-openssl-dev libssl-dev libxml2-dev</pre>
       {/if}
-      <p style="margin-top:0.5rem"><strong>Python environment</strong> requires conda/mamba:</p>
-      <p>Install <a href="https://github.com/conda-forge/miniforge#miniforge3" target="_blank" rel="noopener">Miniforge</a> (lightweight conda with mamba).</p>
+      <p style="margin-top:0.5rem"><strong>Python environment</strong> needs nothing first: MARMOT fetches pixi and sets it up itself.</p>
     </div>
   {/if}
 

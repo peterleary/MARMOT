@@ -68,7 +68,7 @@ Grouping cells by similarity in marker expression. The user controls which marke
 - **FlowSOM** (default) — fast self-organising map + metaclustering. Best for most datasets.
 - **PARC** — Python-based, scales to very large datasets.
 - **Rphenograph** — graph-based clustering, slower but visually similar to scRNA-seq workflows.
-- **MfastPG / Mphenograph / Mparc / Mpacmap** — pure-R MARMOT-internal fallbacks (see `setup.md` → *M-equivalents*).
+- **MfastPG / Mphenograph / Mparc / Mpacmap** — the marmots' own pure-R versions, there so something always runs. Fall-backs only: not validated or peer-reviewed, and not supported. Steer users to the originals (see `setup.md` → *M-equivalents*).
 
 ### Algorithm character (from authors' experience)
 
@@ -103,7 +103,7 @@ A 2D embedding for visualisation. MARMOT runs:
 
 - **UMAP** — standard, fast.
 - **t-SNE** — strongly preserves *local* structure; pulls nearest neighbours tight.
-- **PaCMAP** — preserves more *global* structure than UMAP (Python; pure-R `Mpacmap` fallback).
+- **PaCMAP** — preserves more *global* structure than UMAP (Python; the marmots' pure-R `Mpacmap` is an unsupported fall-back).
 - **PCA** — always run as a preprocessing step.
 
 Coordinates are stored in `reducedDims(sce)` and shown in the Shiny app's DR tab.

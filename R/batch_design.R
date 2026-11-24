@@ -26,38 +26,38 @@ check_batch_design <- function(batch, condition, sample_id, column = "batch") {
 
   blank <- is.na(batch) | !nzchar(trimws(batch))
   if (any(blank)) {
-    stop("❌ The batch column '", column, "' has no batch for ", sum(blank), " sample(s): ",
+    stop("\u274c The batch column '", column, "' has no batch for ", sum(blank), " sample(s): ",
          paste(sample_id[blank], collapse = ", "),
          ". Every sample needs a batch, or leave the batchColumn setting blank.", call. = FALSE)
   }
   batches <- unique(batch); conds <- unique(condition)
   if (length(batches) < 2) {
-    stop("❌ Every sample is in the same batch (", quote(batches), "), so there is nothing to correct for. ",
+    stop("\u274c Every sample is in the same batch (", quote(batches), "), so there is nothing to correct for. ",
          "Leave the batchColumn setting blank.", call. = FALSE)
   }
   per_batch <- table(batch)
   if (any(per_batch < 2)) {
     single <- names(per_batch)[per_batch < 2]
-    stop("❌ ", length(single), " batch(es) hold only one sample: ", quote(single), ". ",
+    stop("\u274c ", length(single), " batch(es) hold only one sample: ", quote(single), ". ",
          "A batch of one sample cannot be told apart from that sample itself, so it adds nothing to the ",
          "comparison. Merge it into another batch, or leave the batchColumn setting blank.", call. = FALSE)
   }
   conds_per_batch <- tapply(condition, batch, function(x) length(unique(x)))
   batches_per_cond <- tapply(batch, condition, function(x) length(unique(x)))
   if (all(conds_per_batch == 1) && all(batches_per_cond == 1)) {
-    stop("❌ Batch and condition are the same thing in this experiment: each batch holds only one condition. ",
+    stop("\u274c Batch and condition are the same thing in this experiment: each batch holds only one condition. ",
          "The batch effect cannot be separated from the condition effect, so neither can be corrected for. ",
          "Leave the batchColumn setting blank.", call. = FALSE)
   }
   n <- length(sample_id); p <- length(conds) + length(batches) - 1
   if (n - p < 2) {
-    stop("❌ Too few samples (", n, ") for ", length(conds), " conditions and ", length(batches),
+    stop("\u274c Too few samples (", n, ") for ", length(conds), " conditions and ", length(batches),
          " batches: fewer than two would be left to estimate the noise. ",
          "Leave the batchColumn setting blank, or add samples.", call. = FALSE)
   }
   design <- stats::model.matrix(~ 0 + factor(condition) + factor(batch))
   if (qr(design)$rank < ncol(design)) {
-    stop("❌ The batches and conditions overlap in a way that leaves some effects impossible to tell apart. ",
+    stop("\u274c The batches and conditions overlap in a way that leaves some effects impossible to tell apart. ",
          "Check the batch column '", column, "', or leave the batchColumn setting blank.", call. = FALSE)
   }
 

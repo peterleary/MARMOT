@@ -175,7 +175,7 @@ Mparc <- function(data,
 
     for (i in seq_len(n)) {
       dists <- distance_array[i, ]
-      threshold <- mean(dists) + dist_std_local * sd(dists)
+      threshold <- mean(dists) + dist_std_local * stats::sd(dists)
       keep <- which(dists < threshold)
 
       nbrs <- neighbor_array[i, keep]
@@ -260,10 +260,10 @@ Mparc <- function(data,
 
   # Global threshold
   if (identical(jac_std_global, "median")) {
-    threshold <- median(jaccards)
+    threshold <- stats::median(jaccards)
   } else {
     jac_std <- as.numeric(jac_std_global)
-    threshold <- mean(jaccards) - jac_std * sd(jaccards)
+    threshold <- mean(jaccards) - jac_std * stats::sd(jaccards)
   }
 
   if (verbose) message("Jaccard threshold: ", round(threshold, 4))
@@ -364,7 +364,7 @@ Mparc <- function(data,
 
     if (verbose) {
       message("Cluster ", biggest_label, " has ", length(cluster_locs),
-              " cells (> ", round(max_pop), ") — sub-clustering")
+              " cells (> ", round(max_pop), ") \u2014 sub-clustering")
     }
 
     # Sub-cluster the big cluster with tighter Jaccard threshold

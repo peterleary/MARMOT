@@ -50,15 +50,15 @@ Fix path A — **install the toolchain** (best, because the originals are the pu
 
 Then re-run `install_marmot_extras()`.
 
-Fix path B — **use the M-equivalents.** MARMOT bundles `Mphenograph` and `MfastPG` (pure-R reimplementations). They're always available, no compilation needed. The pipeline will use them automatically when `Rphenograph` / `FastPG` aren't installed. To explicitly skip the originals:
+Fix path B — **use FlowSOM, or as a last resort an M-equivalent.** FlowSOM (the default) needs no compiling and is the published method. The marmots' own `Mphenograph` and `MfastPG` are always there too, but they are unsupported fall-backs. The pipeline does **not** switch from `Rphenograph` to `Mphenograph` by itself: set `clusteringMethodToUse` in the sheet. To skip the originals when installing:
 
 ```r
 install_marmot_extras(include_suggests = FALSE)
 ```
 
-See `setup.md` → *M-equivalents* for the trade-off — the originals are the published methods; M-versions are AI-assisted reimplementations and should be treated as fallbacks for analyses the user plans to publish.
+See `setup.md` → *M-equivalents* for the trade-off — the originals are the published methods; the M versions are AI-assisted reimplementations, not validated or peer-reviewed, and not supported.
 
-For Python-based clustering / DR (`PARC` / `PaCMAP`) the same logic applies: `Mparc` and `Mpacmap` are pure-R fallbacks if conda isn't available.
+For Python-based clustering / DR (`PARC` / `PaCMAP`): `MARMOT::install_marmot_python()` sets up the originals with pixi. If they are not set up, the pipeline switches to `Mparc` / `Mpacmap` by itself and says so; they are unsupported fall-backs.
 
 ### `Quarto is required to render the HTML report but was not found on your system.`
 
@@ -258,7 +258,7 @@ Fix: upgrade to v1.3.1.
 
 ## The diagnostic log (`marmot_run_log.json`)
 
-Every render writes a JSON diagnostic log to the `Results_Files_*/` folder. It records:
+Every render writes a JSON diagnostic log, `marmot_run_log.json`, to the `R_files/` folder inside `Results_Files_*/` (a reload writes `marmot_run_log_reload.json` beside it). It records:
 
 - Pipeline version, timestamp.
 - Data shape: `n_samples`, `n_conditions`, `n_contrasts`, `n_markers_requested`, `homogeneous_panel`.

@@ -8,8 +8,10 @@
 #' Python PARC and PaCMAP (see [install_marmot_python()]).
 #'
 #' MARMOT encourages the original implementations: Rphenograph, and the Python
-#' PARC and PaCMAP. Its own R versions (Mphenograph, Mparc, Mpacmap) are there
-#' as fallbacks, and the report always says which one ran.
+#' PARC and PaCMAP. The marmots worked up their own R versions (MfastPG,
+#' Mphenograph, Mparc, Mpacmap) so there is always one that runs; they are
+#' fall-backs, not validated or peer-reviewed, and not supported. The report
+#' always says which one ran.
 #'
 #' @param include_suggests If `TRUE` (the default), install the optional
 #'   packages too (QC, scGate, Seurat, Harmony, Rphenograph and so on).
