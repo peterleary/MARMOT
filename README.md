@@ -285,3 +285,6 @@ apptainer run --bind /path/to/data:/data marmot_latest.sif \
 
 ---
 
+## Licence
+
+MARMOT is free software under the [GNU General Public License, version 3 or later](LICENSE.md). You may use, change and share it; anything you share that builds on MARMOT must be shared under the same terms, just as MARMOT shares what it builds on.

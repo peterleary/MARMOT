@@ -15,6 +15,7 @@
 
 ## Changed
 
+- **Licence: GPL-3 or later** (was MIT). Anything shared that builds on MARMOT must be shared under the same terms.
 - **Results format 2.** Results are saved in one `marmot_results.h5ad` with a version check.
 - **Speed.** Mphenograph and Rphenograph share one neighbour search across all k values (the large reference run went from about 29 to 22 minutes, with identical clusters). The halo on every map makes the report slower again, about 10% on small runs.
 - **One list of settings** shared by the metadata template, the pipeline and the desktop app. Old settings (`runInParallel`, `themeToUse`, `condaDir`, `parcScriptDir`) are ignored with a message.
