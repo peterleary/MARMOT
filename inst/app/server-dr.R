@@ -84,6 +84,17 @@ umapReactive <- eventReactive(
         if (!is.null(res$coloursList$cluster_id)) {
           res$coloursList$cluster_id[["Other"]] <- "grey80"
         }
+        # Colouring by another column: its cells outside the DA clusters
+        # become "Other" too, so the filter works whatever is coloured
+        da_col <- inputs$umapColumnToPlot
+        if (is.null(da_result$warning) && !is.null(da_col) && da_col != "cluster_id" &&
+            da_col %in% names(umapDF)) {
+          before <- umapDF[[da_col]]
+          lv <- if (is.factor(before)) levels(before) else gtools::mixedsort(unique(as.character(before)))
+          v <- as.character(before)
+          v[as.character(umapDF$cluster_id) == "Other"] <- "Other"
+          umapDF[[da_col]] <- factor(v, levels = c(intersect(setdiff(lv, "Other"), v), "Other"))
+        }
       } else {
         umapDF$cluster_id <- factor(
           umapDF$cluster_id,
@@ -125,6 +136,10 @@ umapReactive <- eventReactive(
       }
       # Align colour vector order with factor levels (plotly uses positional matching)
       colours <- colours[present_levels]
+      # Cells outside the DA clusters are always grey
+      if (da_mode != "None" && contrast != "None" && "Other" %in% present_levels) {
+        colours[["Other"]] <- "grey80"
+      }
 
       # ── Split column ────────────────────────────────────────────────────
       split_col <- if (!is.null(inputs$umapColumnToSplit) &&

@@ -523,12 +523,13 @@ add_facet_with_counts <- function(p, df, split_col, ncol = 1) {
   levels_to_split <- levels(as.factor(df[[split_col]]))
   labs <- setNames(
     vapply(levels_to_split, function(lev) {
-      paste0(lev, "\n n = ", sum(df[[split_col]] == lev))
+      paste0(lev, "\n n = ", sum(df[[split_col]] == lev, na.rm = TRUE))
     }, character(1)),
     levels_to_split
   )
+  # By name, so columns with spaces or symbols in their names split too
   p + facet_wrap(
-    reformulate(split_col),
+    ggplot2::vars(.data[[split_col]]),
     ncol = ncol,
     labeller = as_labeller(labs)
   )

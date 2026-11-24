@@ -34,13 +34,12 @@ clear_ui_elements <- function(ids) {
 }
 
 # ── 1. Plot-By Bucket List ──────────────────────────────────────────────────
-observeEvent(input$fpColumnToPlot, {
+observeEvent(list(input$fpColumnToPlot, drDataVersion()), {
   plot_column <- input$fpColumnToPlot
   if (is.null(plot_column) || plot_column == "None") return()
   req(inputDataReactive$Results$sce)
 
-  cd <- as.data.frame(SummarizedExperiment::colData(inputDataReactive$Results$sce))
-  plot_data <- cd[[plot_column]]
+  plot_data <- inputDataReactive$Results$sce[[plot_column]]
   plot_levels <- if (is.factor(plot_data)) {
     levels(plot_data)
   } else {
@@ -69,7 +68,7 @@ observeEvent(input$fpColumnToPlot, {
 
 
 # ── 2. Split-By Bucket List ─────────────────────────────────────────────────
-observeEvent(input$fpColumnToSplit, {
+observeEvent(list(input$fpColumnToSplit, drDataVersion()), {
   split_column <- input$fpColumnToSplit
   if (is.null(split_column) || split_column == "None") {
     output$splitByBucket <- renderText("Select a variable to split by first!")
@@ -77,8 +76,7 @@ observeEvent(input$fpColumnToSplit, {
   }
   req(inputDataReactive$Results$sce)
 
-  cd <- as.data.frame(SummarizedExperiment::colData(inputDataReactive$Results$sce))
-  split_data <- cd[[split_column]]
+  split_data <- inputDataReactive$Results$sce[[split_column]]
   split_levels <- if (is.factor(split_data)) {
     levels(split_data)
   } else {
@@ -313,32 +311,26 @@ output$plotTypeControls <- renderUI({
 
 # ── 4. "Plot all features" toggle logic ─────────────────────────────────────
 previousFeatureSelection <- reactiveVal(NULL)
+plotAllActive <- reactiveVal(FALSE)
 
+# Acts only when "Plot all features" actually changes, so the user's own
+# selection is saved once and given back, never overwritten by "all"
 observeEvent({
   input$fpHeatmapPlotAll
   input$featurePlotType
 }, ignoreNULL = TRUE, {
-  req(!is.null(input$featurePlotType))
-  req(!is.null(input$fpHeatmapPlotAll))
-  if (input$featurePlotType %in% c("Heatmap per cluster", "Heatmap per cell", "Dot Plot")) {
-    if (input$fpHeatmapPlotAll) {
-      previousFeatureSelection(input$fpFeatureToPlot)
-      marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
-        rownames(inputDataReactive$Results$sce)
-      updateSelectizeInput(session, "fpFeatureToPlot",
-        choices = marker_choices,
-        selected = rownames(inputDataReactive$Results$sce),
-        server = TRUE)
-    } else {
-      prev <- previousFeatureSelection()
-      marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
-        rownames(inputDataReactive$Results$sce)
-      updateSelectizeInput(session, "fpFeatureToPlot",
-        choices = marker_choices,
-        selected = prev,
-        server = TRUE)
-    }
-  }
+  req(!is.null(input$featurePlotType), !is.null(input$fpHeatmapPlotAll))
+  if (!input$featurePlotType %in% c("Heatmap per cluster", "Heatmap per cell", "Dot Plot")) return()
+  wantAll <- isTRUE(input$fpHeatmapPlotAll)
+  if (wantAll == plotAllActive()) return()
+  marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
+    rownames(inputDataReactive$Results$sce)
+  if (wantAll) previousFeatureSelection(input$fpFeatureToPlot)
+  updateSelectizeInput(session, "fpFeatureToPlot",
+    choices  = marker_choices,
+    selected = if (wantAll) rownames(inputDataReactive$Results$sce) else previousFeatureSelection(),
+    server   = TRUE)
+  plotAllActive(wantAll)
 })
 
 
@@ -364,7 +356,10 @@ fp_inputs_raw <- reactive({
     input$rasteriseFP, input$rasterFP_DPI,
     input$fpContrast, input$fpDAFilter,
     input$fpSubsetMode, input$fpSubsetToGlobal,
-    input$fpDRCustomMinMax, input$fpDRCustomMin, input$fpDRCustomMax
+    input$fpDRCustomMinMax, input$fpDRCustomMin, input$fpDRCustomMax,
+    input$plotByExcludeBucket, input$splitByExcludeBucket,
+    # Redraw when the cells or names change: subsetting, relabelling
+    inputDataReactive$Results$subsetCellIds, drDataVersion()
   )
 
   # Per-type inputs (only tracked when active)
@@ -465,29 +460,30 @@ observeEvent(
       }
 
       # ── Apply bucket filtering (Plot-By) ───────────────────────────────
-      if (!is.null(fpColumnToPlot) && !is.null(input$plotByKeepBucket)) {
+      # Groups the user excluded are left out; groups in neither list (new
+      # names after relabelling, say) are kept, never dropped silently
+      if (!is.null(fpColumnToPlot) && fpColumnToPlot %in% names(SummarizedExperiment::colData(sce)) &&
+          !is.null(input$plotByKeepBucket)) {
+        lv <- bucket_levels(sce[[fpColumnToPlot]], input$plotByKeepBucket, input$plotByExcludeBucket)
+        req(length(lv) > 0)
         if (!is.null(umapDF) && fpColumnToPlot %in% colnames(umapDF)) {
-          umapDF <- umapDF[umapDF[[fpColumnToPlot]] %in% input$plotByKeepBucket, ]
-          umapDF[[fpColumnToPlot]] <- factor(
-            umapDF[[fpColumnToPlot]], levels = input$plotByKeepBucket)
+          umapDF <- umapDF[as.character(umapDF[[fpColumnToPlot]]) %in% lv, ]
+          umapDF[[fpColumnToPlot]] <- factor(as.character(umapDF[[fpColumnToPlot]]), levels = lv)
         }
-        keep_cells <- colnames(sce)[sce[[fpColumnToPlot]] %in% input$plotByKeepBucket]
-        if (length(keep_cells) > 0) {
-          sce <- sce[, keep_cells]
-          sce[[fpColumnToPlot]] <- factor(
-            sce[[fpColumnToPlot]], levels = input$plotByKeepBucket)
-        }
+        sce <- sce[, as.character(sce[[fpColumnToPlot]]) %in% lv]
+        sce[[fpColumnToPlot]] <- factor(as.character(sce[[fpColumnToPlot]]), levels = lv)
       }
 
       # ── Apply bucket filtering (Split-By) ──────────────────────────────
-      if (!is.null(fpColumnToSplit) && !is.null(input$splitByKeepBucket)) {
+      if (!is.null(fpColumnToSplit) && fpColumnToSplit %in% names(SummarizedExperiment::colData(sce)) &&
+          !is.null(input$splitByKeepBucket)) {
+        lv <- bucket_levels(sce[[fpColumnToSplit]], input$splitByKeepBucket, input$splitByExcludeBucket)
+        req(length(lv) > 0)
         if (!is.null(umapDF) && fpColumnToSplit %in% colnames(umapDF)) {
-          umapDF <- umapDF[umapDF[[fpColumnToSplit]] %in% input$splitByKeepBucket, ]
-          umapDF[[fpColumnToSplit]] <- factor(
-            umapDF[[fpColumnToSplit]], levels = input$splitByKeepBucket)
+          umapDF <- umapDF[as.character(umapDF[[fpColumnToSplit]]) %in% lv, ]
+          umapDF[[fpColumnToSplit]] <- factor(as.character(umapDF[[fpColumnToSplit]]), levels = lv)
         }
-        keep_cells <- colnames(sce)[sce[[fpColumnToSplit]] %in% input$splitByKeepBucket]
-        if (length(keep_cells) > 0) sce <- sce[, keep_cells]
+        sce <- sce[, as.character(sce[[fpColumnToSplit]]) %in% lv]
       }
 
       # ── DA cluster filtering ───────────────────────────────────────────

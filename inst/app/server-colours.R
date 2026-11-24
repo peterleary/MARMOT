@@ -129,12 +129,17 @@ output$posMarkerUI2 <- renderUI({
   }
 })
 
-observe({
-  req(inputDataReactive$Results)
-  res <- inputDataReactive$Results
-  if (!"topMarkerTable" %in% names(res)) return()
+# The top marker table comes from the results and never changes afterwards,
+# so it is drawn once: relabelling or subsetting no longer redraws it (which
+# lost the user's filters and selection) or adds another pair of handlers.
+topMarkerTableRV <- reactiveVal(NULL)
+observeEvent(inputDataReactive$Results, once = TRUE, {
+  topMarkerTableRV(inputDataReactive$Results$topMarkerTable)
+})
 
-  tmt <- res$topMarkerTable
+output$posMarkerTable <- DT::renderDataTable({
+  tmt <- topMarkerTableRV()
+  req(tmt)
   # Format numeric columns to 3 significant figures
   num_cols <- vapply(tmt, is.numeric, logical(1))
   dt <- DT::datatable(
@@ -153,17 +158,19 @@ observe({
   if (any(num_cols)) {
     dt <- DT::formatSignif(dt, columns = names(tmt)[num_cols], digits = 3)
   }
-  output$posMarkerTable <- DT::renderDataTable(dt, server = TRUE)
+  dt
+}, server = TRUE)
 
-  proxy <- DT::dataTableProxy("posMarkerTable")
+# Deselect all rows
+observeEvent(input$resetPosMarkerTableSelectRows, {
+  DT::dataTableProxy("posMarkerTable") |> DT::selectRows(NULL)
+})
 
-  # Deselect all rows
-  observeEvent(input$resetPosMarkerTableSelectRows, {
-    proxy |> DT::selectRows(NULL)
-  })
-
-  # Click-to-add: append selected markers to fpFeatureToPlot
-  observeEvent(input$addMarkersFromTable, {
+# Click-to-add: append selected markers to fpFeatureToPlot
+observeEvent(input$addMarkersFromTable, {
+    tmt <- topMarkerTableRV()
+    res <- inputDataReactive$Results
+    req(tmt, res)
     sel_rows <- input$posMarkerTable_rows_selected
     if (is.null(sel_rows) || length(sel_rows) == 0) return(invisible(NULL))
 
@@ -190,7 +197,6 @@ observe({
     marker_choices <- res$sorted_markers_cache %||% rownames(res$sce)
     updateSelectizeInput(session, "fpFeatureToPlot",
       choices = marker_choices, selected = combined, server = TRUE)
-  })
 })
 
 

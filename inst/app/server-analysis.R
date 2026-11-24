@@ -715,21 +715,15 @@ analysisPlotReactive <- reactive({
           return(NULL)
         }
 
-        # Derive the merging column prefix
-        mergeBy <- switch(clusteringMethodToUse,
-          "Rphenograph" = "k", "Mphenograph" = "k", "MfastPG" = "k",
-          "PARC" = "p", "FlowSOM" = "meta",
-          "meta"
-        )
-
-        # Validate: check mergeBy exists in cluster_codes
+        # The pipeline saves one cluster_codes column for cluster_id, named
+        # after the clustering method ("FlowSOM" for FlowSOM)
         valid_codes <- tryCatch(
           names(CATALYST::cluster_codes(sce)),
           error = function(e) character(0)
         )
-        if (!mergeBy %in% valid_codes && length(valid_codes) > 0) {
-          mergeBy <- valid_codes[1]
-        }
+        mergeBy <- intersect(c(clusteringMethodToUse, "FlowSOM"), valid_codes)[1]
+        if (is.na(mergeBy)) mergeBy <- valid_codes[1]
+        req(!is.na(mergeBy))
 
         base_size <- as.integer(input$analysisTextSize %||% 14)
         p <- CATALYST::plotAbundances(sce, k = mergeBy, by = by_value) +

@@ -136,7 +136,16 @@ output$dadsPlot <- renderPlot({
 
     } else if (result_type == "DS Heatmap" && !is.null(res$dsList[[contrast]])) {
       fdr_thresh <- as.numeric(input$dadsFDR %||% 0.05)
-      hm <- CATALYST::plotDiffHeatmap(sce, res$dsList[[contrast]],
+      dsTable <- res$dsList[[contrast]]
+      # "Merged" contrasts pool every cluster into one ("all"), as the
+      # pipeline does before its merged DS; pool the cells the same way here
+      sceDS <- sce
+      if (all(as.character(dsTable$cluster_id) == "all")) {
+        sceDS <- CATALYST::mergeClusters(sce, k = names(CATALYST::cluster_codes(sce))[1],
+          id = "all_merged",
+          table = data.frame(old_cluster = levels(sce$cluster_id), new_cluster = "all"))
+      }
+      hm <- CATALYST::plotDiffHeatmap(sceDS, dsTable,
         normalize = TRUE, all = TRUE, fdr = fdr_thresh,
         col_anno = if (length(valid_conds) > 0) valid_conds else TRUE)
     }
@@ -145,7 +154,7 @@ output$dadsPlot <- renderPlot({
 
     # Apply MARMOT condition colours to the heatmap annotations
     coloursList <- res$coloursList
-    if (!is.null(coloursList) && inherits(hm, "Heatmap") || inherits(hm, "HeatmapList")) {
+    if (!is.null(coloursList) && (inherits(hm, "Heatmap") || inherits(hm, "HeatmapList"))) {
       for (con in valid_conds) {
         tryCatch({
           anno <- hm@top_annotation@anno_list[[con]]

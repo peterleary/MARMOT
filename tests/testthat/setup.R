@@ -7,6 +7,7 @@ helpers_dir <- system.file("app", "helpers", package = "MARMOT")
 source(file.path(helpers_dir, "data_helpers.R"), local = TRUE)
 source(file.path(helpers_dir, "colour_helpers.R"), local = TRUE)
 source(file.path(helpers_dir, "plot_helpers.R"), local = TRUE)
+source(file.path(helpers_dir, "session_guard.R"), local = TRUE)
 
 #' Create a lightweight mock SingleCellExperiment
 #' @param n_cells Number of cells (default 100)
