@@ -1,4 +1,4 @@
-# MARMOT 2.0.0 (in development)
+# MARMOT 2.0.0 (in development; builds are numbered 1.99.0 until release)
 
 *Draft: written as the steps are merged, and finalised at release.*
 
