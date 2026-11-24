@@ -41,7 +41,7 @@ This is where conditions, contrasts, and the panel live. Columns are independent
 | Column | What goes in it | Example |
 |---|---|---|
 | `Conditions Order` | All conditions, in the order they should appear in plots. | `Control`, `Treatment` |
-| `Cells per condition in UMAPs etc.` | Per-condition cell count for DR plots. **Evaluated as an R expression**, so `12000/6` = 2000 cells. One value per condition, in the same order. | `12000/6`, `12000/5` |
+| `Cells per condition in UMAPs etc.` | Cells shown in the maps **from each sample** of that condition. Evaluated as arithmetic, so `10000/3` for a 3-sample condition gives 10,000 cells for the condition, and every sample is equally represented. One value per condition row; leave the whole column blank to show every cell. The report says how many cells each condition contributed. | `12000/6`, `12000/5` |
 | `Conditions To Test` | The contrasts (DA + DS comparisons), one per row. **Format: `A over B`** with literal spaces around `over`. A is the numerator, B is the reference. | `Treatment over Control` |
 | `Markers to include` | Marker names you want analysed — must exactly match the antigen names parsed from the FCS files. | `CD4`, `CD8a`, `Ki-67` |
 | `Marker Type` | The type/state class for each marker, in the **same order** as `Markers to include`. Lowercase: `type` or `state`. | `type`, `type`, `state` |

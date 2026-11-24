@@ -67,8 +67,9 @@
         <tr>
           <th class="row-num">#</th>
           {#each headers as header, colIdx}
-            <th>
+            <th title={columnConfig[colIdx]?.help || ""}>
               <span>{header}</span>
+              {#if columnConfig[colIdx]?.help}<span class="col-help" aria-label={columnConfig[colIdx].help}>ⓘ</span>{/if}
               <button class="remove-col" onclick={() => removeColumn(colIdx)} title="Remove column">&times;</button>
             </th>
           {/each}
@@ -289,4 +290,5 @@
     font-weight: 600;
     flex-shrink: 0;
   }
+  .col-help { margin-left: 0.25rem; color: #64748b; cursor: help; font-size: 0.85em; }
 </style>
