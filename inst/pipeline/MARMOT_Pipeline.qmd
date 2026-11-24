@@ -4152,7 +4152,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
 ```{r, label = "report_da_dr_by_condition_save", include = FALSE}
 if (gimmePDFs) {
   lapply(names(DRSelectedClusters2), function(x) {
-    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(x, "_", dimRedMethodToUse, "_subset.pdf"))), width = 10, height =  6*(ceiling(length(condLevels)/2)))
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(pdf_name_stem(x), "_", dimRedMethodToUse, "_subset.pdf"))), width = 10, height =  6*(ceiling(length(condLevels)/2)))
     print(DRSelectedClusters2[[x]])
     dev.off()
   })
