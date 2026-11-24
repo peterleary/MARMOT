@@ -477,3 +477,39 @@ test_that("aggregate_expression: the positive share uses the given values and th
   expect_equal(aggregate_expression(shown, "M", "group", positive_df = positive, threshold = 1)$pct_expr,
                res$pct_expr)
 })
+
+test_that("the Explorer opens on saved labels and saves unchanged names blank", {
+  tbl <- data.frame(relabelled_clusters = c("1", "2", "3"), colours = "#000000",
+                    row.names = c("1", "2", "3"), stringsAsFactors = FALSE)
+  sheet <- data.frame(Cluster = c("1", "2", "3"), Cells = c(10, 20, 30),
+                      `Most distinctive markers` = c("CD3", "CD19", ""),
+                      Label = c("T cells", "", "drop"), check.names = FALSE)
+  added <- add_labels_sheet(tbl, sheet)
+  expect_true(added$labelled)
+  expect_identical(added$table$relabelled_clusters, c("T cells", "2", "drop"))
+  expect_identical(added$table$cells, c(10, 20, 30))
+  expect_identical(added$table$markers, c("CD3", "CD19", ""))
+  expect_identical(labels_to_save(added$table), c("1" = "T cells", "2" = "", "3" = "drop"))
+  sheet$Label <- ""
+  expect_false(add_labels_sheet(tbl, sheet)$labelled)
+})
+
+test_that("the Explorer lists every map once, with the report's version first", {
+  df <- function(n) data.frame(x = seq_len(n))
+  L <- list(UMAP = df(10), UMAP_uncorrected = df(10), Downsampled.UMAP = df(4),
+            Downsampled.UMAP_uncorrected = df(4), All = df(10), Downsampled = df(4))
+  ch <- dr_map_choices(L)
+  expect_identical(unname(ch), c("Downsampled.UMAP", "UMAP", "Downsampled.UMAP_uncorrected", "UMAP_uncorrected"))
+  expect_identical(names(ch), c("UMAP|as in the report", "UMAP|every cell",
+                                "UMAP|before batch correction, as in the report",
+                                "UMAP|before batch correction, every cell"))
+  expect_identical(dr_map_default(ch), "Downsampled.UMAP")
+  expect_identical(nrow(dr_map_frame(L, "nonsense")), 4L)
+  L$Downsampled.UMAP <- df(10)   # a subsample holding every cell: listed once
+  expect_identical(unname(dr_map_choices(L))[1], "UMAP")
+})
+
+test_that("the Explorer merges names as the MARMOT extension does", {
+  expect_identical(same_name_spelling(c("T cells", "B cells", "T-cells", "t_cells", "drop")),
+                   c("T cells", "B cells", "T cells", "T cells", "drop"))
+})

@@ -37,3 +37,28 @@ test_that("labels for clusters not in the results are ignored and reported", {
   expect_identical(lab$unknown, "1")
   expect_true(any(grepl("not in these results", lab$notes)))
 })
+
+test_that("saved labels keep the sheet's other columns, back it up, and read back", {
+  path <- make_labels_sheet(rep(NA, 4))
+  before <- cluster_labels_table(path)
+  Sys.sleep(1.1)  # backups are named by the second
+  saved <- save_cluster_labels(path, c("1" = "T cells", "2" = "", "3" = "T-cells", "4" = "drop"))
+  expect_true(file.exists(saved$backup))
+  expect_identical(cluster_labels_table(saved$backup)$Label, rep("", 4))
+  after <- cluster_labels_table(path)
+  expect_identical(after[, setdiff(names(after), "Label")], before[, setdiff(names(before), "Label")])
+  expect_identical(after$Label, c("T cells", "", "T-cells", "drop"))
+  lab <- read_cluster_labels(path, c("1", "2", "3", "4"))
+  expect_identical(unname(lab$labels), c("T cells", "2", "T cells", NA))
+  expect_identical(lab$dropped, "4")
+})
+
+test_that("saving labels for clusters the sheet does not have stops", {
+  path <- make_labels_sheet(rep(NA, 4))
+  expect_error(save_cluster_labels(path, c("1" = "B cells", "9" = "NK")), "not in")
+  expect_identical(cluster_labels_table(path)$Label, rep("", 4))
+})
+
+test_that("without a sheet there is no table", {
+  expect_null(cluster_labels_table(tempfile(fileext = ".xlsx")))
+})
