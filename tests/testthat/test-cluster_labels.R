@@ -62,3 +62,18 @@ test_that("saving labels for clusters the sheet does not have stops", {
 test_that("without a sheet there is no table", {
   expect_null(cluster_labels_table(tempfile(fileext = ".xlsx")))
 })
+
+test_that("the record of labelled populations round-trips, dropped clusters included", {
+  path <- make_labels_sheet(c("T cells", "t-cells", NA, "Drop"))
+  cl <- factor(rep(c("1", "2", "3", "4"), each = 25))
+  lab <- read_cluster_labels(path, levels(cl))
+  dir <- tempfile(); dir.create(dir)
+  expect_null(read_labelled_populations(dir))
+  save_labelled_populations(dir, lab, cl)
+  rec <- read_labelled_populations(dir)
+  expect_identical(rec$cluster, c("1", "2", "3", "4"))
+  expect_identical(rec$population, c("T cells", "T cells", "3", "dropped"))
+  expect_identical(rec$dropped, c(FALSE, FALSE, FALSE, TRUE))
+  expect_identical(rec$cells, rep(25L, 4))
+  expect_true(any(grepl("merged into 'T cells'", attr(rec, "notes"), fixed = TRUE)))
+})

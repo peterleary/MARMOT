@@ -2323,8 +2323,21 @@ if (useLabels) {
     as.data.frame(rowData(res$res))
   }), cTTForPlots)
 
+  # What each cluster became, and each sample's share of each population
+  # (out of the cells left after dropping)
+  popTable <- data.frame(
+    Cluster    = names(clusterLabels$labels),
+    Population = ifelse(is.na(clusterLabels$labels), "dropped", unname(clusterLabels$labels)),
+    Cells      = as.integer(table(factor(sce$cluster_id, levels = names(clusterLabels$labels))))
+  )
+  perSample <- as.data.frame(table(Sample = sceLab$sample_id, Population = sceLab$population), responseName = "Cells")
+  perSample$Percent <- round(100 * perSample$Cells / ave(perSample$Cells, perSample$Sample, FUN = sum), 2)
+  perSample$Percent[is.nan(perSample$Percent)] <- NA
+
   # Save them beside the other Excel files
   labWb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(labWb, "Populations"); openxlsx::writeData(labWb, "Populations", popTable)
+  openxlsx::addWorksheet(labWb, "Per sample"); openxlsx::writeData(labWb, "Per sample", perSample)
   for (nm in names(labDaList)) {
     sheet <- substr(paste("DA", MARMOT::safe_file_name(nm)), 1, 31)
     openxlsx::addWorksheet(labWb, sheet); openxlsx::writeData(labWb, sheet, labDaList[[nm]])
@@ -2335,6 +2348,9 @@ if (useLabels) {
   }
   openxlsx::addWorksheet(labWb, "Dropped cells"); openxlsx::writeData(labWb, "Dropped cells", droppedPerSample)
   openxlsx::saveWorkbook(labWb, file.path(excelDir, "Labelled_populations_DA_DS.xlsx"), overwrite = TRUE)
+
+  # A record of the populations this report used, for the Explorer
+  MARMOT::save_labelled_populations(RDataFolder, clusterLabels, sce$cluster_id)
 }
 ```
 

@@ -161,3 +161,57 @@ read_cluster_labels <- function(path, clusters) {
   }
   list(labels = labels, dropped = tab$Cluster[is_drop], notes = notes, unknown = unknown)
 }
+
+#' Save a record of the labelled populations a report used
+#'
+#' Written by an extension run into the results' `R_files` folder, so the
+#' Explorer (and anyone reading the results later) knows which population each
+#' cluster became in that report, even if the labels sheet is edited
+#' afterwards.
+#'
+#' @param dir The results' `R_files` folder.
+#' @param labels What [read_cluster_labels()] returned.
+#' @param clusters The cluster of each cell (a factor), to count cells.
+#' @return The path of the record, invisibly.
+#' @export
+save_labelled_populations <- function(dir, labels, clusters) {
+  clusters <- as.character(clusters)
+  pops <- labels$labels
+  record <- list(
+    format   = 1L,
+    made     = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    clusters = lapply(names(pops), function(cl) list(
+      cluster    = cl,
+      population = if (is.na(pops[[cl]])) "dropped" else unname(pops[[cl]]),
+      dropped    = is.na(pops[[cl]]),
+      cells      = sum(clusters == cl))),
+    notes    = as.list(labels$notes)
+  )
+  path <- file.path(dir, "labelled_populations.json")
+  jsonlite::write_json(record, path, auto_unbox = TRUE, pretty = TRUE)
+  invisible(path)
+}
+
+#' Read the record of labelled populations
+#'
+#' @param dir The results' `R_files` folder.
+#' @return `NULL` when there is no record (no extension run yet), otherwise a
+#'   data frame with one row per cluster: `cluster`, `population` ("dropped"
+#'   for dropped clusters), `dropped` and `cells`, with the record's `notes`
+#'   and `made` as attributes.
+#' @export
+read_labelled_populations <- function(dir) {
+  path <- file.path(dir, "labelled_populations.json")
+  if (!file.exists(path)) return(NULL)
+  rec <- jsonlite::read_json(path)
+  tab <- data.frame(
+    cluster    = vapply(rec$clusters, function(x) as.character(x$cluster), ""),
+    population = vapply(rec$clusters, function(x) as.character(x$population), ""),
+    dropped    = vapply(rec$clusters, function(x) isTRUE(x$dropped), TRUE),
+    cells      = vapply(rec$clusters, function(x) as.integer(x$cells), 1L),
+    stringsAsFactors = FALSE
+  )
+  attr(tab, "notes") <- unlist(rec$notes)
+  attr(tab, "made") <- rec$made
+  tab
+}
