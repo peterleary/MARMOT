@@ -201,11 +201,6 @@ tabItem(
           tabPanel(
             title = "Relabel Clusters",
             uiOutput(outputId = "relabelColumnIndicator"),
-            helpText(
-              "Edit the 'relabelled_clusters' column to rename clusters. ",
-              "Edit the 'colours' column to set hex colours. ",
-              "Changes take effect when you click 'Apply'."
-            ),
             fluidRow(
               column(
                 width = 6,

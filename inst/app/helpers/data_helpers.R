@@ -1,6 +1,50 @@
 # Data Helpers
 # Data extraction, aggregation, and format detection for MARMOT Shiny app
 
+#' The results' labels sheet: the one the MARMOT extension reads
+#' @param res The loaded results (with `dataDir`, the R_files folder)
+labels_sheet_path <- function(res) {
+  file.path(normalizePath(file.path(res$dataDir, ".."), mustWork = FALSE), "MARMOT_Cluster_Labels.xlsx")
+}
+
+#' Add the labels sheet to the cluster_id relabel table
+#'
+#' Adds each cluster's size and distinctive markers from the sheet, and the
+#' labels already saved there.
+#' @param tbl The relabel table (row names are the clusters)
+#' @param sheet The sheet, as read by `MARMOT::cluster_labels_table()`
+#' @return A list: `table`, and `labelled` (whether any label was found)
+add_labels_sheet <- function(tbl, sheet) {
+  m <- match(rownames(tbl), sheet$Cluster)
+  if ("Cells" %in% names(sheet)) tbl$cells <- sheet$Cells[m]
+  if ("Most distinctive markers" %in% names(sheet)) tbl$markers <- sheet$`Most distinctive markers`[m]
+  lab <- sheet$Label[m]
+  has <- !is.na(lab) & nzchar(lab)
+  tbl$relabelled_clusters[has] <- lab[has]
+  # Name, size and markers first; the colour last (the panel is narrow)
+  first <- intersect(c("relabelled_clusters", "cells", "markers"), names(tbl))
+  tbl <- tbl[, c(first, setdiff(names(tbl), first)), drop = FALSE]
+  list(table = tbl, labelled = any(has))
+}
+
+#' Names as the MARMOT extension reads them: names differing only in capitals,
+#' spaces, hyphens or underscores are one name, spelt as first typed
+#' @param x Names
+same_name_spelling <- function(x) {
+  x <- as.character(x)
+  key <- MARMOT::name_key(x)
+  x[match(key, key)]
+}
+
+#' The labels to save from the relabel table: a cluster keeping its own name
+#' is saved blank
+#' @param tbl The relabel table (row names are the clusters)
+labels_to_save <- function(tbl) {
+  labs <- trimws(as.character(tbl$relabelled_clusters))
+  labs[is.na(labs) | labs == rownames(tbl)] <- ""
+  stats::setNames(labs, rownames(tbl))
+}
+
 #' Every map in the results, with plain names
 #'
 #' The results hold each map with every cell and, when the report showed a
@@ -21,7 +65,7 @@ dr_map_choices <- function(umapDFList) {
     base <- sub("_uncorrected$", "", k)
     base <- switch(base, TSNE = "tSNE", Mpacmap = "PaCMAP (Mpacmap)", pacmap = "PaCMAP", base)
     note <- c(if (endsWith(k, "_uncorrected")) "before batch correction", cells)
-    if (length(note)) paste0(base, "|", paste(note, collapse = " · ")) else base
+    if (length(note)) paste0(base, "|", paste(note, collapse = ", ")) else base
   }
   out <- character(0)
   for (k in maps) {

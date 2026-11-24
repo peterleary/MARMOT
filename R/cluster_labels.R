@@ -39,8 +39,14 @@ write_cluster_labels_template <- function(path, clusters, expr, n_top = 3) {
     Label = "",
     check.names = FALSE, stringsAsFactors = FALSE
   )
+  .write_labels_workbook(path, tab)
+}
+
+# The labels workbook: the table, plus a sheet saying how to use it. Shared by
+# the template and by save_cluster_labels(), so both look the same.
+.write_labels_workbook <- function(path, tab) {
   readme <- data.frame(`How to use this sheet` = c(
-    "Type a name for any cluster in the Label column, then run MARMOT again with RDataFolder set to these results.",
+    "Type a name for any cluster in the Label column (here, or in the Explorer's Relabel Clusters tab), then run the MARMOT extension: the desktop app's extension mode, or marmot() with RDataFolder set to these results.",
     "Clusters with the same name are merged into one population.",
     "Leave a label blank to keep the cluster as it is.",
     "Type drop to leave a cluster out (for small, clearly noisy islands). Frequencies are then out of the remaining cells, and the report says how many cells this removed from each sample.",
@@ -49,14 +55,67 @@ write_cluster_labels_template <- function(path, clusters, expr, n_top = 3) {
   wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb, "Cluster Labels")
   openxlsx::writeData(wb, "Cluster Labels", tab)
-  openxlsx::setColWidths(wb, "Cluster Labels", cols = 1:5, widths = c(10, 10, 18, 40, 30))
-  openxlsx::addStyle(wb, "Cluster Labels", openxlsx::createStyle(textDecoration = "bold"), rows = 1, cols = 1:5)
+  widths <- c(Cluster = 10, Cells = 10, `Share of cells (%)` = 18, `Most distinctive markers` = 40, Label = 30)
+  w <- unname(widths[names(tab)]); w[is.na(w)] <- 15
+  openxlsx::setColWidths(wb, "Cluster Labels", cols = seq_along(tab), widths = w)
+  openxlsx::addStyle(wb, "Cluster Labels", openxlsx::createStyle(textDecoration = "bold"), rows = 1, cols = seq_along(tab))
   openxlsx::freezePane(wb, "Cluster Labels", firstRow = TRUE)
   openxlsx::addWorksheet(wb, "Read me")
   openxlsx::writeData(wb, "Read me", readme)
   openxlsx::setColWidths(wb, "Read me", cols = 1, widths = 120)
   openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
   invisible(path)
+}
+
+#' The cluster labels table, as it stands in the workbook
+#'
+#' @param path The workbook written by [write_cluster_labels_template()].
+#' @return The "Cluster Labels" table (Cluster and Label as text, blank labels
+#'   as ""), or `NULL` when there is no workbook.
+#' @export
+cluster_labels_table <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  tab <- openxlsx::read.xlsx(path, sheet = "Cluster Labels", check.names = FALSE, sep.names = " ")
+  tab$Cluster <- as.character(tab$Cluster)
+  tab$Label <- trimws(as.character(tab$Label))
+  tab$Label[is.na(tab$Label)] <- ""
+  tab
+}
+
+#' Save cluster labels into the workbook
+#'
+#' Writes the labels into the Label column of the results' labels workbook,
+#' keeping its other columns. The previous workbook is kept beside it as
+#' `MARMOT_Cluster_Labels_<date>_<time>.xlsx`, so nothing is ever lost. Used by
+#' the Explorer; the pipeline reads the result with [read_cluster_labels()].
+#'
+#' @param path The workbook (`MARMOT_Cluster_Labels.xlsx` in a results folder).
+#' @param labels A character vector named by cluster: the label of each
+#'   cluster, `""` to keep it as it is, `"drop"` to leave it out.
+#' @return Invisibly, a list with `path` and `backup` (the backup's path, or
+#'   `NULL` when there was no workbook before).
+#' @export
+save_cluster_labels <- function(path, labels) {
+  labels <- labels[!is.na(names(labels))]
+  labels <- stats::setNames(trimws(as.character(labels)), trimws(names(labels)))
+  labels[is.na(labels)] <- ""
+  tab <- cluster_labels_table(path)
+  backup <- NULL
+  if (is.null(tab)) {
+    tab <- data.frame(Cluster = names(labels), Label = "", check.names = FALSE, stringsAsFactors = FALSE)
+  } else {
+    unknown <- setdiff(names(labels), tab$Cluster)
+    if (length(unknown)) {
+      stop("These clusters are not in ", basename(path), ": ", paste(unknown, collapse = ", "),
+           ". The labels belong to other results.", call. = FALSE)
+    }
+    backup <- file.path(dirname(path), paste0(tools::file_path_sans_ext(basename(path)), "_",
+                                              format(Sys.time(), "%Y-%m-%d_%H.%M.%S"), ".xlsx"))
+    file.copy(path, backup, overwrite = FALSE)
+  }
+  tab$Label[match(names(labels), tab$Cluster)] <- unname(labels)
+  .write_labels_workbook(path, tab)
+  invisible(list(path = path, backup = backup))
 }
 
 #' Read the cluster labels workbook
@@ -71,11 +130,8 @@ write_cluster_labels_template <- function(path, clusters, expr, n_top = 3) {
 #' @export
 read_cluster_labels <- function(path, clusters) {
   clusters <- as.character(clusters)
-  tab <- openxlsx::read.xlsx(path, sheet = "Cluster Labels", check.names = FALSE, sep.names = " ")
-  tab$Cluster <- as.character(tab$Cluster)
-  tab$Label <- trimws(as.character(tab$Label))
-  tab$Label[is.na(tab$Label)] <- ""
-  if (!any(nzchar(tab$Label))) return(NULL)
+  tab <- cluster_labels_table(path)
+  if (is.null(tab) || !any(nzchar(tab$Label))) return(NULL)
 
   unknown <- setdiff(tab$Cluster[nzchar(tab$Label)], clusters)
   tab <- tab[tab$Cluster %in% clusters, , drop = FALSE]

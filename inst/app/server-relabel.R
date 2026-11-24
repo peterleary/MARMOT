@@ -63,6 +63,18 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     coloursList <- inputDataReactive$Results$coloursList
     tbl <- initialise_relabel_table(sce, default_column, coloursList, catalystCols)
 
+    # Open on the labels already saved for the MARMOT extension, if any
+    savedLabels <- FALSE
+    if (default_column == "cluster_id") {
+      sheet <- tryCatch(MARMOT::cluster_labels_table(labels_sheet_path(inputDataReactive$Results)),
+                        error = function(e) NULL)
+      if (!is.null(sheet)) {
+        added <- add_labels_sheet(tbl, sheet)
+        tbl <- added$table
+        savedLabels <- added$labelled
+      }
+    }
+
     clusterTableReactive$table                        <- tbl
     relabelStorageReactive$activeColumn                <- default_column
     relabelStorageReactive$tables[[default_column]]    <- tbl
@@ -71,6 +83,12 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     # Seed relabelled_clusters colour entry for downstream plots (matches eSC)
     coloursList[["relabelled_clusters"]] <- coloursList[[default_column]]
     inputDataReactive$Results$coloursList <- coloursList
+
+    if (savedLabels) {
+      shinyjs::delay(500, shinyjs::click("applyRelabelling"))
+      showNotification("Opened with the cluster labels saved for the MARMOT extension.",
+                       type = "message", duration = 6)
+    }
   }, error = function(e) {
     showNotification(
       paste("Relabel init error:", e$message),
@@ -84,11 +102,67 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
 output$relabelColumnIndicator <- renderUI({
   col <- relabelStorageReactive$activeColumn
   req(col)
-  tags$p(
+  indicator <- tags$p(
     style = "font-weight: 600; margin-top: 6px;",
     "Relabelling column: ",
     tags$span(style = "color: #dc2626;", col)
   )
+  if (col != "cluster_id") {
+    return(tagList(indicator, helpText(
+      "Rename values in the 'relabelled_clusters' column and set hex colours in 'colours', then click 'Apply'.",
+      "Only cluster_id labels can be saved for the MARMOT extension: colour by cluster_id to name clusters for it."
+    )))
+  }
+  tagList(
+    indicator,
+    tags$div(
+      style = "background: #f0fdf4; border-left: 4px solid #16a34a; padding: 8px 10px; margin-bottom: 8px; font-size: 0.92em;",
+      tags$b("Annotate, then extend"),
+      tags$p(style = "margin: 4px 0 0;",
+        "Name the clusters in the 'Name' column and click 'Apply' to see them. ",
+        "Clusters with the same name merge into one population; type ", tags$code("drop"),
+        " to leave out a small, clearly noisy cluster; leave a name as it is to keep the cluster. ",
+        "When you are happy, click 'Save for the MARMOT extension'. The extension then redraws the report ",
+        "with figures and DA/DS for your populations, without clustering again."
+      )
+    ),
+    actionButton("saveForExtension", "Save for the MARMOT extension",
+                 icon = icon("tags"), class = "btn-sm btn-success", style = "margin-bottom: 8px;")
+  )
+})
+
+# ── Save labels for the MARMOT extension ─────────────────────────────────────
+
+observeEvent(input$saveForExtension, {
+  req(clusterTableReactive$table, inputDataReactive$Results)
+  req(identical(relabelStorageReactive$activeColumn, "cluster_id"))
+  path <- labels_sheet_path(inputDataReactive$Results)
+  pkg_dir <- normalizePath(system.file(package = "MARMOT"), mustWork = FALSE)
+  if (startsWith(path, pkg_dir)) {
+    showModal(modalDialog(title = "These are MARMOT's example results",
+      "Labels can't be saved into the example data that comes with MARMOT. Open your own results to annotate them."))
+    return(invisible())
+  }
+  labs <- tryCatch(labels_to_save(clusterTableReactive$table), error = function(e) NULL)
+  saved <- if (is.null(labs)) simpleError("The names in the table could not be read.") else
+    tryCatch(MARMOT::save_cluster_labels(path, labs), error = function(e) e)
+  if (inherits(saved, "error")) {
+    showModal(modalDialog(title = "The labels could not be saved", conditionMessage(saved)))
+    return(invisible())
+  }
+  named <- labs[nzchar(labs) & MARMOT::name_key(labs) != "DROP"]
+  n_drop <- sum(MARMOT::name_key(labs) == "DROP")
+  showModal(modalDialog(
+    title = "Saved for the MARMOT extension",
+    tags$p(sprintf("%d of %d clusters named, in %d population(s)%s.",
+                   length(named), length(labs), length(unique(MARMOT::name_key(named))),
+                   if (n_drop) sprintf("; %d dropped", n_drop) else "")),
+    tags$p("Saved in ", tags$code(path), if (is.null(saved$backup)) "." else
+           tagList(". The previous sheet is kept as ", tags$code(basename(saved$backup)), ".")),
+    tags$p(tags$b("Next:"), " run the extension. In the MARMOT desktop app, choose 'Extension for annotated cells' and pick these results. ",
+           "In R, run ", tags$code("marmot()"), " with ", tags$code("RDataFolder"), " set to this results folder."),
+    easyClose = TRUE
+  ))
 })
 
 # ── Download handler ─────────────────────────────────────────────────────────
@@ -110,15 +184,22 @@ output$saveClusterLabels <- downloadHandler(
 
 output$clusterLabelTable <- DT::renderDataTable({
   req(clusterTableReactive$table)
+  tbl <- clusterTableReactive$table
+  # Cluster sizes and markers (from the labels sheet) are for reading only
+  readOnly <- which(names(tbl) %in% c("cells", "markers"))
+  shown <- c(Name = "relabelled_clusters", Colour = "colours", Cells = "cells", `Distinctive markers` = "markers")
+  shown <- shown[match(names(tbl), shown)]
+  shown <- shown[!is.na(shown)]
   DT::datatable(
-    data      = clusterTableReactive$table,
+    data      = tbl,
     class     = "display compact",
     selection = "none",
-    editable  = TRUE,
+    colnames  = shown,
+    editable  = if (length(readOnly)) list(target = "cell", disable = list(columns = readOnly)) else TRUE,
     options   = list(dom = "ft", pageLength = 10000, scrollY = "400px")
   ) |>
     DT::formatStyle(
-      columns         = "colours",
+      columns         = "Colour",
       backgroundColor = DT::styleEqual(
         clusterTableReactive$table$colours,
         clusterTableReactive$table$colours
@@ -129,9 +210,16 @@ output$clusterLabelTable <- DT::renderDataTable({
 # ── Cell edit observer ───────────────────────────────────────────────────────
 
 observeEvent(input$clusterLabelTable_cell_edit, ignoreNULL = TRUE, ignoreInit = TRUE, {
-  clusterTableReactive$table <- DT::editData(
-    clusterTableReactive$table, input$clusterLabelTable_cell_edit
+  # An edit that cannot be read is refused with a message, never a crash
+  edited <- tryCatch(
+    DT::editData(clusterTableReactive$table, input$clusterLabelTable_cell_edit),
+    error = function(e) NULL
   )
+  if (is.null(edited)) {
+    showNotification("That edit could not be read, so the table is unchanged.", type = "warning", duration = 6)
+    return(invisible())
+  }
+  clusterTableReactive$table <- edited
   # Persist edit into storage for this column
   col <- relabelStorageReactive$activeColumn
   if (!is.null(col)) {
@@ -147,13 +235,24 @@ observeEvent(input$applyRelabelling, {
 
   active_col <- relabelStorageReactive$activeColumn %||% "cluster_id"
 
-  result <- apply_relabelling_pure(
+  # For cluster_id, show the populations exactly as the MARMOT extension will
+  # make them: "T cells" and "T-cells" are one population
+  applyTable <- clusterTableReactive$table
+  if (active_col == "cluster_id") {
+    applyTable$relabelled_clusters <- same_name_spelling(applyTable$relabelled_clusters)
+  }
+
+  result <- tryCatch(apply_relabelling_pure(
     sce           = inputDataReactive$Results$sce,
     umapDFList    = inputDataReactive$Results$umapDFList,
     coloursList   = inputDataReactive$Results$coloursList,
-    cluster_table = clusterTableReactive$table,
+    cluster_table = applyTable,
     source_column = active_col
-  )
+  ), error = function(e) e)
+  if (inherits(result, "error")) {
+    showNotification(paste("The names could not be applied:", conditionMessage(result)), type = "error", duration = 8)
+    return(invisible())
+  }
   # Atomic update: single invalidation instead of three separate sub-field writes
   res <- inputDataReactive$Results
   res$sce         <- result$sce
