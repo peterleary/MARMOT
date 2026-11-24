@@ -143,8 +143,9 @@ observeEvent(input$saveForExtension, {
       "Labels can't be saved into the example data that comes with MARMOT. Open your own results to annotate them."))
     return(invisible())
   }
-  labs <- labels_to_save(clusterTableReactive$table)
-  saved <- tryCatch(MARMOT::save_cluster_labels(path, labs), error = function(e) e)
+  labs <- tryCatch(labels_to_save(clusterTableReactive$table), error = function(e) NULL)
+  saved <- if (is.null(labs)) simpleError("The names in the table could not be read.") else
+    tryCatch(MARMOT::save_cluster_labels(path, labs), error = function(e) e)
   if (inherits(saved, "error")) {
     showModal(modalDialog(title = "The labels could not be saved", conditionMessage(saved)))
     return(invisible())
@@ -209,9 +210,16 @@ output$clusterLabelTable <- DT::renderDataTable({
 # ── Cell edit observer ───────────────────────────────────────────────────────
 
 observeEvent(input$clusterLabelTable_cell_edit, ignoreNULL = TRUE, ignoreInit = TRUE, {
-  clusterTableReactive$table <- DT::editData(
-    clusterTableReactive$table, input$clusterLabelTable_cell_edit
+  # An edit that cannot be read is refused with a message, never a crash
+  edited <- tryCatch(
+    DT::editData(clusterTableReactive$table, input$clusterLabelTable_cell_edit),
+    error = function(e) NULL
   )
+  if (is.null(edited)) {
+    showNotification("That edit could not be read, so the table is unchanged.", type = "warning", duration = 6)
+    return(invisible())
+  }
+  clusterTableReactive$table <- edited
   # Persist edit into storage for this column
   col <- relabelStorageReactive$activeColumn
   if (!is.null(col)) {
@@ -234,13 +242,17 @@ observeEvent(input$applyRelabelling, {
     applyTable$relabelled_clusters <- same_name_spelling(applyTable$relabelled_clusters)
   }
 
-  result <- apply_relabelling_pure(
+  result <- tryCatch(apply_relabelling_pure(
     sce           = inputDataReactive$Results$sce,
     umapDFList    = inputDataReactive$Results$umapDFList,
     coloursList   = inputDataReactive$Results$coloursList,
     cluster_table = applyTable,
     source_column = active_col
-  )
+  ), error = function(e) e)
+  if (inherits(result, "error")) {
+    showNotification(paste("The names could not be applied:", conditionMessage(result)), type = "error", duration = 8)
+    return(invisible())
+  }
   # Atomic update: single invalidation instead of three separate sub-field writes
   res <- inputDataReactive$Results
   res$sce         <- result$sce
