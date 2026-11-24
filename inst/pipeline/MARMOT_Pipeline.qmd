@@ -1864,6 +1864,8 @@ if (is.null(RDataFolder) && runScGate) {
       runScGate <- FALSE
     } else {
       models <- mp$models
+      gatePassed <- list()   # per gate: which cells passed it
+      gateScore  <- list()   # per gate: every cell's score for it
 
     for (x in names(models)) {
       if (!models[[x]][[1]] %in% rownames(scData)) {
@@ -1885,35 +1887,29 @@ if (is.null(RDataFolder) && runScGate) {
         models[[x]][[2]] <- hit[[1]]
       }
       model <- scGate::gating_model(name = x, signature = c(models[[x]][[1]], models[[x]][[2]]))
+      scoresBefore <- grep("UCell$", colnames(scData@meta.data), value = TRUE)
       scData <- scGate::scGate(data = scData, model = model, pos.thr = 0.65)
+      # scGate marks the cells that pass a gate "Pure" in is.pure
+      passed <- scData$is.pure %in% "Pure"
       y <- gsub("[ -]", "", x)
-      # Only mark cells that actually passed the gate (Positive), not all evaluated cells
-      scData[[paste0("is_", y)]] <- NA_character_
-      scData[[paste0("is_", y)]][which(scData$scGate_multi == "Positive")] <- x
+      scData[[paste0("is_", y)]] <- ifelse(passed, x, NA_character_)
+      # This gate's score for every cell (the UCell column scGate just added)
+      newScore <- setdiff(grep("UCell$", colnames(scData@meta.data), value = TRUE), scoresBefore)
+      gatePassed[[x]] <- passed
+      gateScore[[x]] <- if (length(newScore)) scData@meta.data[[newScore[1]]] else as.numeric(passed)
     }
 
-    # Determine Gated_Cells: highest UCell score, but only for cells that passed at least one gate
-    ucell_cols <- grep("UCell", colnames(scData@meta.data), value = TRUE)
-    is_cols <- paste0("is_", gsub("[ -]", "", names(models)))
-    is_cols <- is_cols[is_cols %in% colnames(scData@meta.data)]
-    any_positive <- apply(scData@meta.data[, is_cols, drop = FALSE], 1,
-                          function(row) any(!is.na(row)))
-    if (length(ucell_cols) == 0) {
-      warning("No UCell score columns found — assigning Gated_Cells from is_* columns only.")
-      scData$Gated_Cells <- ifelse(
-        any_positive,
-        apply(scData@meta.data[, is_cols, drop = FALSE], 1,
-              function(row) { v <- row[!is.na(row)]; if (length(v)) v[[1]] else "Negative" }),
-        "Negative"
-      )
+    # Gated_Cells: of the gates a cell passed, the one it scores highest on;
+    # cells that passed no gate are "Negative"
+    if (length(gatePassed) > 0) {
+      passedM <- do.call(cbind, gatePassed)
+      scoreM <- do.call(cbind, gateScore)
+      scoreM[!passedM] <- -Inf
+      scData$Gated_Cells <- ifelse(rowSums(passedM) > 0,
+                                   colnames(scoreM)[max.col(scoreM, ties.method = "first")],
+                                   "Negative")
     } else {
-      scData$Gated_Cells <- ifelse(
-        any_positive,
-        sapply(seq_len(nrow(scData@meta.data)), function(i) {
-          gsub("_UCell", "", ucell_cols[which.max(scData@meta.data[i, ucell_cols])])
-        }),
-        "Negative"
-      )
+      scData$Gated_Cells <- "Negative"
     }
 
     # Transfer scGate results back to SCE

@@ -1,6 +1,15 @@
 <script>
   let { headers = $bindable([]), rows = $bindable([]), onchange = () => {}, cellStyle = null, columnConfig = {} } = $props();
 
+  // Column help, drawn by the app (the window shows no native tooltips) and
+  // placed outside the table so its scrolling area cannot cut it off
+  let helpBox = $state(null);
+  function showHelp(event, text) {
+    const r = event.currentTarget.getBoundingClientRect();
+    helpBox = { text, left: Math.max(8, Math.min(r.left, window.innerWidth - 360)), top: r.bottom + 6 };
+  }
+  function hideHelp() { helpBox = null; }
+
   function getCellStyle(rowIdx, colIdx, value) {
     if (!cellStyle) return "";
     const s = cellStyle(rowIdx, colIdx, value);
@@ -67,9 +76,14 @@
         <tr>
           <th class="row-num">#</th>
           {#each headers as header, colIdx}
-            <th title={columnConfig[colIdx]?.help || ""}>
+            <th>
               <span>{header}</span>
-              {#if columnConfig[colIdx]?.help}<span class="col-help" aria-label={columnConfig[colIdx].help}>ⓘ</span>{/if}
+              {#if columnConfig[colIdx]?.help}
+                <span class="col-help" tabindex="0" role="button" aria-label={columnConfig[colIdx].help}
+                  onmouseenter={(e) => showHelp(e, columnConfig[colIdx].help)} onmouseleave={hideHelp}
+                  onfocus={(e) => showHelp(e, columnConfig[colIdx].help)} onblur={hideHelp}
+                  onclick={(e) => showHelp(e, columnConfig[colIdx].help)}>ⓘ</span>
+              {/if}
               <button class="remove-col" onclick={() => removeColumn(colIdx)} title="Remove column">&times;</button>
             </th>
           {/each}
@@ -170,6 +184,9 @@
       </tbody>
     </table>
   </div>
+  {#if helpBox}
+    <div class="col-help-box" style="left:{helpBox.left}px; top:{helpBox.top}px">{helpBox.text}</div>
+  {/if}
 </div>
 
 <style>
@@ -290,5 +307,11 @@
     font-weight: 600;
     flex-shrink: 0;
   }
-  .col-help { margin-left: 0.25rem; color: #64748b; cursor: help; font-size: 0.85em; }
+  .col-help { margin-left: 0.25rem; color: #64748b; cursor: help; font-size: 0.85em; outline: none; }
+  .col-help-box {
+    position: fixed; z-index: 1000; width: 22rem;
+    padding: 0.5rem 0.65rem; background: #1e293b; color: #f8fafc; border-radius: 6px;
+    font-size: 0.75rem; font-weight: 400; line-height: 1.45; white-space: normal; text-align: left;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
 </style>
