@@ -42,13 +42,16 @@ ENV R_USER_DATA_DIR=/opt/marmot-data
 RUN mkdir -p /opt/marmot-data && chmod 755 /opt/marmot-data
 
 # ── R packages: MARMOT and everything it uses, optional ones included.
-#    MARMOT's r-universe serves Rphenograph and anndataR; Bioconductor
-#    the rest. pak installs in parallel and builds what has no binary. ──
+#    MARMOT's r-universe serves anndataR; Bioconductor the rest.
+#    Rphenograph comes straight from GitHub, so the image still builds
+#    when the r-universe index is having a wobble (it is not on CRAN).
+#    pak installs in parallel and builds what has no binary. ──
 RUN Rscript -e 'install.packages(c("pak", "BiocManager"), repos = "https://cloud.r-project.org")'
 # Change CACHEBUST to fetch MARMOT again from GitHub
 ARG CACHEBUST=1
 RUN Rscript -e 'options(repos = c(MARMOT = "https://peterleary.r-universe.dev", BiocManager::repositories())); \
-    pak::pkg_install(paste0("peterleary/MARMOT@", Sys.getenv("MARMOT_REF")), dependencies = TRUE, ask = FALSE)'
+    pak::pkg_install(c(paste0("peterleary/MARMOT@", Sys.getenv("MARMOT_REF")), "github::peterleary/Rphenograph"), \
+                     dependencies = TRUE, ask = FALSE)'
 
 # qs2 from source, so it links against libtbb (a binary may not)
 RUN Rscript -e 'install.packages("qs2", type = "source", repos = "https://cloud.r-project.org")'
