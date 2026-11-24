@@ -125,14 +125,8 @@ output$plotTypeControls <- renderUI({
 
   # ── Feature Plot / Nebulosa Plot ───────────────────────────────────────
   if (plot_type %in% c("Feature Plot", "Nebulosa Plot")) {
-    dr_names <- names(inputDataReactive$Results$umapDFList)
-    fp_dr_default <- dr_names[1]
-    for (pref in c("TSNE", "UMAP", "PaCMAP")) {
-      hit <- grep(pref, dr_names, ignore.case = TRUE, value = TRUE)
-      ds_hit <- grep("Downsampled", hit, value = TRUE)
-      if (length(ds_hit) > 0) hit <- ds_hit
-      if (length(hit) > 0) fp_dr_default <- hit[1]
-    }
+    dr_names <- dr_map_choices(inputDataReactive$Results$umapDFList)
+    fp_dr_default <- dr_map_default(dr_names)
 
     tagList(
       fp_section_header("Dimensionality reduction"),
@@ -452,13 +446,7 @@ observeEvent(
         input$fpColumnToSplit == "None") NULL else input$fpColumnToSplit
 
       # ── Resolve DR data frame ──────────────────────────────────────────
-      drName <- input$fpDRToPlot %||% names(inputDataReactive$Results$umapDFList)[1]
-      umapDF <- inputDataReactive$Results$umapDFList[[drName]]
-      if (is.null(umapDF)) {
-        umapDF <- inputDataReactive$Results$umapDFList[[
-          names(inputDataReactive$Results$umapDFList)[1]
-        ]]
-      }
+      umapDF <- dr_map_frame(inputDataReactive$Results$umapDFList, input$fpDRToPlot)
 
       # ── Apply cell subsetting ──────────────────────────────────────────
       subsetMode <- input$fpSubsetMode %||% "None"

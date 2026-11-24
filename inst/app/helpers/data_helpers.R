@@ -1,6 +1,59 @@
 # Data Helpers
 # Data extraction, aggregation, and format detection for MARMOT Shiny app
 
+#' Every map in the results, with plain names
+#'
+#' The results hold each map with every cell and, when the report showed a
+#' subsample of cells, a "Downsampled." copy as well. When the subsample is
+#' smaller, both are offered: the report's version first, so the Explorer
+#' starts on what the report showed. When it holds every cell, the map is
+#' offered once.
+#' "All" and "Downsampled" are copies of the main map and are not listed again.
+#' @param umapDFList The plotting tables of the results
+#' @return A named character vector: names are the labels shown, values the
+#'   keys in `umapDFList`
+dr_map_choices <- function(umapDFList) {
+  keys <- setdiff(names(umapDFList), c("All", "Downsampled"))
+  maps <- keys[!startsWith(keys, "Downsampled.")]
+  pretty <- function(k) {
+    base <- sub("_uncorrected$", "", k)
+    base <- switch(base, TSNE = "tSNE", Mpacmap = "PaCMAP (Mpacmap)", pacmap = "PaCMAP", base)
+    if (endsWith(k, "_uncorrected")) paste0(base, ", before batch correction") else base
+  }
+  out <- character(0)
+  for (k in maps) {
+    down <- paste0("Downsampled.", k)
+    if (down %in% keys && nrow(umapDFList[[down]]) < nrow(umapDFList[[k]])) {
+      out[paste0(pretty(k), " (as in the report)")] <- down
+      out[paste0(pretty(k), ", every cell")] <- k
+    } else {
+      out[pretty(k)] <- k
+    }
+  }
+  out
+}
+
+#' The default map: the UMAP, tSNE or PaCMAP the report is built on, as the
+#' report showed it
+#' @param choices As returned by `dr_map_choices()`
+dr_map_default <- function(choices) {
+  keys <- unname(choices)
+  pick <- keys[1]
+  for (pref in c("TSNE", "UMAP", "PaCMAP")) {
+    hit <- grep(pref, keys[!endsWith(keys, "_uncorrected")], ignore.case = TRUE, value = TRUE)
+    if (length(hit) > 0) pick <- hit[1]
+  }
+  pick
+}
+
+#' The plotting table for a map key, falling back to the default map
+#' @param umapDFList The plotting tables of the results
+#' @param key A key, as in `dr_map_choices()`
+dr_map_frame <- function(umapDFList, key) {
+  if (!is.null(key) && !is.null(umapDFList[[key]])) return(umapDFList[[key]])
+  umapDFList[[dr_map_default(dr_map_choices(umapDFList))]]
+}
+
 #' Compute median coordinates per group for label placement
 #' @param df Data frame with x, y, and a grouping column
 #' @param group_col Name of the grouping column
