@@ -65,6 +65,10 @@ umapReactive <- eventReactive(
       # The same cells as the report: the subsample when the report used one
       umapDF <- dr_map_frame(res$umapDFList, inputs$umapDRToPlot)
       req(!is.null(umapDF))
+      # Every cell of the chosen map, for the corner arrows (so they stay put
+      # when the DA filter or a split hides cells)
+      mapFull <- umapDF[, c("x", "y")]
+      mapAxes <- MARMOT::dr_axis_names(inputs$umapDRToPlot)
 
       # ── DA filtering ────────────────────────────────────────────────────
       da_mode   <- inputs$umapDAFilter %||% "None"
@@ -169,7 +173,7 @@ umapReactive <- eventReactive(
             size = inputs$pointSizeUMAP * 10,
             line = list(color = "black", width = 0)
           )
-        )
+        ) |> plotly_corner_arrows(mapFull, mapAxes)
       } else {
         # Faceted subplots with deduplicated legends
         split_levels <- unique(umapDF[[split_col]])
@@ -245,7 +249,7 @@ umapReactive <- eventReactive(
             aes(colour = .data[[plot_column]])
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 3, alpha = 1), ncol = 2
+            override.aes = list(size = 6, alpha = 1), ncol = 2
           ))
 
       } else if (border_type == "Per-cell borders") {
@@ -261,7 +265,7 @@ umapReactive <- eventReactive(
             aes(fill = .data[[plot_column]])
           ) +
           guides(fill = guide_legend(
-            override.aes = list(shape = 21, size = 3, alpha = 1, stroke = 0.2),
+            override.aes = list(shape = 21, size = 6, alpha = 1, stroke = 0.2),
             ncol = 2
           ))
 
@@ -289,7 +293,7 @@ umapReactive <- eventReactive(
             scattermore::geom_scattermore(aes(colour = .data[[plot_column]]),
                                           pointsize = eff_raster, pixels = raster_px) +
             guides(colour = guide_legend(
-              override.aes = list(size = 4, colour = "black", fill = colours, shape = 21),
+              override.aes = list(size = 6, colour = "black", fill = colours, shape = 21),
               ncol = 2
             ))
         } else umapStatic <- umapStatic +
@@ -312,7 +316,7 @@ umapReactive <- eventReactive(
             na.rm = TRUE
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 4, colour = "black",
+            override.aes = list(size = 6, colour = "black",
                                 fill = colours, shape = 21),
             ncol = 2
           ))
@@ -327,7 +331,7 @@ umapReactive <- eventReactive(
             pch   = 20
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 3, alpha = 1), ncol = 2
+            override.aes = list(size = 6, alpha = 1), ncol = 2
           ))
       }
 
@@ -337,7 +341,10 @@ umapReactive <- eventReactive(
           base_size       = inputs$textSizeUMAP,
           show_axes       = inputs$umapShowAxes,
           legend_position = "right"
-        )
+        ) +
+        # Fixed aspect ratio and corner arrows naming the axes (or the axes
+        # themselves, when "show axes" is ticked)
+        (if (isTRUE(inputs$umapShowAxes)) list(coord_fixed()) else MARMOT::dr_corner_arrows(mapFull, mapAxes))
 
       # ── Faceting with cell counts ───────────────────────────────────
       if (!is.null(split_col)) {

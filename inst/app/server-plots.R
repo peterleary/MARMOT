@@ -576,6 +576,14 @@ observeEvent(
         pre_border_df <- umapDF[cell_density <= quantile(cell_density, border_density_val), ]
       }
 
+      # Corner arrows naming the axes, with a fixed aspect ratio. Placed from
+      # every cell of the chosen map, so they stay put when groups are hidden
+      # or cells subset. With "show axes" ticked, the axes name themselves.
+      fpArrows <- if (isTRUE(input$fpShowAxes)) list(ggplot2::coord_fixed()) else tryCatch({
+        fullMap <- dr_map_frame(inputDataReactive$Results$umapDFList, input$fpDRToPlot)
+        MARMOT::dr_corner_arrows(fullMap[, c("x", "y")], MARMOT::dr_axis_names(input$fpDRToPlot))
+      }, error = function(e) list(ggplot2::coord_fixed()))
+
       # Pre-compute label base positions (group medians are marker-independent)
       base_label_pos <- NULL
       if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot) &&
@@ -622,7 +630,7 @@ observeEvent(
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
             legend_position = tolower(input$fpLegendPosition %||% "right")
-          )
+          ) + fpArrows
 
           # Facet by split column
           if (!is.null(fpColumnToSplit) && fpColumnToSplit %in% colnames(df)) {
@@ -682,7 +690,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -711,7 +719,7 @@ observeEvent(
           if (!marker %in% colnames(df)) return(NULL)
 
           w <- df[[marker]]
-          w[is.na(w)] <- 0
+          w[is.na(w) | w < 0] <- 0   # density weights cannot be negative
           if (sum(w) == 0) {
             df$density <- 0
           } else {
@@ -736,8 +744,9 @@ observeEvent(
             border_df = pre_border_df,
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
-            legend_position = tolower(input$fpLegendPosition %||% "right")
-          ) + ggtitle(paste0(marker, " density")) + labs(colour = "Density")
+            legend_position = tolower(input$fpLegendPosition %||% "right"),
+            limits = c(0, max(df$density, na.rm = TRUE))   # each marker on its own 0-to-max scale
+          ) + fpArrows + ggtitle(marker) + labs(colour = "Density")
 
           # Cluster labels
           if (!is.null(base_label_pos)) {
@@ -790,7 +799,7 @@ observeEvent(
           # Vectorized weight summation across markers
           valid_markers <- fpFeaturesToPlot[fpFeaturesToPlot %in% rownames(expr_batch)]
           w_joint <- if (!is.null(expr_batch) && length(valid_markers) > 0) {
-            colSums(expr_batch[valid_markers, , drop = FALSE], na.rm = TRUE)
+            colSums(pmax(expr_batch[valid_markers, , drop = FALSE], 0), na.rm = TRUE)
           } else {
             rep(0, nrow(df_joint))
           }
@@ -818,8 +827,9 @@ observeEvent(
             border_df = pre_border_df,
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
-            legend_position = tolower(input$fpLegendPosition %||% "right")
-          ) +
+            legend_position = tolower(input$fpLegendPosition %||% "right"),
+            limits = c(0, max(df_joint$density, na.rm = TRUE))
+          ) + fpArrows +
             ggtitle(paste0("Joint: ", paste(fpFeaturesToPlot, collapse = " + "))) +
             labs(colour = "Density")
 
@@ -873,7 +883,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -1023,7 +1033,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -1370,7 +1380,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       } # end plot type switch
@@ -1413,6 +1423,10 @@ output$umapFeaturePlotOutput <- renderPlot(
       fp
     }
   },
-  height = function() input$figHeightFP %||% 500,
-  width = function() input$figWidthFP %||% 650
+  height = function() input$figHeightFP %||% 450,
+  # 0 fits the plot to its box; any other number fixes the width in pixels
+  width = function() {
+    w <- input$figWidthFP %||% 0
+    if (w > 0) w else max(300, session$clientData$output_umapFeaturePlotOutput_width %||% 1000)
+  }
 )

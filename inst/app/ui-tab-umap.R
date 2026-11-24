@@ -391,8 +391,8 @@ tabItem(
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
-                inputId = "ncolFPGene", label = "Columns per marker",
-                value = 1, min = 1, max = 10, step = 1,
+                inputId = "ncolFPGene", label = "Columns per marker (0 = automatic, up to 4)",
+                value = 0, min = 0, max = 10, step = 1,
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
@@ -403,13 +403,13 @@ tabItem(
             ),
             splitLayout(
               sliderInput(
-                inputId = "figWidthFP", label = "Figure Width",
-                min = 100, max = 2000, value = 650, step = 10,
+                inputId = "figWidthFP", label = "Figure Width (0 = fit the box)",
+                min = 0, max = 2000, value = 0, step = 10,
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
                 inputId = "figHeightFP", label = "Figure Height",
-                min = 100, max = 2000, value = 500, step = 10,
+                min = 100, max = 2000, value = 450, step = 10,
                 width = "85%", ticks = FALSE
               )
             ),
@@ -451,7 +451,7 @@ tabItem(
         collapsible = TRUE,
         width = NULL,
         shinycssloaders::withSpinner(
-          plotOutput(outputId = "umapFeaturePlotOutput", inline = TRUE),
+          plotOutput(outputId = "umapFeaturePlotOutput", width = "100%", height = "auto"),
           type = 6, color = "#dc2626"
         )
       )

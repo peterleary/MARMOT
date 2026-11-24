@@ -322,7 +322,11 @@ pdf_name_stem <- function(name) {
 
 ```{r setup_embedding_plot}
 # Draws one embedding plot. The default point size, `dr_point_size`, is set
-# from the number of plotted cells just before the report is drawn.
+# from the number of plotted cells just before the report is drawn. The look
+# follows the manuscript figures: no axes, a fixed aspect ratio, a black halo
+# around the cells, and two arrows in the corner naming the axes
+# (MARMOT::dr_corner_arrows()).
+dr_legend_dot <- 5   # size of the dots in every map legend
 plotUMAPNice <- function(
   df = umapDF,
   colour_by = "condition",
@@ -335,8 +339,8 @@ plotUMAPNice <- function(
   name = "Normalised\nExpression\n",
   show_cluster_labels = FALSE,
   cluster_labels = "cluster_id",
-  border = FALSE,
-  border_size = 3,
+  border = TRUE,
+  border_size = 2,
   border_density = 1,
   border_colour = "black"
 ) {
@@ -364,33 +368,33 @@ plotUMAPNice <- function(
     ix  <- pmax(1L, pmin(findInterval(df[["x"]], kde$x), length(kde$x)))
     iy  <- pmax(1L, pmin(findInterval(df[["y"]], kde$y), length(kde$y)))
     cell_density <- kde$z[cbind(ix, iy)]
-    border_df <- df[cell_density < quantile(cell_density, border_density), ]
+    border_df <- df[cell_density <= quantile(cell_density, border_density), ]
+    # As SCpubr draws it: points at half size, the halo twice that, solid colours
+    eff_size <- size / 2
     gp <- gp +
-      geom_point(data = border_df, size = size * border_size,
+      geom_point(data = border_df, size = eff_size * border_size,
                  colour = border_colour, show.legend = FALSE) +
-      geom_point(colour = "grey75", size = size, show.legend = FALSE) +
-      geom_point(size = size, alpha = alpha)
+      geom_point(colour = "grey75", size = eff_size, show.legend = FALSE) +
+      geom_point(size = eff_size)
   } else {
     gp <- gp + geom_point(size = size, alpha = alpha, shape = 16)
   }
 
   gp <- gp +
-    labs(x = paste(dimRedMethodToUse, "dim 1"),
-         y = paste(dimRedMethodToUse, "dim 2"),
-         title = colour_by) +
-    coord_fixed() +
+    labs(title = colour_by) +
+    MARMOT::dr_corner_arrows(df[, c("x", "y")], MARMOT::dr_axis_names(dimRedMethodToUse)) +
     theme_prism() +
     theme(
       axis.text = element_blank(),
       axis.ticks = element_blank(),
       axis.line = element_blank(),
-      legend.text = element_text(size = 10),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5)
+      axis.title = element_blank(),
+      legend.text = element_text(size = 10)
     )
 
-  # Guides
-  if (colour_by == "condition") {
-    gp <- gp + guides(colour = guide_legend(override.aes = list(size = 2)))
+  # Guides: big legend dots for groups
+  if (!colour_by %in% useMarkers) {
+    gp <- gp + guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
   }
 
   # Cluster label overlays
@@ -3405,7 +3409,7 @@ if (!is.null(drCellPerCondition)) {
   cat("#### Clusters: All Cells \n\n")
   cat("Since you clustered on all available cells (after initial downsampling), here is a DR plot of all available cells. All subsequent DR plots are subset from this main DR plot.\n\n")
   dr0 <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, alpha = 0.9, show_cluster_labels = TRUE, show_grids = FALSE, text_size = 14) +
-    guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+    guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
   dr0
 }
 ```
@@ -3424,7 +3428,7 @@ if (!is.null(drCellPerCondition)) {
 if (!is.null(drCellPerCondition)) {
   cat("\n\n")
   dr0a <- plotUMAPNice(df = umapDFList$All, colour_by = "cluster_id", show_density = FALSE, alpha = 0.9, show_cluster_labels = FALSE, show_grids = FALSE, text_size = 14) +
-    guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+    guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
   dr0a
   cat("\n\n")
 }
@@ -3498,13 +3502,13 @@ dr1a <- plotUMAPNice(
   show_grids = FALSE,
   text_size = 14
   ) +
-  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+  guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 dr1a
 ```
 
 ```{r, label = "report_dr_clusters_unlabelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by cluster, without labels."), fig.height=6, fig.width=7}
 dr1b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.8, show_cluster_labels = FALSE, show_grids = FALSE, text_size = 14) +
-  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+  guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 dr1b
 ```
 
@@ -3524,7 +3528,7 @@ if (gimmePDFs) {
 ```{r, label = "report_dr_other_k", fig.cap = paste0("The same ", dimRedMethodToUse, " embedding coloured by the clustering at each k value tested."), fig.height=ceiling(6*length(kValuesIWant)), fig.width=9}
 pDRList <- setNames(lapply(kValuesIWant, function(i) {
   plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = paste0(mergeBy, i), show_grids = FALSE) +
-    guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+    guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 }), paste0(mergeBy, kValuesIWant))
 plot_grid(plotlist = pDRList, ncol = 1, align = "hv")
 ```
@@ -3546,7 +3550,7 @@ for (i in seq_along(condLevels)) {
 names(condLabels) <- condLevels
 dr2a <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = TRUE, show_grids = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
-  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+  guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 ```
 
 ```{r, label = "report_dr_by_condition_labelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding split by condition, coloured by cluster, with the number of cells in each panel."), fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
@@ -3556,7 +3560,7 @@ dr2a
 ```{r, label = "report_dr_by_condition_unlabelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding split by condition, coloured by cluster, without labels."), fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
 dr2b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = FALSE, show_grids = FALSE) +
   facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
-  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+  guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 dr2b
 ```
 
@@ -4081,7 +4085,7 @@ plot_da_clusters <- function(i, by_condition = FALSE) {
       legend.text = element_text(size = 10),
       panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.5),
       legend.position = "hide")
-  gp + guides(colour = guide_legend(override.aes = list(size = 3)))
+  gp + guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 }
 
 DRSelectedClusters <- setNames(lapply(seq_along(clustersToMapList), function(i) {
@@ -4149,7 +4153,7 @@ labDF <- labDF[!is.na(labDF$population), , drop = FALSE]
 coloursList$population <- setNames(catalystCols[seq_len(nlevels(sceLab$population))], levels(sceLab$population))
 plotUMAPNice(df = labDF, colour_by = "population", show_density = FALSE, alpha = 0.9,
              show_cluster_labels = TRUE, cluster_labels = "population", text_size = 14) +
-  guides(colour = guide_legend(override.aes = list(size = 2), keyheight = 0.5))
+  guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 ```
 
 ```{r, label = "report_labels_heatmap_tab", results = 'asis', eval = useLabels}

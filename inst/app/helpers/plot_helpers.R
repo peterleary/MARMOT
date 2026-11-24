@@ -13,13 +13,13 @@ marmot_dr_theme <- function(base_size = 14, show_axes = FALSE, legend_position =
       axis.ticks            = element_blank(),
       axis.line             = element_blank(),
       panel.grid            = element_blank(),
-      panel.border          = element_rect(fill = NA, colour = "black", linewidth = 0.5),
+      panel.border          = element_blank(),   # no box: corner arrows name the axes
       plot.title            = element_text(face = "bold", hjust = 0),
       plot.subtitle         = element_text(face = "plain", hjust = 0),
       plot.caption          = element_text(face = "italic", hjust = 1),
       plot.title.position   = "plot",
       plot.caption.position = "plot",
-      plot.margin           = margin(t = 0, r = 0, b = 0, l = 0),
+      plot.margin           = margin(t = 5, r = 15, b = 5, l = 5),   # room between side-by-side panels
       plot.background       = element_rect(fill = "white", colour = NA),
       panel.background      = element_rect(fill = "white", colour = NA),
       legend.background     = element_rect(fill = "white", colour = NA),
@@ -32,6 +32,41 @@ marmot_dr_theme <- function(base_size = 14, show_axes = FALSE, legend_position =
     th <- th + theme(axis.title = element_blank())
   }
   th
+}
+
+#' Columns for several feature panels: the user's number, or automatic (0):
+#' one per panel, up to 4
+#' @param chosen The "Columns per marker" setting
+#' @param n_panels How many panels
+fp_columns <- function(chosen, n_panels) {
+  chosen <- suppressWarnings(as.integer(chosen))
+  if (length(chosen) != 1 || is.na(chosen) || chosen < 1) max(1L, min(as.integer(n_panels), 4L)) else chosen
+}
+
+#' Corner arrows on an interactive (plotly) map
+#'
+#' plotly does not draw ggplot's arrows, so the same two arrows as
+#' MARMOT::dr_corner_arrows() are added as layout annotations, the axes are
+#' hidden, and the aspect ratio is fixed.
+#' @param p A plotly object
+#' @param emb Every cell of the map (columns x, y)
+#' @param axis_names The two axis labels
+plotly_corner_arrows <- function(p, emb, axis_names = c("UMAP1", "UMAP2")) {
+  xr <- range(emb$x, na.rm = TRUE); yr <- range(emb$y, na.rm = TRUE)
+  ax_len <- 0.15 * diff(xr)
+  x0 <- xr[1] - 0.02 * diff(xr); y0 <- yr[1] - 0.02 * diff(yr)
+  arrow_ann <- function(x1, y1) list(x = x1, y = y1, ax = x0, ay = y0, xref = "x", yref = "y",
+                                     axref = "x", ayref = "y", showarrow = TRUE, arrowhead = 2,
+                                     arrowwidth = 1.5, text = "")
+  label_ann <- function(x, y, text, angle, xshift, yshift) list(x = x, y = y, xref = "x", yref = "y",
+                                     text = text, showarrow = FALSE, textangle = angle,
+                                     xshift = xshift, yshift = yshift, font = list(size = 11))
+  noaxis <- list(visible = FALSE, showgrid = FALSE, zeroline = FALSE)
+  plotly::layout(p,
+    annotations = list(arrow_ann(x0 + ax_len, y0), arrow_ann(x0, y0 + ax_len),
+                       label_ann(x0 + ax_len / 2, y0, axis_names[1], 0, 0, -12),
+                       label_ann(x0, y0 + ax_len / 2, axis_names[2], -90, -12, 0)),
+    xaxis = noaxis, yaxis = c(noaxis, list(scaleanchor = "x")))
 }
 
 #' Create a feature scatter plot (replaces SCpubr::do_FeaturePlot)
@@ -49,6 +84,7 @@ marmot_dr_theme <- function(base_size = 14, show_axes = FALSE, legend_position =
 #' @param base_size Font base size
 #' @param show_axes Logical: show axes
 #' @param legend_position Legend position string
+#' @param limits Optional colour scale limits (Nebulosa: 0 to the maximum)
 #' @return A ggplot object
 make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
                                  point_size = 0.8, alpha = 1,
@@ -57,7 +93,7 @@ make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
                                  border_colour = "black",
                                  border_df = NULL,
                                  base_size = 14, show_axes = FALSE,
-                                 legend_position = "right") {
+                                 legend_position = "right", limits = NULL) {
   if (!marker %in% colnames(df)) {
     warning("Marker '", marker, "' not found in data frame")
     return(ggplot())
@@ -113,7 +149,7 @@ make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
                    alpha = alpha, na.rm = TRUE)
     }
     p <- apply_continuous_scale(p, palette, direction, "colour",
-                                legend_position = legend_position)
+                                legend_position = legend_position, limits = limits)
   } else if (rasterise) {
     p <- p + scattermore::geom_scattermore(
       pointsize = (point_size * 2) + 0.6,
@@ -122,14 +158,14 @@ make_feature_scatter <- function(df, marker, palette = "viridis", direction = 1,
       aes(colour = .data[[marker]])
     )
     p <- apply_continuous_scale(p, palette, direction, "colour",
-                                legend_position = legend_position)
+                                legend_position = legend_position, limits = limits)
   } else {
     p <- p + geom_point(
       aes(colour = .data[[marker]]),
       size = point_size, alpha = alpha
     )
     p <- apply_continuous_scale(p, palette, direction, "colour",
-                                legend_position = legend_position)
+                                legend_position = legend_position, limits = limits)
   }
 
   p <- p + marmot_dr_theme(base_size, show_axes, legend_position) +
