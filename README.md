@@ -144,6 +144,47 @@ marmot(
 
 ---
 
+## Batch correction (Harmony)
+
+Samples stained or acquired on different days can carry a batch effect. MARMOT can correct for it with [Harmony](https://github.com/immunogenomics/harmony):
+
+1. Add a column to the **File Data** sheet saying which batch each sample is in (for example `Batch`, with `B1`, `B2`, …).
+2. Set **`batchColumn`** in the **Pipeline Settings** sheet to that column's name (in the GUI App: *Batch column* in Preprocessing).
+
+MARMOT then corrects the cells' positions before clustering and dimension reduction, and allows for batch in the DA and DS models. The marker values themselves are never changed. The report gains a **Batch correction** tab: the maps before and after correction, coloured by batch and by condition, and each cluster's share of cells from each batch. The Explorer offers the "UMAP, before batch correction" too.
+
+Batch correction works with the graph clustering methods (MfastPG, Mphenograph, Mparc, PARC, Rphenograph), not FlowSOM. Before anything heavy runs, MARMOT checks that the design can work: every sample needs a batch, a batch needs at least two samples, and batch must not simply be the condition under another name. The GUI App runs the same checks in its pre-flight check.
+
+---
+
+## Annotate, then extend
+
+Once you have read your first report, you can name the clusters and let MARMOT redraw the report for your named populations: extra figures, and DA and DS per population. Nothing is clustered again: QC, clusters and maps stay exactly as they were.
+
+**1. Name the clusters.** Every results folder holds a `MARMOT_Cluster_Labels.xlsx`, one row per cluster with its size and most distinctive markers. Name clusters either:
+
+- in the **Explorer**: open the *Relabel Clusters* tab, type the names, click *Apply* to see them, then *Save for the MARMOT extension*; or
+- in **Excel**: type the names into the sheet's `Label` column.
+
+The rules: clusters with the same name merge into one population; a cluster left blank stays as it is; type `drop` to leave out a small, clearly noisy cluster (frequencies are then out of the remaining cells, and the report says how many cells this removed from each sample). Capitals, spaces, hyphens and underscores do not matter: "T cells" and "T-cells" are the same population.
+
+**2. Run the extension.**
+
+- **GUI App:** open the **Annotate & extend** tab, choose the results folder, check the summary, and click *Run extension*.
+- **R:** run MARMOT again with `RDataFolder` in the Pipeline Settings sheet set to the first run's results folder:
+
+```r
+marmot(
+  metadata = "~/Desktop/Flow_Data/MARMOT_Metadata.xlsx",   # with RDataFolder set
+  name = "Annotated populations",
+  render = TRUE
+)
+```
+
+The new report has a **Labelled populations** tab: which clusters went into each population (and what was dropped), a map coloured by population, a marker heatmap, each sample's share of each population, and DA and DS for the populations.
+
+---
+
 ## Shiny App
 
 After running the pipeline, you can explore your results interactively using the Shiny app.  
@@ -153,7 +194,7 @@ The app provides:
 - Feature plots  
 - Violin, dot, and ridge plots  
 - Heatmaps and barplots  
-- Cluster relabelling and cell subsetting  
+- Cluster relabelling (saved for the MARMOT extension, see *Annotate, then extend*) and cell subsetting  
 - Export options (PDF and FCS)
 
 #
