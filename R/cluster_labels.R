@@ -46,7 +46,7 @@ write_cluster_labels_template <- function(path, clusters, expr, n_top = 3) {
 # the template and by save_cluster_labels(), so both look the same.
 .write_labels_workbook <- function(path, tab) {
   readme <- data.frame(`How to use this sheet` = c(
-    "Type a name for any cluster in the Label column (here, or in the Explorer's Relabel Clusters tab), then run the MARMOT extension: the desktop app's extension mode, or marmot() with RDataFolder set to these results.",
+    "Type a name for any cluster in the Label column (here, or in the Explorer's Relabel Clusters tab), then run the MARMOT extension: the desktop app's 'Annotate & extend' tab, or marmot() with RDataFolder set to these results.",
     "Clusters with the same name are merged into one population.",
     "Leave a label blank to keep the cluster as it is.",
     "Type drop to leave a cluster out (for small, clearly noisy islands). Frequencies are then out of the remaining cells, and the report says how many cells this removed from each sample.",
