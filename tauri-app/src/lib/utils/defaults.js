@@ -104,10 +104,12 @@ export const FIELD_DEFINITIONS = {
     min: 50,
   },
   batchColumn: {
-    type: "text",
+    type: "dropdown",
     label: "Batch column",
-    placeholder: "e.g. Batch (blank = no batch correction)",
-    info: "The File Data column that says which batch each sample is in. MARMOT then corrects for batch with Harmony before clustering, and allows for it in DA and DS. Leave blank for no batch correction.",
+    options: [""],
+    dynamicOptionsFrom: "fileDataColumns",
+    emptyLabel: "None (no batch correction)",
+    info: "The File Data column that says which batch each sample is in. MARMOT then corrects for batch with Harmony before clustering, and allows for it in DA and DS. Add a column such as Batch in File Data first, then choose it here.",
     lockedOnReload: true,
   },
   excludeTheseSamples: {
