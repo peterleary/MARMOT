@@ -14,7 +14,7 @@
 #   docker run --rm -p 3838:3838 -v /path/to/results:/path/to/results marmot:v2 \
 #     Rscript -e 'shiny::runApp(system.file("app", package = "MARMOT"), host = "0.0.0.0", port = 3838)'
 
-FROM rocker/r-ver:4.5.2
+FROM rocker/r-ver:4.6.2
 
 ARG TARGETARCH
 ARG MARMOT_REF=main
