@@ -104,8 +104,8 @@ options(bitmapType = "cairo", kableExtra_view_html = FALSE)
 ```{r input_settings}
 
 ## 🔧 File paths
-fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/"      # Folder with all FCS files
-md_fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
+fp <- "path/to/your/FCS_files/"      # Folder with all FCS files
+md_fp <- "path/to/your/FCS_files/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
 ## 🧪 Preprocessing
 downsampleTo <- 10000  # Cells to take from each FCS file, for a quick first look. NULL = use every cell
 
@@ -710,23 +710,35 @@ if (anyNA(cfToUse)) {
 }
 
 # Contrasts
-# Filter out empty or malformed contrasts (e.g. bare " over " from empty dropdowns)
+# Each entry reads "A over B"; "vs", "versus" and "v" are read as "over" too.
+# Blank entries, and a bare " over " left by empty dropdowns, are skipped;
+# anything else that cannot be read as "A over B" stops the run.
+contrastSep <- "(?i)(?= (over|versus|vs\\.?|v\\.?) )"
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
-contrastsToTest <- trimws(contrastsToTest)
-contrastsToTest <- gsub("\\s+", " ", contrastsToTest)
-contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest, ignore.case = TRUE)]
+contrastsToTest <- gsub("\\s+", " ", trimws(contrastsToTest))
+contrastsToTest <- contrastsToTest[!grepl("(?i)^(over|versus|vs\\.?|v\\.?)?$", contrastsToTest, perl = TRUE)]
+unreadable <- !grepl("(?i). (over|versus|vs\\.?|v\\.?) .", contrastsToTest, perl = TRUE)
+if (any(unreadable)) {
+  stop("❌ Each entry in 'Conditions To Test' needs to read 'A over B', for example 'KO over WT'. ",
+       "Please check: ", paste0("'", contrastsToTest[unreadable], "'", collapse = ", "))
+}
 # Each side may be spelt differently from the conditions ("treated over control");
 # it is rewritten with the conditions' own spelling. A contrast that still does
-# not match is left as typed, and the DA/DS step says so clearly.
+# not match is left as typed (with "over"), and the DA/DS step says so clearly.
 contrastCondNames <- if (length(conditionOrder)) conditionOrder else unique(as.character(md$condition))
 for (i in seq_along(contrastsToTest)) {
   ctr <- contrastsToTest[[i]]
-  for (cut in gregexpr("(?i)(?= over )", ctr, perl = TRUE)[[1]]) {
-    m <- MARMOT::match_names(c(substr(ctr, 1, cut - 1), substr(ctr, cut + 6, nchar(ctr))), contrastCondNames)
+  cuts <- gregexpr(contrastSep, ctr, perl = TRUE)[[1]]
+  sepLen <- attr(cuts, "capture.length")[, 1] + 2
+  for (j in seq_along(cuts)) {
+    m <- MARMOT::match_names(c(substr(ctr, 1, cuts[j] - 1), substr(ctr, cuts[j] + sepLen[j], nchar(ctr))), contrastCondNames)
     if (!anyNA(m$matched) && m$matched[1] != m$matched[2]) {
       contrastsToTest[[i]] <- paste(m$matched[1], "over", m$matched[2])
       break
     }
+  }
+  if (contrastsToTest[[i]] == ctr && !grepl("(?i) over ", ctr, perl = TRUE)) {
+    contrastsToTest[[i]] <- sub("(?i) (versus|vs\\.?|v\\.?) ", " over ", ctr, perl = TRUE)
   }
   if (contrastsToTest[[i]] != ctr) {
     nameNotes <- c(nameNotes, sprintf("The contrast '%s' was read as '%s'.", ctr, contrastsToTest[[i]]))
@@ -2307,8 +2319,21 @@ if (useLabels) {
     as.data.frame(rowData(res$res))
   }), cTTForPlots)
 
+  # What each cluster became, and each sample's share of each population
+  # (out of the cells left after dropping)
+  popTable <- data.frame(
+    Cluster    = names(clusterLabels$labels),
+    Population = ifelse(is.na(clusterLabels$labels), "dropped", unname(clusterLabels$labels)),
+    Cells      = as.integer(table(factor(sce$cluster_id, levels = names(clusterLabels$labels))))
+  )
+  perSample <- as.data.frame(table(Sample = sceLab$sample_id, Population = sceLab$population), responseName = "Cells")
+  perSample$Percent <- round(100 * perSample$Cells / ave(perSample$Cells, perSample$Sample, FUN = sum), 2)
+  perSample$Percent[is.nan(perSample$Percent)] <- NA
+
   # Save them beside the other Excel files
   labWb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(labWb, "Populations"); openxlsx::writeData(labWb, "Populations", popTable)
+  openxlsx::addWorksheet(labWb, "Per sample"); openxlsx::writeData(labWb, "Per sample", perSample)
   for (nm in names(labDaList)) {
     sheet <- substr(paste("DA", MARMOT::safe_file_name(nm)), 1, 31)
     openxlsx::addWorksheet(labWb, sheet); openxlsx::writeData(labWb, sheet, labDaList[[nm]])
@@ -2319,6 +2344,9 @@ if (useLabels) {
   }
   openxlsx::addWorksheet(labWb, "Dropped cells"); openxlsx::writeData(labWb, "Dropped cells", droppedPerSample)
   openxlsx::saveWorkbook(labWb, file.path(excelDir, "Labelled_populations_DA_DS.xlsx"), overwrite = TRUE)
+
+  # A record of the populations this report used, for the Explorer
+  MARMOT::save_labelled_populations(RDataFolder, clusterLabels, sce$cluster_id)
 }
 ```
 
@@ -2414,7 +2442,13 @@ cat(.plural(.n_samples, "sample"), " in ", .plural(.n_conditions, "condition"), 
 cat(sprintf("Started on %d %s %d at %02d:%02d.\n\n", .started$mday, month.name[.started$mon + 1],
             .started$year + 1900, .started$hour, .started$min))
 if (!is.null(RDataFolder)) {
-  cat("This report was redrawn from saved results, so warnings from the original run are not shown here.\n\n")
+  savedWarnings <- MARMOT::read_overview_warnings(RDataFolder)
+  if (is.null(savedWarnings)) {
+    cat("This report was redrawn from saved results, so warnings from the original run are not shown here.\n\n")
+  } else {
+    cat("This report was redrawn from saved results; the warnings and notes below are from the original run.\n\n")
+    overviewWarnings <- c(savedWarnings, overviewWarnings)
+  }
 }
 
 # QC warnings: the details are also in the QC tab
@@ -2426,13 +2460,15 @@ if (exists("qc_skip_reason")) {
     "You ran QC using ", runQC, ", but chose **not** to apply it, so the results in this report include every cell. ",
     "The QC tab shows what QC would have removed.\n\n:::\n"))
 }
+# The first run saves its warnings, so a reload can show them again
+if (is.null(RDataFolder)) MARMOT::save_overview_warnings(rFilesDir, overviewWarnings)
 cat(overviewWarnings, sep = "\n")
 ```
 
 ```{r, label = "report_overview_settings", results = 'asis'}
 cat("::: {.callout-note collapse='true' title='Pipeline Settings Summary'}\n\n")
 cat("- **Clustering method:** ", clusteringMethodToUse, "\n", sep = "")
-cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (knn = ", knn, ")\n", sep = "")
+cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (main k: ", knn, ", used for DA, DS and most figures)\n", sep = "")
 cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n", sep = "")
 cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n", sep = "")
 cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n", sep = "")
@@ -2720,7 +2756,7 @@ if (homogeneousPanel) {
 cat("::: {.callout-tip title='Clustering Summary'}\n\n")
 cat("- **Method:** ", clusteringMethodToUse, "\n")
 cat("- **k values tested:** ", paste(kValuesIWant, collapse = ", "), "\n")
-cat("- **Selected k:** ", knn, " → ", length(unique(cluster_ids(sce, clusteringMethodToUse))), " clusters\n")
+cat("- **Main k:** ", knn, " → ", length(unique(cluster_ids(sce, clusteringMethodToUse))), " clusters (used for DA, DS and most figures)\n")
 cat("- **Clustering markers:** ", paste(featuresToCluster, collapse = ", "), "\n")
 cat(":::\n\n")
 ```
@@ -4136,7 +4172,7 @@ DRSelectedClusters2 <- setNames(lapply(seq_along(clustersToMapList), function(i)
 ```{r, label = "report_da_dr_by_condition_save", include = FALSE}
 if (gimmePDFs) {
   lapply(names(DRSelectedClusters2), function(x) {
-    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(x, "_", dimRedMethodToUse, "_subset.pdf"))), width = 10, height =  6*(ceiling(length(condLevels)/2)))
+    pdf(file = file.path(pdfDir, MARMOT::safe_file_name(paste0(pdf_name_stem(x), "_", dimRedMethodToUse, "_subset.pdf"))), width = 10, height =  6*(ceiling(length(condLevels)/2)))
     print(DRSelectedClusters2[[x]])
     dev.off()
   })
@@ -4218,29 +4254,30 @@ if (is.null(RDataFolder)) {
 ```
 
 ```{r, label = "report_provenance_methods", results = 'asis'}
-# Which implementation did the work, and whom to credit. MARMOT's own R
-# versions (the M methods) follow the originals; the originals deserve the
-# citation, and MARMOT recommends using them.
+# Which implementation did the work, and whom to credit. The marmots' own R
+# versions (the M methods) follow the originals but are unsupported
+# fall-backs; the originals deserve the citation, and MARMOT recommends them.
 .cite <- function(pkg) tryCatch(gsub("[[:space:]]+", " ", paste(format(citation(pkg)[[1]], style = "text"), collapse = " ")),
                                 error = function(e) pkg)
 .methods <- c(
   switch(clusteringMethodToUse,
     FlowSOM     = paste0("**Clustering:** FlowSOM. ", .cite("FlowSOM")),
     Rphenograph = paste0("**Clustering:** Rphenograph, the original PhenoGraph for R. ", .cite("Rphenograph")),
-    Mphenograph = "**Clustering:** Mphenograph, MARMOT's R re-implementation of PhenoGraph (Levine et al. 2015, Cell 162:184-197), following Rphenograph (Chen and Granjeaud). Please cite the originals; installing Rphenograph lets MARMOT use it directly.",
-    MfastPG     = "**Clustering:** MfastPG, MARMOT's R re-implementation of FastPG (Bodenheimer et al. 2020, https://github.com/sararselitsky/FastPG), itself based on PhenoGraph (Levine et al. 2015). Please cite the originals.",
+    Mphenograph = "**Clustering:** Mphenograph, the marmots' own R version of PhenoGraph (Levine et al. 2015, Cell 162:184-197), following Rphenograph (Chen and Granjeaud). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with Rphenograph (MARMOT::install_marmot_extras() installs it); please cite the originals.",
+    MfastPG     = "**Clustering:** MfastPG, the marmots' own R version of FastPG (Bodenheimer et al. 2020, https://github.com/sararselitsky/FastPG), itself based on PhenoGraph (Levine et al. 2015). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the originals; please cite them.",
     PARC        = "**Clustering:** PARC, the original Python implementation (Stassen et al., https://github.com/ShobiStassen/PARC).",
-    Mparc       = "**Clustering:** Mparc, MARMOT's R re-implementation of PARC (Stassen et al., https://github.com/ShobiStassen/PARC). Please cite the original; MARMOT::install_marmot_python() sets it up.",
+    Mparc       = "**Clustering:** Mparc, the marmots' own R version of PARC (Stassen et al., https://github.com/ShobiStassen/PARC). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the Python PARC (MARMOT::install_marmot_python() sets it up); please cite the original.",
     paste0("**Clustering:** ", clusteringMethodToUse, ".")),
   switch(dimRedMethodToUse,
     pacmap  = "**Embedding:** PaCMAP, the original Python implementation (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP).",
-    Mpacmap = "**Embedding:** Mpacmap, MARMOT's R re-implementation of PaCMAP (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP). Please cite the original; MARMOT::install_marmot_python() sets it up.",
+    Mpacmap = "**Embedding:** Mpacmap, the marmots' own R version of PaCMAP (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the Python PaCMAP (MARMOT::install_marmot_python() sets it up); please cite the original.",
     NULL),
   paste0("**UMAP:** ", .cite("uwot")),
   paste0("**tSNE:** ", .cite("Rtsne")),
   if (exists("useBatch") && useBatch) paste0("**Batch correction:** Harmony. ", .cite("harmony")),
   paste0("**Differential abundance and state:** ", .cite("diffcyt")),
-  paste0("**Data handling and many plots:** ", .cite("CATALYST"))
+  paste0("**Data handling and many plots:** ", .cite("CATALYST")),
+  "**Repeating a run:** the same data and settings gave identical results when re-run in our tests, on one computer, for FlowSOM, MfastPG, Mphenograph, Mparc, the Python PARC, UMAP, Mpacmap and the Python PaCMAP. On another computer, or with Rphenograph or tSNE (not tested), results may differ slightly."
 )
 cat("::: {.callout-note collapse='true' title='Methods, and whom to cite'}\n\n",
     paste0("- ", .methods, collapse = "\n"), "\n\n:::\n\n", sep = "")

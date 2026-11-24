@@ -145,7 +145,7 @@ Cross-link these in `troubleshooting.md`:
 
 ## M-equivalents (MARMOT's bundled fallbacks)
 
-All of MARMOT's algorithms come from external packages that are awkward to install: they need a C++ compiler, or a working Python/conda env. To make sure the pipeline can always run, MARMOT ships **pure-R reimplementations** of the awkward ones, prefixed with `M`:
+All of MARMOT's algorithms come from external packages that are awkward to install: they need a C++ compiler, or a working Python/conda env. So that the pipeline can always run, the marmots worked up their own **pure-R versions** of the awkward ones, prefixed with `M`. They do much the same job, but they are fall-backs: not validated or peer-reviewed, and not supported. The marmots would be much happier if users used and cited the originals.
 
 | External (preferred) | MARMOT fallback | What it does | Why the original is awkward |
 |---|---|---|---|
@@ -154,7 +154,7 @@ All of MARMOT's algorithms come from external packages that are awkward to insta
 | `PARC` (Python) | `Mparc` | PARC clustering | Needs conda + working Python env |
 | `PaCMAP` (Python) | `Mpacmap` | PaCMAP dimensionality reduction | Same — Python-side install |
 
-**Why we still prefer the originals.** The external packages are the **published methods**. The M-equivalents are AI-assisted reimplementations: faithful ports, but they have not been independently peer-reviewed or benchmarked at the same scale. For any analysis the user plans to publish or rely on for important decisions, **strongly recommend the original**:
+**Why we still prefer the originals.** The external packages are the **published methods**. The M-equivalents are AI-assisted reimplementations. They have not been scientifically validated or peer-reviewed, and MARMOT offers no support for them. **Always recommend the original**, and that the user cites it:
 
 - For Phenograph: `install_marmot_extras()` installs the original `Rphenograph` ready-built from MARMOT's r-universe.
 - For PARC / PaCMAP: `install_marmot_python()` sets up the originals with pixi.
@@ -163,7 +163,7 @@ Every report's provenance tab has a "Methods, and whom to cite" box naming the i
 
 **Best option if the user cannot install the originals but wants to publish.** Recommend they use **FlowSOM** for clustering and **UMAP** for dimensionality reduction instead of the M-equivalents. FlowSOM is on Bioconductor, well-maintained, peer-reviewed, and is already MARMOT's default clustering method — so no extra install. UMAP is similarly standard and built in. The biological interpretation of their results will not be meaningfully different from a Phenograph + PaCMAP run, and reviewers will have nothing to flag. To switch, set `clusteringMethodToUse = FlowSOM` and `dimRedMethodToUse = UMAP` in the `Pipeline Settings` sheet (these are the defaults, so usually no change needed).
 
-**When the M-equivalents are fine.** Quick exploration, getting unstuck on a workshop laptop, environments where you cannot install a toolchain or conda **and** you don't intend to publish. The pipeline will run end-to-end and produce comparable results — just be honest about which version you used.
+**When the M-equivalents will do.** Quick exploration, or getting unstuck on a workshop laptop where nothing else can be installed, **and** no intention to publish. The pipeline runs end to end; the report says which version ran. Remember they are unsupported.
 
 `check_setup()` in R will tell the user which of the originals are available and confirms that the M-equivalents are present (they're bundled with MARMOT, so they're always available).
 

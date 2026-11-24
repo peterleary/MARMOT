@@ -543,3 +543,16 @@ test_that("the map table keeps only what the map needs, in the same order every 
   expect_identical(a, map_draw_table(df, c("cluster_id", "condition")))
   expect_setequal(a$x, 1:20)
 })
+
+test_that("labelled populations become a column with their first cluster's colour", {
+  rec <- data.frame(cluster = c("1", "2", "3", "4"), population = c("T cells", "T cells", "3", "dropped"),
+                    dropped = c(FALSE, FALSE, FALSE, TRUE), cells = rep(5L, 4), stringsAsFactors = FALSE)
+  cols <- c("1" = "red", "2" = "blue", "3" = "green", "4" = "black", "5" = "pink")
+  lp <- labelled_population_column(c("1", "2", "3", "4", "5"), rec, cols)
+  expect_identical(as.character(lp$population), c("T cells", "T cells", "3", "dropped", "5"))
+  expect_identical(levels(lp$population), c("T cells", "3", "5", "dropped"))
+  expect_identical(unname(lp$colours), c("red", "green", "pink", "grey85"))
+  expect_null(labelled_population_column("1", rec)$colours)
+  # Offered wherever clusterings are, however many populations
+  expect_true("population" %in% get_plottable_columns(data.frame(population = as.character(1:150))))
+})

@@ -112,6 +112,20 @@ observe({
     # Kept so the FCS export can find the original FCS files
     files$dataDir <- dataDir
 
+    # ── Labelled populations, as the last extension report made them ───────
+    # Optional: offered as a "population" column wherever clusters are
+    rec <- tryCatch(MARMOT::read_labelled_populations(dataDir), error = function(e) {
+      showNotification(paste("The labelled populations could not be read, so they are left out:", conditionMessage(e)),
+                       type = "warning", duration = 10)
+      NULL
+    })
+    if (!is.null(rec)) {
+      lp <- labelled_population_column(files$sce$cluster_id, rec, files$coloursList$cluster_id)
+      files$sce$population <- lp$population
+      if (!is.null(lp$colours)) files$coloursList$population <- lp$colours
+      message("Labelled populations: ", nlevels(lp$population), " (from ", basename(dataDir), "/labelled_populations.json)")
+    }
+
     # ── Store in reactive values ─────────────────────────────────────────────
     inputDataReactive$Results <- files
     message("MARMOT data loaded: ", files$ncell, " cells, ",

@@ -1,6 +1,6 @@
 """
 One-time environment setup for MARMOT's Python environment.
-Imported by f_parc.py and f_pacmap.py before any heavy package imports.
+Imported by run_parc.py and run_pacmap.py before any heavy package imports.
 All functions are idempotent (safe to call multiple times).
 """
 import os

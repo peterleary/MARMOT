@@ -61,6 +61,13 @@ test_that("a reload redraws the report and keeps the original run log", {
   reload_log <- jsonlite::fromJSON(file.path(r_files, "marmot_run_log_reload.json"))
   expect_true(reload_log$settings$reload)
   expect_identical(reload_log$render$status, "success")
+
+  # The first run's Overview warnings are shown again
+  saved <- read_overview_warnings(r_files)
+  expect_false(is.null(saved))
+  html <- paste(readLines(file.path(reload_dir, "MARMOT_Pipeline_Reload.html"), warn = FALSE), collapse = "\n")
+  expect_match(html, "are from the original run", fixed = TRUE)
+  for (title in sub(".*title='([^']+)'.*", "\\1", saved)) expect_match(html, title, fixed = TRUE)
 })
 
 test_that("scGate draws its plots when every cell is shown", {
@@ -270,6 +277,21 @@ test_that("label, then regenerate: populations merge, a cluster drops, and DA/DS
   expect_match(text, "were merged into", fixed = TRUE)
   xl <- file.path(result$results_path, "Excel_Files", "Labelled_populations_DA_DS.xlsx")
   expect_true(file.exists(xl))
-  da <- openxlsx::read.xlsx(xl, sheet = 1)
+  sheets <- openxlsx::getSheetNames(xl)
+  expect_identical(sheets[1:2], c("Populations", "Per sample"))
+  da <- openxlsx::read.xlsx(xl, sheet = grep("^DA ", sheets)[1])
   expect_true("Pop A" %in% da$cluster_id)
+
+  # Each cluster's population, and each sample's share, out of the cells left
+  pops <- openxlsx::read.xlsx(xl, sheet = "Populations")
+  expect_identical(pops$Population[1:2], c("Pop A", "Pop A"))
+  expect_identical(pops$Population[nrow(pops)], "dropped")
+  per <- openxlsx::read.xlsx(xl, sheet = "Per sample")
+  expect_false("dropped" %in% per$Population)
+  expect_equal(as.numeric(tapply(per$Percent, per$Sample, sum)), rep(100, length(unique(per$Sample))), tolerance = 0.1)
+
+  # The record the Explorer reads matches the report
+  rec <- read_labelled_populations(file.path(result$results_path, "R_files"))
+  expect_identical(rec$population, pops$Population)
+  expect_identical(rec$cells, as.integer(pops$Cells))
 })
