@@ -45,6 +45,7 @@ Read the file that matches the user's current need — don't load all of them up
 | `cofactors.md` | …asks how to choose cofactors, sees odd-looking cofactor histograms in their report, or asks about arcsinh transformation / biexponential. |
 | `running-the-pipeline.md` | …is ready to run `marmot()` (or the Tauri "Run" button), wants to know what to expect, how long it takes, where outputs land, or how to re-run. |
 | `pipeline-stages.md` | …is reading the rendered HTML report and asks what a section, plot, or table means. |
+| `annotate-and-batch.md` | …wants to name clusters and get DA/DS per named population ("annotate, then extend", the labels sheet, the app's Annotate & extend tab), or asks about batch correction (`batchColumn`, Harmony). |
 | `shiny-app.md` | …is in the Shiny exploration app and asks about a tab, plot type, colour, subset option, or export button. |
 | `troubleshooting.md` | …shares an error message, a failed render, a stuck install, or "it's not working." Always check here before improvising a fix. |
 | `glossary.md` | …uses a term and you need to translate between immunology, R, and MARMOT-internal vocabulary, or vice versa. |

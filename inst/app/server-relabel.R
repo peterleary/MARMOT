@@ -159,7 +159,7 @@ observeEvent(input$saveForExtension, {
                    if (n_drop) sprintf("; %d dropped", n_drop) else "")),
     tags$p("Saved in ", tags$code(path), if (is.null(saved$backup)) "." else
            tagList(". The previous sheet is kept as ", tags$code(basename(saved$backup)), ".")),
-    tags$p(tags$b("Next:"), " run the extension. In the MARMOT desktop app, choose 'Extension for annotated cells' and pick these results. ",
+    tags$p(tags$b("Next:"), " run the extension. In the MARMOT desktop app, open the 'Annotate & extend' tab and pick these results. ",
            "In R, run ", tags$code("marmot()"), " with ", tags$code("RDataFolder"), " set to this results folder."),
     easyClose = TRUE
   ))

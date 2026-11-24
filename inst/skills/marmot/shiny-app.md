@@ -20,9 +20,9 @@ The app auto-enables **rasterisation** when `ncell > 150,000` (uses `geom_scatte
 
 ### Cluster relabelling
 
-A table where the user types a biological name for each cluster (e.g. cluster 3 → "CD4 T effector"). Adds a new `relabelled_clusters` column to the SCE in memory. Never mutates `cluster_id`.
+A table where the user types a biological name for each cluster (e.g. cluster 3 → "CD4 T effector"). *Apply* adds a `relabelled_clusters` column to the SCE in memory; `cluster_id` itself is never changed. The relabelled column becomes available everywhere the user could colour by `cluster_id`.
 
-The relabelled column becomes available everywhere the user could colour by `cluster_id`.
+When relabelling `cluster_id`, the table also shows each cluster's size and most distinctive markers, and **Save for the MARMOT extension** writes the names into the results' `MARMOT_Cluster_Labels.xlsx`. The Explorer opens on those saved names next time. See `annotate-and-batch.md` for the rules (same name merges, `drop`, blank keeps).
 
 ### Subset
 
@@ -94,7 +94,7 @@ Reads `da_ds_results.qs2`. Tables filterable by contrast, cluster, marker. Inclu
 ## Common questions
 
 - **"Why don't my clusters look the same colour as in the report?"** — palettes can differ; use the Colours tab to fix and re-export.
-- **"Can I save the relabelling?"** — currently in-memory only; user re-enters on next launch unless they export the labelled `colData`.
+- **"Can I save the relabelling?"** — yes, for `cluster_id`: *Save for the MARMOT extension* in the Relabel Clusters tab. The names go into `MARMOT_Cluster_Labels.xlsx` in the results folder and are used by the extension (see `annotate-and-batch.md`).
 - **"Why does it say `meta10` and `meta20`?"** — alternative clustering resolutions stored alongside `cluster_id`. See `concepts.md` and `glossary.md`.
 - **"How do I export the clusters as FCS?"** — Download tab → FCS files. One FCS file per sample, with a cluster-code column; gate on that column in FlowJo to pick out a single cluster.
 
