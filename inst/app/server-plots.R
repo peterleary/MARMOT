@@ -34,13 +34,12 @@ clear_ui_elements <- function(ids) {
 }
 
 # ── 1. Plot-By Bucket List ──────────────────────────────────────────────────
-observeEvent(input$fpColumnToPlot, {
+observeEvent(list(input$fpColumnToPlot, drDataVersion()), {
   plot_column <- input$fpColumnToPlot
   if (is.null(plot_column) || plot_column == "None") return()
   req(inputDataReactive$Results$sce)
 
-  cd <- as.data.frame(SummarizedExperiment::colData(inputDataReactive$Results$sce))
-  plot_data <- cd[[plot_column]]
+  plot_data <- inputDataReactive$Results$sce[[plot_column]]
   plot_levels <- if (is.factor(plot_data)) {
     levels(plot_data)
   } else {
@@ -69,7 +68,7 @@ observeEvent(input$fpColumnToPlot, {
 
 
 # ── 2. Split-By Bucket List ─────────────────────────────────────────────────
-observeEvent(input$fpColumnToSplit, {
+observeEvent(list(input$fpColumnToSplit, drDataVersion()), {
   split_column <- input$fpColumnToSplit
   if (is.null(split_column) || split_column == "None") {
     output$splitByBucket <- renderText("Select a variable to split by first!")
@@ -77,8 +76,7 @@ observeEvent(input$fpColumnToSplit, {
   }
   req(inputDataReactive$Results$sce)
 
-  cd <- as.data.frame(SummarizedExperiment::colData(inputDataReactive$Results$sce))
-  split_data <- cd[[split_column]]
+  split_data <- inputDataReactive$Results$sce[[split_column]]
   split_levels <- if (is.factor(split_data)) {
     levels(split_data)
   } else {
@@ -120,12 +118,19 @@ fp_section_header <- function(label) {
   ))
 }
 
+# Set once when the results arrive. The controls below wait for it but do
+# not redraw on every later change to the results (relabelling, subsetting),
+# which used to reset everything the user had set.
+fpDataLoaded <- reactiveVal(FALSE)
+observeEvent(inputDataReactive$Results, once = TRUE, { fpDataLoaded(TRUE) })
+
 output$plotTypeControls <- renderUI({
+  req(fpDataLoaded())
   plot_type <- input$featurePlotType %||% "Feature Plot"
 
   # ── Feature Plot / Nebulosa Plot ───────────────────────────────────────
   if (plot_type %in% c("Feature Plot", "Nebulosa Plot")) {
-    dr_names <- dr_map_choices(inputDataReactive$Results$umapDFList)
+    dr_names <- dr_map_choices(isolate(inputDataReactive$Results$umapDFList))
     fp_dr_default <- dr_map_default(dr_names)
 
     tagList(
@@ -141,7 +146,7 @@ output$plotTypeControls <- renderUI({
         min = 0.1, max = 4, value = 0.3, step = 0.1,
         width = "85%", ticks = FALSE),
       splitLayout(
-        checkboxInput("rasteriseFP", "Rasterise?", value = FALSE),
+        checkboxInput("rasteriseFP", "Rasterise?", value = isTRUE(isolate(inputDataReactive$Results$rasterise_auto))),
         numericInput("rasterFP_DPI", "Raster DPI",
           value = 1024, min = 0, max = 2000, step = 5, width = "85%")
       ),
@@ -313,32 +318,26 @@ output$plotTypeControls <- renderUI({
 
 # ── 4. "Plot all features" toggle logic ─────────────────────────────────────
 previousFeatureSelection <- reactiveVal(NULL)
+plotAllActive <- reactiveVal(FALSE)
 
+# Acts only when "Plot all features" actually changes, so the user's own
+# selection is saved once and given back, never overwritten by "all"
 observeEvent({
   input$fpHeatmapPlotAll
   input$featurePlotType
 }, ignoreNULL = TRUE, {
-  req(!is.null(input$featurePlotType))
-  req(!is.null(input$fpHeatmapPlotAll))
-  if (input$featurePlotType %in% c("Heatmap per cluster", "Heatmap per cell", "Dot Plot")) {
-    if (input$fpHeatmapPlotAll) {
-      previousFeatureSelection(input$fpFeatureToPlot)
-      marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
-        rownames(inputDataReactive$Results$sce)
-      updateSelectizeInput(session, "fpFeatureToPlot",
-        choices = marker_choices,
-        selected = rownames(inputDataReactive$Results$sce),
-        server = TRUE)
-    } else {
-      prev <- previousFeatureSelection()
-      marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
-        rownames(inputDataReactive$Results$sce)
-      updateSelectizeInput(session, "fpFeatureToPlot",
-        choices = marker_choices,
-        selected = prev,
-        server = TRUE)
-    }
-  }
+  req(!is.null(input$featurePlotType), !is.null(input$fpHeatmapPlotAll))
+  if (!input$featurePlotType %in% c("Heatmap per cluster", "Heatmap per cell", "Dot Plot")) return()
+  wantAll <- isTRUE(input$fpHeatmapPlotAll)
+  if (wantAll == plotAllActive()) return()
+  marker_choices <- inputDataReactive$Results$sorted_markers_cache %||%
+    rownames(inputDataReactive$Results$sce)
+  if (wantAll) previousFeatureSelection(input$fpFeatureToPlot)
+  updateSelectizeInput(session, "fpFeatureToPlot",
+    choices  = marker_choices,
+    selected = if (wantAll) rownames(inputDataReactive$Results$sce) else previousFeatureSelection(),
+    server   = TRUE)
+  plotAllActive(wantAll)
 })
 
 
@@ -364,7 +363,10 @@ fp_inputs_raw <- reactive({
     input$rasteriseFP, input$rasterFP_DPI,
     input$fpContrast, input$fpDAFilter,
     input$fpSubsetMode, input$fpSubsetToGlobal,
-    input$fpDRCustomMinMax, input$fpDRCustomMin, input$fpDRCustomMax
+    input$fpDRCustomMinMax, input$fpDRCustomMin, input$fpDRCustomMax,
+    input$plotByExcludeBucket, input$splitByExcludeBucket,
+    # Redraw when the cells or names change: subsetting, relabelling
+    inputDataReactive$Results$subsetCellIds, drDataVersion()
   )
 
   # Per-type inputs (only tracked when active)
@@ -465,29 +467,30 @@ observeEvent(
       }
 
       # ── Apply bucket filtering (Plot-By) ───────────────────────────────
-      if (!is.null(fpColumnToPlot) && !is.null(input$plotByKeepBucket)) {
+      # Groups the user excluded are left out; groups in neither list (new
+      # names after relabelling, say) are kept, never dropped silently
+      if (!is.null(fpColumnToPlot) && fpColumnToPlot %in% names(SummarizedExperiment::colData(sce)) &&
+          !is.null(input$plotByKeepBucket)) {
+        lv <- bucket_levels(sce[[fpColumnToPlot]], input$plotByKeepBucket, input$plotByExcludeBucket)
+        req(length(lv) > 0)
         if (!is.null(umapDF) && fpColumnToPlot %in% colnames(umapDF)) {
-          umapDF <- umapDF[umapDF[[fpColumnToPlot]] %in% input$plotByKeepBucket, ]
-          umapDF[[fpColumnToPlot]] <- factor(
-            umapDF[[fpColumnToPlot]], levels = input$plotByKeepBucket)
+          umapDF <- umapDF[as.character(umapDF[[fpColumnToPlot]]) %in% lv, ]
+          umapDF[[fpColumnToPlot]] <- factor(as.character(umapDF[[fpColumnToPlot]]), levels = lv)
         }
-        keep_cells <- colnames(sce)[sce[[fpColumnToPlot]] %in% input$plotByKeepBucket]
-        if (length(keep_cells) > 0) {
-          sce <- sce[, keep_cells]
-          sce[[fpColumnToPlot]] <- factor(
-            sce[[fpColumnToPlot]], levels = input$plotByKeepBucket)
-        }
+        sce <- sce[, as.character(sce[[fpColumnToPlot]]) %in% lv]
+        sce[[fpColumnToPlot]] <- factor(as.character(sce[[fpColumnToPlot]]), levels = lv)
       }
 
       # ── Apply bucket filtering (Split-By) ──────────────────────────────
-      if (!is.null(fpColumnToSplit) && !is.null(input$splitByKeepBucket)) {
+      if (!is.null(fpColumnToSplit) && fpColumnToSplit %in% names(SummarizedExperiment::colData(sce)) &&
+          !is.null(input$splitByKeepBucket)) {
+        lv <- bucket_levels(sce[[fpColumnToSplit]], input$splitByKeepBucket, input$splitByExcludeBucket)
+        req(length(lv) > 0)
         if (!is.null(umapDF) && fpColumnToSplit %in% colnames(umapDF)) {
-          umapDF <- umapDF[umapDF[[fpColumnToSplit]] %in% input$splitByKeepBucket, ]
-          umapDF[[fpColumnToSplit]] <- factor(
-            umapDF[[fpColumnToSplit]], levels = input$splitByKeepBucket)
+          umapDF <- umapDF[as.character(umapDF[[fpColumnToSplit]]) %in% lv, ]
+          umapDF[[fpColumnToSplit]] <- factor(as.character(umapDF[[fpColumnToSplit]]), levels = lv)
         }
-        keep_cells <- colnames(sce)[sce[[fpColumnToSplit]] %in% input$splitByKeepBucket]
-        if (length(keep_cells) > 0) sce <- sce[, keep_cells]
+        sce <- sce[, as.character(sce[[fpColumnToSplit]]) %in% lv]
       }
 
       # ── DA cluster filtering ───────────────────────────────────────────
@@ -573,6 +576,14 @@ observeEvent(
         pre_border_df <- umapDF[cell_density <= quantile(cell_density, border_density_val), ]
       }
 
+      # Corner arrows naming the axes, with a fixed aspect ratio. Placed from
+      # every cell of the chosen map, so they stay put when groups are hidden
+      # or cells subset. With "show axes" ticked, the axes name themselves.
+      fpArrows <- if (isTRUE(input$fpShowAxes)) list(ggplot2::coord_fixed()) else tryCatch({
+        fullMap <- dr_map_frame(inputDataReactive$Results$umapDFList, input$fpDRToPlot)
+        MARMOT::dr_corner_arrows(fullMap[, c("x", "y")], MARMOT::dr_axis_names(input$fpDRToPlot))
+      }, error = function(e) list(ggplot2::coord_fixed()))
+
       # Pre-compute label base positions (group medians are marker-independent)
       base_label_pos <- NULL
       if (isTRUE(input$fpShowLabels) && !is.null(fpColumnToPlot) &&
@@ -619,7 +630,7 @@ observeEvent(
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
             legend_position = tolower(input$fpLegendPosition %||% "right")
-          )
+          ) + fpArrows
 
           # Facet by split column
           if (!is.null(fpColumnToSplit) && fpColumnToSplit %in% colnames(df)) {
@@ -679,7 +690,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -708,7 +719,7 @@ observeEvent(
           if (!marker %in% colnames(df)) return(NULL)
 
           w <- df[[marker]]
-          w[is.na(w)] <- 0
+          w[is.na(w) | w < 0] <- 0   # density weights cannot be negative
           if (sum(w) == 0) {
             df$density <- 0
           } else {
@@ -733,8 +744,9 @@ observeEvent(
             border_df = pre_border_df,
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
-            legend_position = tolower(input$fpLegendPosition %||% "right")
-          ) + ggtitle(paste0(marker, " density")) + labs(colour = "Density")
+            legend_position = tolower(input$fpLegendPosition %||% "right"),
+            limits = c(0, max(df$density, na.rm = TRUE))   # each marker on its own 0-to-max scale
+          ) + fpArrows + ggtitle(marker) + labs(colour = "Density")
 
           # Cluster labels
           if (!is.null(base_label_pos)) {
@@ -787,7 +799,7 @@ observeEvent(
           # Vectorized weight summation across markers
           valid_markers <- fpFeaturesToPlot[fpFeaturesToPlot %in% rownames(expr_batch)]
           w_joint <- if (!is.null(expr_batch) && length(valid_markers) > 0) {
-            colSums(expr_batch[valid_markers, , drop = FALSE], na.rm = TRUE)
+            colSums(pmax(expr_batch[valid_markers, , drop = FALSE], 0), na.rm = TRUE)
           } else {
             rep(0, nrow(df_joint))
           }
@@ -815,8 +827,9 @@ observeEvent(
             border_df = pre_border_df,
             base_size = input$textSizeFP %||% 14,
             show_axes = isTRUE(input$fpShowAxes),
-            legend_position = tolower(input$fpLegendPosition %||% "right")
-          ) +
+            legend_position = tolower(input$fpLegendPosition %||% "right"),
+            limits = c(0, max(df_joint$density, na.rm = TRUE))
+          ) + fpArrows +
             ggtitle(paste0("Joint: ", paste(fpFeaturesToPlot, collapse = " + "))) +
             labs(colour = "Density")
 
@@ -870,7 +883,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -1020,7 +1033,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       # ================================================================
@@ -1367,7 +1380,7 @@ observeEvent(
 
         featurePlotReactive$fp <- fp
         featurePlotReactive$needs_arrange <- length(fp) > 1
-        featurePlotReactive$ncol <- input$ncolFPGene %||% 1
+        featurePlotReactive$ncol <- fp_columns(input$ncolFPGene, length(fp))
 
 
       } # end plot type switch
@@ -1385,6 +1398,9 @@ observeEvent(
 output$umapFeaturePlotOutput <- renderPlot(
   {
     fp <- featurePlotReactive$fp
+    # Say what to do rather than show an empty box
+    validate(need(length(genesReactive$genes) > 0,
+      "Pick one or more markers to plot: choose them in 'Select markers to plot', or paste a list."))
     if (is.null(fp)) return(NULL)
 
     # ComplexHeatmap objects need draw()
@@ -1407,6 +1423,10 @@ output$umapFeaturePlotOutput <- renderPlot(
       fp
     }
   },
-  height = function() input$figHeightFP %||% 500,
-  width = function() input$figWidthFP %||% 650
+  height = function() input$figHeightFP %||% 450,
+  # 0 fits the plot to its box; any other number fixes the width in pixels
+  width = function() {
+    w <- input$figWidthFP %||% 0
+    if (w > 0) w else max(300, session$clientData$output_umapFeaturePlotOutput_width %||% 1000)
+  }
 )

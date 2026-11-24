@@ -1,6 +1,20 @@
 # Data Helpers
 # Data extraction, aggregation, and format detection for MARMOT Shiny app
 
+#' The groups to plot, from the include and exclude lists
+#'
+#' Groups in the include list come first, in its order. Groups present in the
+#' data but in neither list (new names after relabelling, say) follow, so they
+#' are never dropped silently. Excluded groups are left out.
+#' @param values The column's values
+#' @param include,exclude The include and exclude lists
+bucket_levels <- function(values, include, exclude = NULL) {
+  present <- if (is.factor(values)) levels(droplevels(values)) else
+    gtools::mixedsort(unique(as.character(values[!is.na(values)])))
+  include <- as.character(unlist(include)); exclude <- as.character(unlist(exclude))
+  c(intersect(include, present), setdiff(present, c(include, exclude)))
+}
+
 #' The results' labels sheet: the one the MARMOT extension reads
 #' @param res The loaded results (with `dataDir`, the R_files folder)
 labels_sheet_path <- function(res) {
@@ -62,9 +76,9 @@ dr_map_choices <- function(umapDFList) {
   # Labels are "Name|note": the note is shown small and grey under the name
   # (see dr_map_render); without it, a plain label is shown as is.
   label <- function(k, cells = NULL) {
-    base <- sub("_uncorrected$", "", k)
+    base <- sub("[_.]uncorrected$", "", k)
     base <- switch(base, TSNE = "tSNE", Mpacmap = "PaCMAP (Mpacmap)", pacmap = "PaCMAP", base)
-    note <- c(if (endsWith(k, "_uncorrected")) "before batch correction", cells)
+    note <- c(if (grepl("[_.]uncorrected$", k)) "before batch correction", cells)
     if (length(note)) paste0(base, "|", paste(note, collapse = ", ")) else base
   }
   out <- character(0)
@@ -102,7 +116,7 @@ dr_map_default <- function(choices) {
   keys <- unname(choices)
   pick <- keys[1]
   for (pref in c("TSNE", "UMAP", "PaCMAP")) {
-    hit <- grep(pref, keys[!endsWith(keys, "_uncorrected")], ignore.case = TRUE, value = TRUE)
+    hit <- grep(pref, keys[!grepl("[_.]uncorrected$", keys)], ignore.case = TRUE, value = TRUE)
     if (length(hit) > 0) pick <- hit[1]
   }
   pick
@@ -195,14 +209,14 @@ extract_expr_matrix <- function(sce, assay_name, markers = NULL) {
 #' @param sce A SingleCellExperiment object, or a data.frame of colData
 #' @return Character vector of column names suitable for plotting
 get_plottable_columns <- function(sce) {
-  if (inherits(sce, "SingleCellExperiment")) {
-    cd <- as.data.frame(SummarizedExperiment::colData(sce))
-  } else {
-    cd <- sce
-  }
+  cd <- if (inherits(sce, "SingleCellExperiment")) SummarizedExperiment::colData(sce) else sce
   all_cols <- colnames(cd)
-  unlist(lapply(all_cols, function(col) {
-    if (length(unique(cd[[col]])) < 100) col else NULL
+  # Clusterings are always offered, however many clusters they have; other
+  # columns only when they have fewer than 100 values
+  is_clustering <- all_cols %in% c("cluster_id", "relabelled_clusters") |
+    grepl("^(k|meta|p)[0-9]+$", all_cols)
+  unlist(lapply(seq_along(all_cols), function(i) {
+    if (is_clustering[i] || length(unique(cd[[all_cols[i]]])) < 100) all_cols[i] else NULL
   }))
 }
 
@@ -422,13 +436,39 @@ build_cluster_codes <- function(umap_df) {
 #' @param metadata data.frame with rownames as cell IDs
 #' @param group_col Column name to group by
 #' @param cells_per_group Named numeric vector of cells to sample per group
+#' @param seed The same settings always give the same cells. The session's own
+#'   random state is left as it was.
 #' @return Character vector of sampled cell IDs
-sample_cells_by_group <- function(metadata, group_col, cells_per_group) {
-  unlist(lapply(names(cells_per_group), function(x) {
-    group_cells <- rownames(metadata)[metadata[[group_col]] == x]
-    n_cells <- min(cells_per_group[[x]], length(group_cells))
-    sample(group_cells, n_cells)
-  }))
+sample_cells_by_group <- function(metadata, group_col, cells_per_group, seed = 2L) {
+  with_fixed_seed(seed, unlist(lapply(names(cells_per_group), function(x) {
+    group_cells <- rownames(metadata)[!is.na(metadata[[group_col]]) & metadata[[group_col]] == x]
+    target <- suppressWarnings(as.numeric(cells_per_group[[x]]))
+    if (length(target) != 1 || is.na(target)) target <- length(group_cells)
+    n_cells <- max(0, min(floor(target), length(group_cells)))
+    group_cells[sample.int(length(group_cells), n_cells)]
+  })))
+}
+
+#' Evaluate with a fixed seed, leaving the session's random state as it was
+#' @param seed The seed
+#' @param expr The code to run
+with_fixed_seed <- function(seed, expr) {
+  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+  if (had_seed) old_seed <- get(".Random.seed", envir = globalenv())
+  on.exit(if (had_seed) assign(".Random.seed", old_seed, envir = globalenv())
+          else rm(".Random.seed", envir = globalenv()), add = TRUE)
+  set.seed(seed)
+  expr
+}
+
+#' The table a map is drawn from: only the columns it needs, in a fixed
+#' shuffled order (so no cluster is always drawn on top, and the same
+#' settings always give the same picture)
+#' @param df The map's plotting table
+#' @param cols The columns needed (others are dropped; missing ones ignored)
+map_draw_table <- function(df, cols) {
+  cols <- intersect(unique(c("x", "y", cols)), names(df))
+  df[with_fixed_seed(2L, sample.int(nrow(df))), cols, drop = FALSE]
 }
 
 #' Parse marker pairs from study metadata

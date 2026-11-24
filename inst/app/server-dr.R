@@ -65,6 +65,10 @@ umapReactive <- eventReactive(
       # The same cells as the report: the subsample when the report used one
       umapDF <- dr_map_frame(res$umapDFList, inputs$umapDRToPlot)
       req(!is.null(umapDF))
+      # Every cell of the chosen map, for the corner arrows (so they stay put
+      # when the DA filter or a split hides cells)
+      mapFull <- umapDF[, c("x", "y")]
+      mapAxes <- MARMOT::dr_axis_names(inputs$umapDRToPlot)
 
       # ── DA filtering ────────────────────────────────────────────────────
       da_mode   <- inputs$umapDAFilter %||% "None"
@@ -84,6 +88,17 @@ umapReactive <- eventReactive(
         if (!is.null(res$coloursList$cluster_id)) {
           res$coloursList$cluster_id[["Other"]] <- "grey80"
         }
+        # Colouring by another column: its cells outside the DA clusters
+        # become "Other" too, so the filter works whatever is coloured
+        da_col <- inputs$umapColumnToPlot
+        if (is.null(da_result$warning) && !is.null(da_col) && da_col != "cluster_id" &&
+            da_col %in% names(umapDF)) {
+          before <- umapDF[[da_col]]
+          lv <- if (is.factor(before)) levels(before) else gtools::mixedsort(unique(as.character(before)))
+          v <- as.character(before)
+          v[as.character(umapDF$cluster_id) == "Other"] <- "Other"
+          umapDF[[da_col]] <- factor(v, levels = c(intersect(setdiff(lv, "Other"), v), "Other"))
+        }
       } else {
         umapDF$cluster_id <- factor(
           umapDF$cluster_id,
@@ -91,8 +106,9 @@ umapReactive <- eventReactive(
         )
       }
 
-      # Shuffle for fair cluster overdraw (matches SCpubr shuffle=TRUE default)
-      umapDF <- umapDF[sample(nrow(umapDF)), ]
+      # Shuffle for fair cluster overdraw (matches SCpubr shuffle=TRUE default),
+      # in a fixed order, keeping only the columns the map needs
+      umapDF <- map_draw_table(umapDF, c("cluster_id", inputs$umapColumnToPlot, inputs$umapColumnToSplit))
 
       # ── Resolve colour vector ───────────────────────────────────────────
       plot_column  <- inputs$umapColumnToPlot
@@ -125,6 +141,10 @@ umapReactive <- eventReactive(
       }
       # Align colour vector order with factor levels (plotly uses positional matching)
       colours <- colours[present_levels]
+      # Cells outside the DA clusters are always grey
+      if (da_mode != "None" && contrast != "None" && "Other" %in% present_levels) {
+        colours[["Other"]] <- "grey80"
+      }
 
       # ── Split column ────────────────────────────────────────────────────
       split_col <- if (!is.null(inputs$umapColumnToSplit) &&
@@ -153,7 +173,7 @@ umapReactive <- eventReactive(
             size = inputs$pointSizeUMAP * 10,
             line = list(color = "black", width = 0)
           )
-        )
+        ) |> plotly_corner_arrows(mapFull, mapAxes)
       } else {
         # Faceted subplots with deduplicated legends
         split_levels <- unique(umapDF[[split_col]])
@@ -211,23 +231,25 @@ umapReactive <- eventReactive(
       # ================================================================
       border_type <- inputs$umapBorderType %||% "Density borders"
 
-      # Rasterisation only compatible with plain "None" borders
-      use_raster <- isTRUE(res$rasterise_auto) && border_type == "None"
+      # Rasterise when the box is ticked (it is ticked for the user on large
+      # runs). Per-cell borders cannot be rasterised and are drawn as points.
+      use_raster <- isTRUE(inputs$rasteriseUMAP) && border_type != "Per-cell borders"
+      raster_px  <- rep(as.integer(round((inputs$rasterUMAP_DPI %||% 300) * 10 / 3)), 2)
 
       umapStatic <- ggplot(umapDF, aes(x = .data[["x"]], y = .data[["y"]]))
 
       # ── Rendering path ──────────────────────────────────────────────
-      if (use_raster) {
-        # Raster: scattermore for large datasets, no border support
+      if (use_raster && border_type == "None") {
+        # Raster: scattermore for large datasets
         umapStatic <- umapStatic +
           scattermore::geom_scattermore(
             pointsize = (inputs$pointSizeUMAP * 2) + 0.6,
-            pixels    = c(1000L, 1000L),
+            pixels    = raster_px,
             alpha     = inputs$pointAlphaUMAP,
             aes(colour = .data[[plot_column]])
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 3, alpha = 1), ncol = 2
+            override.aes = list(size = 6, alpha = 1), ncol = 2
           ))
 
       } else if (border_type == "Per-cell borders") {
@@ -243,7 +265,7 @@ umapReactive <- eventReactive(
             aes(fill = .data[[plot_column]])
           ) +
           guides(fill = guide_legend(
-            override.aes = list(shape = 21, size = 3, alpha = 1, stroke = 0.2),
+            override.aes = list(shape = 21, size = 6, alpha = 1, stroke = 0.2),
             ncol = 2
           ))
 
@@ -261,7 +283,20 @@ umapReactive <- eventReactive(
         cell_density <- kde$z[cbind(ix, iy)]
         border_df    <- umapDF[cell_density <= quantile(cell_density, border_density), ]
 
-        umapStatic <- umapStatic +
+        if (use_raster) {
+          # The same three layers, rasterised (as the feature plot does)
+          eff_raster <- (inputs$pointSizeUMAP * 2) + 0.6
+          umapStatic <- umapStatic +
+            scattermore::geom_scattermore(data = border_df, pointsize = eff_raster * border_size,
+                                          pixels = raster_px, color = border_colour) +
+            scattermore::geom_scattermore(pointsize = eff_raster, pixels = raster_px, color = "grey75") +
+            scattermore::geom_scattermore(aes(colour = .data[[plot_column]]),
+                                          pointsize = eff_raster, pixels = raster_px) +
+            guides(colour = guide_legend(
+              override.aes = list(size = 6, colour = "black", fill = colours, shape = 21),
+              ncol = 2
+            ))
+        } else umapStatic <- umapStatic +
           # Layer 1: border (edge cells)
           geom_point(
             data = border_df,
@@ -281,7 +316,7 @@ umapReactive <- eventReactive(
             na.rm = TRUE
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 4, colour = "black",
+            override.aes = list(size = 6, colour = "black",
                                 fill = colours, shape = 21),
             ncol = 2
           ))
@@ -296,7 +331,7 @@ umapReactive <- eventReactive(
             pch   = 20
           ) +
           guides(colour = guide_legend(
-            override.aes = list(size = 3, alpha = 1), ncol = 2
+            override.aes = list(size = 6, alpha = 1), ncol = 2
           ))
       }
 
@@ -306,7 +341,10 @@ umapReactive <- eventReactive(
           base_size       = inputs$textSizeUMAP,
           show_axes       = inputs$umapShowAxes,
           legend_position = "right"
-        )
+        ) +
+        # Fixed aspect ratio and corner arrows naming the axes (or the axes
+        # themselves, when "show axes" is ticked)
+        (if (isTRUE(inputs$umapShowAxes)) list(coord_fixed()) else MARMOT::dr_corner_arrows(mapFull, mapAxes))
 
       # ── Faceting with cell counts ───────────────────────────────────
       if (!is.null(split_col)) {

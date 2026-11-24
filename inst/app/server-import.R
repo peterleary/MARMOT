@@ -97,9 +97,16 @@ observe({
 
     # ── Top marker table (Excel, written by pipeline) ────────────────────────
     topMarkerPath <- file.path(dataDir, "../", "Excel_Files/topMarkerTable.xlsx")
+    # Optional: if it cannot be read, everything else still loads
     if (file.exists(topMarkerPath)) {
-      files$topMarkerTable <- readxl::read_xlsx(topMarkerPath) |>
-        dplyr::arrange(gtools::mixedorder(Cluster))
+      files$topMarkerTable <- tryCatch({
+        tmt <- readxl::read_xlsx(topMarkerPath)
+        if ("Cluster" %in% names(tmt)) tmt[gtools::mixedorder(tmt$Cluster), ] else tmt
+      }, error = function(e) {
+        showNotification(paste("The top marker table could not be read, so it is left out:", conditionMessage(e)),
+                         type = "warning", duration = 10)
+        NULL
+      })
     }
 
     # Kept so the FCS export can find the original FCS files

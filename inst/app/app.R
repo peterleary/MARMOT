@@ -22,6 +22,7 @@ suppressPackageStartupMessages({
 source("helpers/data_helpers.R",   local = TRUE)
 source("helpers/colour_helpers.R", local = TRUE)
 source("helpers/plot_helpers.R",   local = TRUE)
+source("helpers/session_guard.R",  local = TRUE)
 
 # ── Forest Theme ─────────────────────────────────────────────────────────────
 # Forest green primary (#013220), darker shade (#012418), orange accent
@@ -359,6 +360,13 @@ ui <- dashboardPage(
 
 # ── Server ───────────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
+
+  # ── Errors never end the session ──────────────────────────────────────────
+  # Every observer below is made with MARMOT's guarded versions of Shiny's
+  # observeEvent() and observe() (helpers/session_guard.R): an error is shown
+  # as a message and the Explorer keeps running, instead of the grey screen.
+  observeEvent <- guarded_observeEvent
+  observe      <- guarded_observe
 
   # ── Default reactive scaffolding ──────────────────────────────────────────
   # These are overwritten by server-colours.R once data loads, but must exist

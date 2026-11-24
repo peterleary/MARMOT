@@ -143,8 +143,10 @@ observeEvent({
 
   for (x in group_levels) {
     input_id <- paste0("fpSubset", x, "ToThis")
-    if (!is.null(input[[input_id]]) && !is.null(cellsToKeepReactive$sc2)) {
-      cellsToKeepReactive$sc2[[x]] <- as.numeric(input[[input_id]])
+    # An empty or half-typed box keeps the last number; below zero means none
+    v <- suppressWarnings(as.numeric(input[[input_id]]))
+    if (length(v) == 1 && !is.na(v) && !is.null(cellsToKeepReactive$sc2)) {
+      cellsToKeepReactive$sc2[[x]] <- max(0, floor(v))
     }
   }
 })

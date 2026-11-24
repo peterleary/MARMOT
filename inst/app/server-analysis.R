@@ -351,18 +351,17 @@ analysisPlotReactive <- reactive({
       facet_cond <- isTRUE(input$analysisHistFacetCondition)
 
       tryCatch({
+        # One row per cell and marker, with only the columns the plot uses
+        # (it used to carry every cell column: ~10M wide rows at 250k cells)
         expr_mat <- as.matrix(SummarizedExperiment::assay(sce, assay_name))
-        cd       <- as.data.frame(SummarizedExperiment::colData(sce))
-        df       <- data.frame(t(expr_mat), cd, check.names = FALSE)
-
-        id_vars <- names(cd)
-        long    <- reshape2::melt(df,
-          value.name  = "value",
-          variable.name = "antigen",
-          id.vars     = id_vars
+        long <- data.frame(
+          value   = as.vector(t(expr_mat)),
+          antigen = factor(rep(rownames(expr_mat), each = ncol(expr_mat)), levels = rownames(expr_mat))
         )
+        has_cond <- "condition" %in% names(SummarizedExperiment::colData(sce))
+        if (has_cond) long$condition <- rep(sce$condition, times = nrow(expr_mat))
 
-        if (facet_cond && "condition" %in% colnames(cd)) {
+        if (facet_cond && has_cond) {
           cond_colours <- coloursList$condition
           p <- ggplot2::ggplot(long,
             ggplot2::aes(x = value, y = ggplot2::after_stat(ndensity),
@@ -715,21 +714,15 @@ analysisPlotReactive <- reactive({
           return(NULL)
         }
 
-        # Derive the merging column prefix
-        mergeBy <- switch(clusteringMethodToUse,
-          "Rphenograph" = "k", "Mphenograph" = "k", "MfastPG" = "k",
-          "PARC" = "p", "FlowSOM" = "meta",
-          "meta"
-        )
-
-        # Validate: check mergeBy exists in cluster_codes
+        # The pipeline saves one cluster_codes column for cluster_id, named
+        # after the clustering method ("FlowSOM" for FlowSOM)
         valid_codes <- tryCatch(
           names(CATALYST::cluster_codes(sce)),
           error = function(e) character(0)
         )
-        if (!mergeBy %in% valid_codes && length(valid_codes) > 0) {
-          mergeBy <- valid_codes[1]
-        }
+        mergeBy <- intersect(c(clusteringMethodToUse, "FlowSOM"), valid_codes)[1]
+        if (is.na(mergeBy)) mergeBy <- valid_codes[1]
+        req(!is.na(mergeBy))
 
         base_size <- as.integer(input$analysisTextSize %||% 14)
         p <- CATALYST::plotAbundances(sce, k = mergeBy, by = by_value) +

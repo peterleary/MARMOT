@@ -513,3 +513,33 @@ test_that("the Explorer merges names as the MARMOT extension does", {
   expect_identical(same_name_spelling(c("T cells", "B cells", "T-cells", "t_cells", "drop")),
                    c("T cells", "B cells", "T cells", "T cells", "drop"))
 })
+
+test_that("subsetting never crashes on empty or negative targets, and repeats", {
+  md <- data.frame(g = rep(c("a", "b"), each = 5), row.names = paste0("c", 1:10))
+  expect_length(sample_cells_by_group(md, "g", c(a = NA, b = 2)), 7)    # empty box: the whole group
+  expect_length(sample_cells_by_group(md, "g", c(a = -5, b = 2)), 2)    # below zero: none
+  expect_length(sample_cells_by_group(md, "g", c(a = 99, b = 1)), 6)    # more than there are: all
+  expect_identical(sample_cells_by_group(md, "g", c(a = 3, b = 3)),
+                   sample_cells_by_group(md, "g", c(a = 3, b = 3)))     # same settings, same cells
+  set.seed(1); r1 <- runif(1); set.seed(1); invisible(sample_cells_by_group(md, "g", c(a = 3))); r2 <- runif(1)
+  expect_identical(r1, r2)                                              # the session's random state is untouched
+})
+
+test_that("groups in neither list are kept; excluded groups are not", {
+  v <- factor(c("T cells", "B cells", "NK", "drop"))
+  expect_identical(bucket_levels(v, include = c("NK", "1"), exclude = "drop"), c("NK", "B cells", "T cells"))
+  expect_identical(bucket_levels(v, include = NULL, exclude = NULL), levels(v))
+})
+
+test_that("clusterings stay plottable however many clusters they have", {
+  cd <- data.frame(cluster_id = factor(1:150), k60 = factor(1:150), cell = 1:150, condition = rep(c("A", "B"), 75))
+  expect_identical(get_plottable_columns(cd), c("cluster_id", "k60", "condition"))
+})
+
+test_that("the map table keeps only what the map needs, in the same order every time", {
+  df <- data.frame(x = 1:20, y = 20:1, cluster_id = rep(c("a", "b"), 10), CD3 = runif(20), CD4 = runif(20))
+  a <- map_draw_table(df, c("cluster_id", "condition"))
+  expect_identical(names(a), c("x", "y", "cluster_id"))
+  expect_identical(a, map_draw_table(df, c("cluster_id", "condition")))
+  expect_setequal(a$x, 1:20)
+})

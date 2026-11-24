@@ -45,20 +45,21 @@ divergingColours <- rownames(
 #' @param aesthetic "colour" or "fill"
 #' @param legend_position Optional legend position ("right", "bottom", etc.).
 #'   When non-NULL, adds SCpubr-style colorbar framing (grey50 frame, white ticks).
+#' @param limits Optional scale limits, e.g. c(0, max) for a density
 #' @return Modified ggplot with colour scale applied
 apply_continuous_scale <- function(p, palette, direction = 1, aesthetic = "colour",
-                                    legend_position = NULL) {
+                                    legend_position = NULL, limits = NULL) {
   scale_fn <- if (aesthetic == "colour") {
     list(
-      viridis = function() scale_colour_viridis_c(option = palette, direction = direction),
-      scico   = function() scico::scale_colour_scico(palette = palette, direction = direction),
-      diverging = function() scale_colour_distiller(palette = palette, direction = direction, type = "div")
+      viridis = function() scale_colour_viridis_c(option = palette, direction = direction, limits = limits),
+      scico   = function() scico::scale_colour_scico(palette = palette, direction = direction, limits = limits),
+      diverging = function() scale_colour_distiller(palette = palette, direction = direction, type = "div", limits = limits)
     )
   } else {
     list(
-      viridis = function() scale_fill_viridis_c(option = palette, direction = direction),
-      scico   = function() scico::scale_fill_scico(palette = palette, direction = direction),
-      diverging = function() scale_fill_distiller(palette = palette, direction = direction, type = "div")
+      viridis = function() scale_fill_viridis_c(option = palette, direction = direction, limits = limits),
+      scico   = function() scico::scale_fill_scico(palette = palette, direction = direction, limits = limits),
+      diverging = function() scale_fill_distiller(palette = palette, direction = direction, type = "div", limits = limits)
     )
   }
 
@@ -73,9 +74,9 @@ apply_continuous_scale <- function(p, palette, direction = 1, aesthetic = "colou
   # SCpubr-style colorbar framing (Feature + Nebulosa plots)
   if (!is.null(legend_position)) {
     if (legend_position %in% c("top", "bottom")) {
-      bw <- 20; bh <- 1
+      bw <- 10; bh <- 0.8
     } else {
-      bw <- 1; bh <- 20
+      bw <- 0.8; bh <- 10
     }
     cb <- guide_colorbar(
       title.position = "top", title.hjust = 0.5,

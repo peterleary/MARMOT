@@ -56,7 +56,9 @@ output$dlFP <- downloadHandler(
   },
   content = function(file) {
     req(!is.null(featurePlotReactive$fp))
-    w  <- as.numeric(input$figWidthFP) / 60
+    fpw <- as.numeric(input$figWidthFP %||% 0)
+    if (fpw <= 0) fpw <- session$clientData$output_umapFeaturePlotOutput_width %||% 1000   # "fit": the box's width
+    w  <- fpw / 60
     h  <- as.numeric(input$figHeightFP) / 60
     fp <- featurePlotReactive$fp
 
@@ -79,7 +81,7 @@ output$dlFP <- downloadHandler(
 
     } else if (needs_arrange) {
       # Patchwork assembly for multi-panel feature/violin/ridge/nebulosa plots
-      ncol_fp <- input$ncolFPGene %||% 2
+      ncol_fp <- fp_columns(input$ncolFPGene, length(fp))
       combined <- patchwork::wrap_plots(fp, ncol = as.integer(ncol_fp))
       ggplot2::ggsave(
         filename = file, plot = combined,
