@@ -1818,7 +1818,7 @@ if (dimRedMethodToUse == "Mpacmap") {
 # Native DRs (from the corrected positions when batchColumn is set)
 drFrom <- if (useBatch) "PCA_harmony_dr" else NULL
 sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse, dimred = drFrom)
-sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse, dimred = drFrom)
+sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse, dimred = drFrom, num_threads = nCores)
 
 # ... and an uncorrected UMAP beside it, so the correction can be judged
 if (useBatch) {
