@@ -54,3 +54,20 @@ apptainer shell --bind /scratch/data:/data marmot.sif
 docker build -f docker/Dockerfile --build-arg MARMOT_REF=main -t marmot-test docker/
 docker run --rm marmot-test Rscript -e 'MARMOT::check_setup()'
 ```
+
+`MARMOT_REF` is any branch, tag or commit on GitHub (`v2` for the 2.0 beta). The build fails if any package MARMOT uses is missing.
+
+## Serving the Explorer (e.g. under ShinyProxy)
+
+The image also serves the Explorer on port 3838. It opens the results given in the address, `?data=/path/to/Results_Files_*/R_files`, so mount the folder that holds the results at the same path inside the container:
+
+```bash
+docker run --rm -p 3838:3838 -v /srv/results:/srv/results marmot:v2 \
+  Rscript -e 'shiny::runApp(system.file("app", package = "MARMOT"), host = "0.0.0.0", port = 3838)'
+```
+
+To let users save cluster labels for the MARMOT extension from the Explorer, the results folder must be writable inside the container.
+
+## Python (PARC and PaCMAP)
+
+MARMOT 2 sets up the original Python PARC and PaCMAP with pixi (no conda). The image keeps the environment in `/opt/marmot-data` (`R_USER_DATA_DIR`), readable by any user, so it works under ShinyProxy and Apptainer, which do not run as root.
