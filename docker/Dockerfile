@@ -66,6 +66,11 @@ RUN Rscript -e 'r <- MARMOT::check_setup(); \
 
 # ── Runtime: a non-root user, and a writable home for Apptainer ──────
 RUN useradd -m -s /bin/bash marmot && chmod 777 /home/marmot
+
+# A cache folder any user can write to. Run with -u (or under ShinyProxy or
+# Apptainer) and there may be no home folder, so Quarto would try /.cache and
+# fail. Set after every install step, so nothing made as root lands in it. ──
+ENV XDG_CACHE_HOME=/tmp/.cache
 WORKDIR /data
 EXPOSE 3838
 CMD ["R"]
