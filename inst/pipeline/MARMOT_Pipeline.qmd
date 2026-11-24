@@ -710,23 +710,35 @@ if (anyNA(cfToUse)) {
 }
 
 # Contrasts
-# Filter out empty or malformed contrasts (e.g. bare " over " from empty dropdowns)
+# Each entry reads "A over B"; "vs", "versus" and "v" are read as "over" too.
+# Blank entries, and a bare " over " left by empty dropdowns, are skipped;
+# anything else that cannot be read as "A over B" stops the run.
+contrastSep <- "(?i)(?= (over|versus|vs\\.?|v\\.?) )"
 contrastsToTest <- na.omit(smd$`Conditions To Test`)
-contrastsToTest <- trimws(contrastsToTest)
-contrastsToTest <- gsub("\\s+", " ", contrastsToTest)
-contrastsToTest <- contrastsToTest[grepl(".+ over .+", contrastsToTest, ignore.case = TRUE)]
+contrastsToTest <- gsub("\\s+", " ", trimws(contrastsToTest))
+contrastsToTest <- contrastsToTest[!grepl("(?i)^(over|versus|vs\\.?|v\\.?)?$", contrastsToTest, perl = TRUE)]
+unreadable <- !grepl("(?i). (over|versus|vs\\.?|v\\.?) .", contrastsToTest, perl = TRUE)
+if (any(unreadable)) {
+  stop("❌ Each entry in 'Conditions To Test' needs to read 'A over B', for example 'KO over WT'. ",
+       "Please check: ", paste0("'", contrastsToTest[unreadable], "'", collapse = ", "))
+}
 # Each side may be spelt differently from the conditions ("treated over control");
 # it is rewritten with the conditions' own spelling. A contrast that still does
-# not match is left as typed, and the DA/DS step says so clearly.
+# not match is left as typed (with "over"), and the DA/DS step says so clearly.
 contrastCondNames <- if (length(conditionOrder)) conditionOrder else unique(as.character(md$condition))
 for (i in seq_along(contrastsToTest)) {
   ctr <- contrastsToTest[[i]]
-  for (cut in gregexpr("(?i)(?= over )", ctr, perl = TRUE)[[1]]) {
-    m <- MARMOT::match_names(c(substr(ctr, 1, cut - 1), substr(ctr, cut + 6, nchar(ctr))), contrastCondNames)
+  cuts <- gregexpr(contrastSep, ctr, perl = TRUE)[[1]]
+  sepLen <- attr(cuts, "capture.length")[, 1] + 2
+  for (j in seq_along(cuts)) {
+    m <- MARMOT::match_names(c(substr(ctr, 1, cuts[j] - 1), substr(ctr, cuts[j] + sepLen[j], nchar(ctr))), contrastCondNames)
     if (!anyNA(m$matched) && m$matched[1] != m$matched[2]) {
       contrastsToTest[[i]] <- paste(m$matched[1], "over", m$matched[2])
       break
     }
+  }
+  if (contrastsToTest[[i]] == ctr && !grepl("(?i) over ", ctr, perl = TRUE)) {
+    contrastsToTest[[i]] <- sub("(?i) (versus|vs\\.?|v\\.?) ", " over ", ctr, perl = TRUE)
   }
   if (contrastsToTest[[i]] != ctr) {
     nameNotes <- c(nameNotes, sprintf("The contrast '%s' was read as '%s'.", ctr, contrastsToTest[[i]]))
