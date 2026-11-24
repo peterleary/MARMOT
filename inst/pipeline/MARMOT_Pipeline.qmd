@@ -2448,7 +2448,7 @@ cat(overviewWarnings, sep = "\n")
 ```{r, label = "report_overview_settings", results = 'asis'}
 cat("::: {.callout-note collapse='true' title='Pipeline Settings Summary'}\n\n")
 cat("- **Clustering method:** ", clusteringMethodToUse, "\n", sep = "")
-cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (knn = ", knn, ")\n", sep = "")
+cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (main k: ", knn, ", used for DA, DS and most figures)\n", sep = "")
 cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n", sep = "")
 cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n", sep = "")
 cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n", sep = "")
@@ -2736,7 +2736,7 @@ if (homogeneousPanel) {
 cat("::: {.callout-tip title='Clustering Summary'}\n\n")
 cat("- **Method:** ", clusteringMethodToUse, "\n")
 cat("- **k values tested:** ", paste(kValuesIWant, collapse = ", "), "\n")
-cat("- **Selected k:** ", knn, " → ", length(unique(cluster_ids(sce, clusteringMethodToUse))), " clusters\n")
+cat("- **Main k:** ", knn, " → ", length(unique(cluster_ids(sce, clusteringMethodToUse))), " clusters (used for DA, DS and most figures)\n")
 cat("- **Clustering markers:** ", paste(featuresToCluster, collapse = ", "), "\n")
 cat(":::\n\n")
 ```
@@ -4256,7 +4256,8 @@ if (is.null(RDataFolder)) {
   paste0("**tSNE:** ", .cite("Rtsne")),
   if (exists("useBatch") && useBatch) paste0("**Batch correction:** Harmony. ", .cite("harmony")),
   paste0("**Differential abundance and state:** ", .cite("diffcyt")),
-  paste0("**Data handling and many plots:** ", .cite("CATALYST"))
+  paste0("**Data handling and many plots:** ", .cite("CATALYST")),
+  "**Repeating a run:** the same data and settings gave identical results when re-run in our tests, on one computer, for FlowSOM, MfastPG, Mphenograph, Mparc, the Python PARC, UMAP, Mpacmap and the Python PaCMAP. On another computer, or with Rphenograph or tSNE (not tested), results may differ slightly."
 )
 cat("::: {.callout-note collapse='true' title='Methods, and whom to cite'}\n\n",
     paste0("- ", .methods, collapse = "\n"), "\n\n:::\n\n", sep = "")
