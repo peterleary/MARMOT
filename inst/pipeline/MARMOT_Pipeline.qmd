@@ -104,8 +104,8 @@ options(bitmapType = "cairo", kableExtra_view_html = FALSE)
 ```{r input_settings}
 
 ## 🔧 File paths
-fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/"      # Folder with all FCS files
-md_fp <- "~/Desktop/FGCZ/MARMOT/Data/Paper/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
+fp <- "path/to/your/FCS_files/"      # Folder with all FCS files
+md_fp <- "path/to/your/FCS_files/MARMOT_Metadata.xlsx"      # Full path to metadata Excel file
 ## 🧪 Preprocessing
 downsampleTo <- 10000  # Cells to take from each FCS file, for a quick first look. NULL = use every cell
 
