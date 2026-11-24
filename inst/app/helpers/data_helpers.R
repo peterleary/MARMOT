@@ -15,22 +15,40 @@
 dr_map_choices <- function(umapDFList) {
   keys <- setdiff(names(umapDFList), c("All", "Downsampled"))
   maps <- keys[!startsWith(keys, "Downsampled.")]
-  pretty <- function(k) {
+  # Labels are "Name|note": the note is shown small and grey under the name
+  # (see dr_map_render); without it, a plain label is shown as is.
+  label <- function(k, cells = NULL) {
     base <- sub("_uncorrected$", "", k)
     base <- switch(base, TSNE = "tSNE", Mpacmap = "PaCMAP (Mpacmap)", pacmap = "PaCMAP", base)
-    if (endsWith(k, "_uncorrected")) paste0(base, ", before batch correction") else base
+    note <- c(if (endsWith(k, "_uncorrected")) "before batch correction", cells)
+    if (length(note)) paste0(base, "|", paste(note, collapse = " · ")) else base
   }
   out <- character(0)
   for (k in maps) {
     down <- paste0("Downsampled.", k)
     if (down %in% keys && nrow(umapDFList[[down]]) < nrow(umapDFList[[k]])) {
-      out[paste0(pretty(k), " (as in the report)")] <- down
-      out[paste0(pretty(k), ", every cell")] <- k
+      out[label(k, "as in the report")] <- down
+      out[label(k, "every cell")] <- k
     } else {
-      out[pretty(k)] <- k
+      out[label(k)] <- k
     }
   }
   out
+}
+
+#' Selectize options that draw a map label as its name with a small grey note
+#' under it (labels from `dr_map_choices()`)
+dr_map_render <- function() {
+  draw <- "function(item, escape) {
+    var p = item.label.split('|');
+    return '<div style=\"line-height:1.2;padding:2px 0\">' + escape(p[0]) +
+      (p.length > 1 ? '<div style=\"font-size:0.8em;opacity:0.6\">' + escape(p[1]) + '</div>' : '') + '</div>';
+  }"
+  list(
+    render = I(paste0("{option: ", draw, ", item: ", draw, "}")),
+    # Tall enough to show every map with its note without scrolling
+    onInitialize = I("function() { this.$dropdown_content.css('max-height', '420px'); }")
+  )
 }
 
 #' The default map: the UMAP, tSNE or PaCMAP the report is built on, as the

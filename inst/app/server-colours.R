@@ -22,8 +22,9 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
   # ── Update DR selectInput ──────────────────────────────────────────────
   # Each map once, with a plain name; the cells shown follow the report
   dr_choices <- dr_map_choices(umapDFList)
-  updateSelectInput(session, "umapDRToPlot",
-    choices = dr_choices, selected = dr_map_default(dr_choices))
+  updateSelectizeInput(session, "umapDRToPlot",
+    choices = dr_choices, selected = dr_map_default(dr_choices),
+    options = dr_map_render())
 
   # ── Plottable columns (categorical, <100 levels) ──────────────────────
   colsThatCanBePlot <- get_plottable_columns(sce)

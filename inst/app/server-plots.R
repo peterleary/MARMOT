@@ -130,10 +130,10 @@ output$plotTypeControls <- renderUI({
 
     tagList(
       fp_section_header("Dimensionality reduction"),
-      selectInput(
+      selectizeInput(
         inputId = "fpDRToPlot", label = "DR to plot",
         choices = dr_names, selected = fp_dr_default,
-        multiple = FALSE, width = "85%"
+        multiple = FALSE, width = "85%", options = dr_map_render()
       ),
 
       fp_section_header("Points"),
