@@ -2446,7 +2446,13 @@ cat(.plural(.n_samples, "sample"), " in ", .plural(.n_conditions, "condition"), 
 cat(sprintf("Started on %d %s %d at %02d:%02d.\n\n", .started$mday, month.name[.started$mon + 1],
             .started$year + 1900, .started$hour, .started$min))
 if (!is.null(RDataFolder)) {
-  cat("This report was redrawn from saved results, so warnings from the original run are not shown here.\n\n")
+  savedWarnings <- MARMOT::read_overview_warnings(RDataFolder)
+  if (is.null(savedWarnings)) {
+    cat("This report was redrawn from saved results, so warnings from the original run are not shown here.\n\n")
+  } else {
+    cat("This report was redrawn from saved results; the warnings and notes below are from the original run.\n\n")
+    overviewWarnings <- c(savedWarnings, overviewWarnings)
+  }
 }
 
 # QC warnings: the details are also in the QC tab
@@ -2458,6 +2464,8 @@ if (exists("qc_skip_reason")) {
     "You ran QC using ", runQC, ", but chose **not** to apply it, so the results in this report include every cell. ",
     "The QC tab shows what QC would have removed.\n\n:::\n"))
 }
+# The first run saves its warnings, so a reload can show them again
+if (is.null(RDataFolder)) MARMOT::save_overview_warnings(rFilesDir, overviewWarnings)
 cat(overviewWarnings, sep = "\n")
 ```
 

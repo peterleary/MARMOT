@@ -61,6 +61,13 @@ test_that("a reload redraws the report and keeps the original run log", {
   reload_log <- jsonlite::fromJSON(file.path(r_files, "marmot_run_log_reload.json"))
   expect_true(reload_log$settings$reload)
   expect_identical(reload_log$render$status, "success")
+
+  # The first run's Overview warnings are shown again
+  saved <- read_overview_warnings(r_files)
+  expect_false(is.null(saved))
+  html <- paste(readLines(file.path(reload_dir, "MARMOT_Pipeline_Reload.html"), warn = FALSE), collapse = "\n")
+  expect_match(html, "are from the original run", fixed = TRUE)
+  for (title in sub(".*title='([^']+)'.*", "\\1", saved)) expect_match(html, title, fixed = TRUE)
 })
 
 test_that("scGate draws its plots when every cell is shown", {
