@@ -747,8 +747,9 @@ if (all(is.na(raw_subsamp))) {
   # Only numbers and arithmetic are accepted, since the entry is evaluated as R code
   notArithmetic <- is.na(raw_subsamp) | !grepl("^[0-9eE+*/(). -]+$", raw_subsamp)
   if (any(notArithmetic)) {
-    stop("❌ 'Cells per condition in UMAPs etc.' needs a number, or simple arithmetic such as 12000/6, ",
-         "for every condition (no thousands separators), or the whole column left blank to show every cell. ",
+    stop("❌ 'Cells per condition in UMAPs etc.' needs, for every condition, the number of cells to show ",
+         "from each of its samples: a number, or simple arithmetic such as 10000/3 (no thousands separators). ",
+         "Or leave the whole column blank to show every cell. ",
          "Please check: ", paste(conditionOrder[notArithmetic], collapse = ", "))
   }
   drCellPerCondition <- setNames(
@@ -3397,6 +3398,24 @@ if (gimmePDFs) {
 paste(featuresToUmap)
 ```
 :::
+
+```{r, label = "report_dr_cells_shown", results = 'asis'}
+# How many cells the maps show from each condition, as set in 'Cells per
+# condition in UMAPs etc.' (the cells shown from each sample of a condition).
+# Counted from the maps themselves, so an excluded sample shows in the totals.
+if (!is.null(drCellPerCondition)) {
+  shownDF <- umapDFList$Downsampled
+  cellsShown <- vapply(names(drCellPerCondition), function(cond) {
+    inCond <- as.character(shownDF$condition) == cond
+    nSamples <- length(unique(shownDF$sample_id[inCond]))
+    sprintf("up to %s cells from each %s sample (%d sample%s, %s cells)",
+            format(floor(drCellPerCondition[[cond]]), big.mark = ","), cond,
+            nSamples, if (nSamples == 1) "" else "s", format(sum(inCond), big.mark = ","))
+  }, character(1))
+  cat("The maps show ", paste(cellsShown, collapse = "; "),
+      ", as set in 'Cells per condition in UMAPs etc.'.\n\n", sep = "")
+}
+```
 
 :::::::::: panel-tabset
 
