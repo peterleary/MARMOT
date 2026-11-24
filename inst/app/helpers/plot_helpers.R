@@ -443,7 +443,10 @@ make_percell_heatmap <- function(expr_mat, group_ids, group_colours = NULL,
     cluster_columns = FALSE,
     show_column_names = FALSE,
     row_names_gp = grid::gpar(fontsize = 10),
-    use_raster = ncol(expr_mat) > 5000
+    use_raster = ncol(expr_mat) > 5000,
+    # ragg needs no system graphics libraries; the default device needs
+    # Cairo, which is missing on many Macs and made this plot fail
+    raster_device = if (requireNamespace("ragg", quietly = TRUE)) "agg_png" else "png"
   )
 }
 
