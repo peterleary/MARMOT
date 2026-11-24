@@ -25,6 +25,7 @@
 
 ## Fixed
 
+- **scGate gated nothing:** every cell came out "Negative", because MARMOT looked for a value scGate never writes. Cells that pass a gate are now kept, and each gets the best-scoring gate among those it passed. **Results with `runScGate` on will differ.**
 - The Explorer no longer greys out (ends the session) on an error. Among the crashes fixed: clearing a subset box, an unreadable top-marker table, and a bad table edit.
 - The Explorer showed the wrong DA clusters for a contrast.
 - Explorer plots that went stale or wrong after relabelling or subsetting, the DS heatmap for "Merged" contrasts, the DA filter when colouring by other columns, and "Heatmap per cell" on Macs without XQuartz.
