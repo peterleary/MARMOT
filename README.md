@@ -77,7 +77,7 @@ MARMOT::install_marmot_extras()
 MARMOT::check_setup()
 ```
 
-MARMOT includes its own R versions of PhenoGraph, PARC and PaCMAP (Mphenograph, Mparc, Mpacmap) as fallbacks, but recommends the originals. Each report says which ran and whom to cite.
+The marmots worked up their own R versions of PhenoGraph, FastPG, PARC and PaCMAP (Mphenograph, MfastPG, Mparc, Mpacmap) so there is always one that runs, and they do much the same job. But they are fall-backs: not validated or peer-reviewed, and we cannot support them. The marmots would be much happier if you used and cited the originals. Each report says which ran and whom to cite.
 
 You need [Quarto](https://quarto.org/docs/get-started/) to render reports. RStudio and Positron include it, and MARMOT finds that copy itself.
 

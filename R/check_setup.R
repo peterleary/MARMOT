@@ -39,7 +39,7 @@ check_setup <- function() {
        "install Quarto from https://quarto.org/docs/get-started/, or use RStudio or Positron, which include it.")
   }
 
-  cat("\nOriginal methods (MARMOT recommends these; its own R versions are fallbacks):\n")
+  cat("\nOriginal methods (the marmots would be happier if you used and cited these; their own R versions are fall-backs, not validated and not supported):\n")
   if (has("Rphenograph")) ok("Rphenograph, the original PhenoGraph in C++.") else
     maybe("Rphenograph is not installed; MARMOT's Mphenograph will stand in.", fix)
   py <- tryCatch(marmot_python_status(), error = function(e) list(available = FALSE))

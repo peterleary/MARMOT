@@ -115,7 +115,7 @@ use_marmot_python <- function() {
     .marmot_py$path <- reticulate::py_config()$python
   } else {
     warning("Python environment 'p4r' not found or missing parc/pacmap.\n",
-            "Mparc and Mpacmap (R fallbacks) will be used instead.\n",
+            "Mparc and Mpacmap (the marmots' own fall-backs: not validated, not supported) will be used instead.\n",
             "For Python versions, run MARMOT::install_marmot_python().",
             call. = FALSE)
   }
