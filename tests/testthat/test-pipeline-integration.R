@@ -270,7 +270,7 @@ test_that("label, then regenerate: populations merge, a cluster drops, and DA/DS
   expect_identical(pops$Population[nrow(pops)], "dropped")
   per <- openxlsx::read.xlsx(xl, sheet = "Per sample")
   expect_false("dropped" %in% per$Population)
-  expect_equal(unname(tapply(per$Percent, per$Sample, sum)), rep(100, length(unique(per$Sample))), tolerance = 0.1)
+  expect_equal(as.numeric(tapply(per$Percent, per$Sample, sum)), rep(100, length(unique(per$Sample))), tolerance = 0.1)
 
   # The record the Explorer reads matches the report
   rec <- read_labelled_populations(file.path(result$results_path, "R_files"))
