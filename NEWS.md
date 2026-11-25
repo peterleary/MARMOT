@@ -26,6 +26,7 @@
 - **Contrasts** may be written "A vs B", "A versus B" or "A v B" as well as "A over B"; the Overview says how each was read. An entry that cannot be read as two conditions now stops the run, where before it was silently skipped.
 - The report and the documentation say plainly that MARMOT's own versions (MfastPG, Mphenograph, Mparc, Mpacmap) are fall-backs, not validated or supported, and ask you to use and cite the originals. The report names the *main k* (used for DA, DS and most figures) and says how far re-runs were tested to repeat.
 - The by-condition DA map PDFs are named like the others (`Contrast_1_..._subset.pdf`).
+- **A built-in example that works.** The Explorer opens on MARMOT 2.0 results from the public PBMC data that comes with CATALYST (Bodenmiller et al. 2012; Ref vs BCR/FcR-XL, 8 samples, 24 markers), and the example now ships with the package. `inst/examples/make_example.R` rebuilds it. The old 1.x example is gone.
 - t-SNE uses `nCores` threads where Rtsne can (Linux and Docker; the macOS build has one thread). Results are unchanged.
 - The *markers by cluster* boxplots label their axis "Marker" (it said "Condition").
 - **A reload shows the first run's warnings again** (memory cap, downsampling, QC skipped, *Names lined up*).

@@ -1,0 +1,18 @@
+{
+  "clusteringMethodToUse": "FlowSOM",
+  "markersToClusterBy": "all",
+  "kValuesIWant": "10, 20, 30",
+  "knn": "20",
+  "dimRedMethodToUse": "UMAP",
+  "markersToDimRedBy": "type",
+  "runQC": "None",
+  "useQC": "FALSE",
+  "runScGate": "FALSE",
+  "downsampleTo": "",
+  "quantileNormaliseAll": "FALSE",
+  "gimmePDFs": "FALSE",
+  "greyscalePlots": "FALSE",
+  "viridisColour": "lapaz",
+  "nCores": "4",
+  "batchColumn": ""
+}

@@ -1,0 +1,172 @@
+{
+  "system": {
+    "r_version": "R version 4.6.1 (2026-06-24)",
+    "os": "Darwin",
+    "os_release": "27.2.0",
+    "arch": "arm64",
+    "locale": "en_US.UTF-8"
+  },
+  "packages": {
+    "MARMOT": "1.99.0",
+    "diffcyt": "1.32.1",
+    "CATALYST": "1.36.0",
+    "flowCore": "2.24.0",
+    "anndataR": "1.3.3",
+    "quarto": "1.5.1",
+    "ggplot2": "4.0.3",
+    "SingleCellExperiment": "1.34.0",
+    "S4Vectors": "0.50.3",
+    "FlowSOM": "2.20.0",
+    "limma": "3.68.5",
+    "edgeR": "4.10.5",
+    "jsonlite": "2.0.0",
+    "qs2": "0.3.1"
+  },
+  "settings": {
+    "clusteringMethodToUse": "FlowSOM",
+    "markersToClusterBy": "all",
+    "kValuesIWant": [
+      "10",
+      "20",
+      "30"
+    ],
+    "knn": 20,
+    "dimRedMethodToUse": "UMAP",
+    "markersToDimRedBy": "type",
+    "runQC": "None",
+    "useQC": false,
+    "runScGate": false,
+    "downsampleTo": null,
+    "quantileNormaliseAll": false,
+    "nCores": 4,
+    "ramPerCore": 6,
+    "reload": false
+  },
+  "render": {
+    "start_time": "2026-11-25T11:24:24+0100",
+    "end_time": "2026-11-25T11:26:12+0100",
+    "duration_seconds": 108,
+    "status": "success",
+    "last_completed_chunk": "analysis_da_ds"
+  },
+  "warnings": [],
+  "data_shape": {
+    "n_samples": 8,
+    "n_conditions": 2,
+    "n_contrasts": 1,
+    "n_markers_requested": 24,
+    "homogeneous_panel": false
+  },
+  "fcs_lineup": {
+    "notes": []
+  },
+  "fcs_load": {
+    "n_cells_total_raw": 5428,
+    "n_cells_total_used": 5428,
+    "cells_per_sample": [
+      881,
+      438,
+      660,
+      759,
+      528,
+      665,
+      563,
+      934
+    ],
+    "n_params": 24,
+    "ram_cap_applied": false,
+    "per_sample_cap": 4026531,
+    "sys_ram_gb_detected": 48
+  },
+  "clustering": {
+    "method": "FlowSOM",
+    "selected_k": 20,
+    "n_clusters": 20,
+    "cluster_id_levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20"
+    ],
+    "cluster_codes_columns": "FlowSOM",
+    "n_features_dr": 10
+  },
+  "da_analysis": {
+    "method_DA": "diffcyt-DA-edgeR",
+    "min_cells": 5,
+    "contrasts": [
+      {
+        "index": 1,
+        "rows": 20,
+        "columns": [
+          "cluster_id",
+          "logFC",
+          "logCPM",
+          "LR",
+          "p_val",
+          "p_adj"
+        ],
+        "cluster_id_class": "factor",
+        "cluster_id_nlevels": 20,
+        "cluster_id_unique_n": 20,
+        "levels_match_values": true,
+        "missing_clusters_vs_sce": [],
+        "extra_clusters_vs_sce": [],
+        "p_adj_na_count": 1
+      }
+    ]
+  },
+  "ds_analysis": {
+    "method_DS": "diffcyt-DS-limma",
+    "contrasts": [
+      {
+        "index": 1,
+        "has_tbl_DS": true,
+        "rows": 280,
+        "columns": [
+          "cluster_id",
+          "marker_id",
+          "ID",
+          "logFC",
+          "AveExpr",
+          "t",
+          "p_val",
+          "p_adj",
+          "B"
+        ]
+      },
+      {
+        "index": 2,
+        "has_tbl_DS": true,
+        "rows": 14,
+        "columns": [
+          "cluster_id",
+          "marker_id",
+          "ID",
+          "logFC",
+          "AveExpr",
+          "t",
+          "p_val",
+          "p_adj",
+          "B"
+        ]
+      }
+    ]
+  }
+}
