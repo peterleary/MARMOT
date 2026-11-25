@@ -26,7 +26,6 @@
 ^dev-to-main-plan\.md$
 ^parc_pacmap_r$
 ^inst/app_legacy$
-^inst/examples$
 ^inst/reports$
 ^\.DS_Store$
 ^\.RData$
@@ -38,3 +37,4 @@
 ^\.claude-plugin$
 ^notes$
 ^V2_PLAN\.md$
+^\.git$
