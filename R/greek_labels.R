@@ -55,8 +55,15 @@ greek_label <- function(x) {
   g <- .has_greek(x)
   if (!any(g)) return(x)
   out <- as.expression(as.list(ifelse(is.na(x), "NA", x)))
-  for (i in which(g)) out[[i]] <- .greek_call(x[[i]])
+  for (i in which(g)) out[[i]] <- .greek_lines(x[[i]])
   out
+}
+
+# Several lines (split at "\n") are stacked with plotmath's atop()
+.greek_lines <- function(s) {
+  lines <- trimws(strsplit(s, "\n", fixed = TRUE)[[1]])
+  calls <- lapply(lines, function(l) if (nzchar(l)) .greek_call(l) else "")
+  Reduce(function(a, b) call("atop", a, b), calls, right = TRUE)
 }
 
 #' Names with Greek letters spelt out
@@ -74,21 +81,30 @@ spell_greek <- function(x) {
   x
 }
 
-#' Labels for markers, using their display names
+#' A marker's display name, as plain text
 #'
 #' @param x Marker names, as used in the data.
 #' @param display A named character vector: display name, named by marker.
 #'   Markers without one keep their own name. `NULL` for none.
-#' @return The display names, ready for figures (see [greek_label()]).
+#' @return The display names (character), for titles that combine names.
 #' @export
-marker_label <- function(x, display = NULL) {
+marker_display <- function(x, display = NULL) {
   x <- as.character(x)
   if (length(display)) {
-    shown <- display[x]
+    shown <- unname(display[x])
     use <- !is.na(shown) & nzchar(trimws(shown))
     x[use] <- shown[use]
   }
-  greek_label(x)
+  x
+}
+
+#' Labels for markers, using their display names
+#'
+#' @inheritParams marker_display
+#' @return The display names, ready for figures (see [greek_label()]).
+#' @export
+marker_label <- function(x, display = NULL) {
+  greek_label(marker_display(x, display))
 }
 
 #' A ggplot2 facet labeller that draws Greek letters
@@ -121,4 +137,27 @@ greek_parse_text <- function(x) {
   e <- greek_label(x)
   if (!is.expression(e)) e <- as.expression(as.list(ifelse(is.na(e), "NA", e)))
   vapply(seq_along(e), function(i) paste(deparse(e[[i]]), collapse = ""), "")
+}
+
+#' A facet labeller from prepared labels, drawing Greek letters
+#'
+#' For strips whose text is made beforehand, for example a condition with its
+#' number of cells on a second line. Values missing from `lookup` show as
+#' they are.
+#'
+#' @param lookup A named character vector: the label, named by facet value.
+#' @return A ggplot2 labeller.
+#' @export
+greek_labeller <- function(lookup) {
+  if (is.null(lookup)) lookup <- character()
+  function(labels, multi_line = TRUE) {
+    lapply(labels, function(v) {
+      v <- as.character(v)
+      shown <- unname(lookup[v])
+      shown[is.na(shown)] <- v[is.na(shown)]
+      e <- greek_label(shown)
+      # Plain text, as ggplot2's own labellers give it, unless a letter is Greek
+      if (is.expression(e)) lapply(seq_along(e), function(i) e[i]) else shown
+    })
+  }
 }

@@ -1455,8 +1455,8 @@ cofactorPlotList <- lapply(useMarkers, function(marker) {
       ggtitle(colname) +
       theme_prism() +
       theme(text = element_text(size = 15), legend.position = "none") +
-      scale_colour_manual(values = coloursList$condition) +
-      scale_fill_manual(values = coloursList$condition) +
+      scale_colour_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
+      scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
       geom_vline(xintercept = mean(df[[colname]], na.rm = TRUE), linetype = "dashed", colour = "red")
     minify_plot_data(p, colname)
   })
@@ -2532,7 +2532,7 @@ for (marker in useMarkers) {
   cat("####", marker, "\n")
   cat(paste(marker, "Cofactor you chose:", cf2[[marker]]))
   cat("\n\n")
-  grid.arrange(grobs = cofactorPlotList[[marker]], ncol = 3, top = marker)
+  grid.arrange(grobs = cofactorPlotList[[marker]], ncol = 3, top = grid::textGrob(MARMOT::marker_label(marker, markerDisplay)))
   cat("\n\n")
 }
 ```
@@ -2554,15 +2554,15 @@ gg_df <- melt(df, value.name = "value", variable.name = "antigen",
   id.vars = names(colData(sce)))
 mh <- ggplot(gg_df, aes(x = value, y = after_stat(ndensity), fill = condition, color = condition)) +
   geom_density(alpha = 0.1) +
-  facet_wrap(~antigen, scales = "free") + 
+  facet_wrap(~antigen, scales = "free", labeller = MARMOT::greek_labeller(markerDisplay)) + 
   ylab("Normalised Density") + 
   xlab("Transformed Value") +
   theme_prism(axis_text_angle = 90) + theme(panel.grid = element_blank(),
     strip.background = element_blank(), strip.text = element_text(face = "bold"),
     axis.text = element_text(color = "black"), axis.title = element_text(color = "black"),
     text = element_text(size = 15)) +
-  scale_colour_manual(values = coloursList$condition) +
-  scale_fill_manual(values = coloursList$condition)
+  scale_colour_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
+  scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label)
 mh
 ```
 
@@ -2606,11 +2606,11 @@ n_cells(sce)
 :::
 
 ```{r, label = "report_qc_counts_plot", fig.cap = "Number of cells in each condition.", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
-plotCounts(sce, color_by = "condition") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
+plotCounts(sce, color_by = "condition") + scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) + theme_prism(axis_text_angle = 45)
 ```
 
 ```{r, label = "report_qc_counts_plot_by_sample", fig.cap = "Number of cells in each sample, coloured by condition.", fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
-plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_manual(values = coloursList$condition) + theme_prism(axis_text_angle = 45)
+plotCounts(sce, color_by = "condition", group_by = "sample_id") + scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) + theme_prism(axis_text_angle = 45)
 ```
 
 ```{r, label = "report_qc_counts_plot_full", results = 'asis', fig.height=5, fig.width=max(6, nrow(md) * 0.6)}
@@ -2624,7 +2624,7 @@ if (!is.null(downsampleTo) && exists("originalCellCounts")) {
   originalCellNumbers <- dplyr::left_join(originalCellNumbers, md, by = "file_name")
   barplotAllCells <- ggplot(originalCellNumbers, aes(x = sample_id, y = Cells, fill = condition)) +
     geom_bar(stat = "identity") +
-    scale_fill_manual(values = coloursList$condition) +
+    scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
     labs(x = "Sample ID", y = "Number of Cells", title = "All Cells (before downsampling)") +
     theme_prism(axis_text_angle = 45) +
     geom_hline(yintercept = downsampleTo, linetype = "dashed", colour = "black")
@@ -2639,7 +2639,7 @@ cat("\n\n")
 ```{r, label = "report_qc_mds_build", include = FALSE}
 mdsList <- setNames(lapply(conditions, function(x) {
   mds1 <- CATALYST::pbMDS(x = sce, color_by = x, size_by = TRUE, features = featureType)
-  mds1 <- mds1 + scale_colour_manual(values = coloursList[[x]]) + theme_prism(base_size = 16) + theme(panel.grid = element_blank())
+  mds1 <- mds1 + scale_colour_manual(values = coloursList[[x]], labels = MARMOT::greek_label) + theme_prism(base_size = 16) + theme(panel.grid = element_blank())
   mds1
 }), conditions)
 ```
@@ -2726,7 +2726,7 @@ overallShare <- cumsum(rev(prop.table(table(sce[[batchColumn]]))))
 ggplot(batchShare, aes(x = cluster, y = Freq, fill = batch)) +
   geom_col(position = "fill") +
   geom_hline(yintercept = head(overallShare, -1), linetype = "dashed") +
-  scale_fill_manual(values = coloursList[[batchColumn]]) +
+  scale_fill_manual(values = coloursList[[batchColumn]], labels = MARMOT::greek_label) +
   labs(x = "Cluster", y = "Share of the cluster's cells", fill = "Batch") +
   theme_prism()
 ```
@@ -2834,7 +2834,8 @@ if (runMarkerPairPlots) {
           scale_fill_manual(values = clr_vals) +
           theme_prism() +
           theme(legend.position = "hide") +
-          ggtitle(paste0(x, "\nTransformed"))
+          labs(x = MARMOT::marker_label(markersToPlot[1], markerDisplay), y = MARMOT::marker_label(markersToPlot[2], markerDisplay)) +
+          ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed")))
       }
       median_esQN <- do.call(rbind, lapply(unique(esQN[[mergeBy]]), function(cl) {
         data.frame(V1 = cl, x = median(esQN[[markersToPlot[1]]][esQN[[mergeBy]] == cl]),
@@ -2849,7 +2850,8 @@ if (runMarkerPairPlots) {
         scale_fill_manual(values = clr_vals) +
         theme_prism() +
         theme(legend.position = "hide") +
-        ggtitle(paste0(x, "\nTransformed & QN"))
+        labs(x = MARMOT::marker_label(markersToPlot[1], markerDisplay), y = MARMOT::marker_label(markersToPlot[2], markerDisplay)) +
+        ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed & QN")))
       if (!quantileNormaliseAll) {
         return(list(q1, p1))
       } else {
@@ -3113,7 +3115,7 @@ cellsPerClusterBarplot
 ```
 
 ```{r, label = "report_clusters_cell_counts_by_condition", fig.cap = "Number of cells in each cluster, split by condition.", fig.height = ceiling(length(condLevels)/2)*4, fig.width = 16}
-cellsPerClusterBarplot + facet_wrap(~condition, scales = "free") + theme_prism(axis_text_angle = 90) + theme(legend.position = "hide")
+cellsPerClusterBarplot + facet_wrap(~condition, scales = "free", labeller = MARMOT::label_greek) + theme_prism(axis_text_angle = 90) + theme(legend.position = "hide")
 ```
 
 ```{r, label = "report_clusters_cell_counts_by_sample", fig.cap = "Number of cells in each cluster, one panel per sample.", fig.height=(4*(ceiling(length(unique(df$sample_id)))/3)), fig.width = 18}
@@ -3134,7 +3136,7 @@ openxlsx::write.xlsx(
 ```{r, label = "report_clusters_frequency", fig.cap = "Proportion of each sample's cells in each cluster, grouped by condition.", fig.width = ceiling(length(condLevels)/2)*10, fig.height=5}
 { sorted_ids <- gtools::mixedsort(names(coloursList[[paste0(mergeBy, knn)]]))
   sorted_pal <- coloursList[[paste0(mergeBy, knn)]][sorted_ids]
-  plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism(axis_text_angle = 45) + scale_fill_manual(values = sorted_pal, breaks = sorted_ids) }
+  plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free", labeller = MARMOT::label_greek) + theme_prism(axis_text_angle = 45) + scale_fill_manual(values = sorted_pal, breaks = sorted_ids) }
 ```
 
 ```{r, label = "report_clusters_frequency_save", include = FALSE}
@@ -3142,7 +3144,7 @@ if (gimmePDFs) {
   sorted_ids <- gtools::mixedsort(names(coloursList[[paste0(mergeBy, knn)]]))
   sorted_pal <- coloursList[[paste0(mergeBy, knn)]][sorted_ids]
   pdf(file = file.path(pdfDir, "cluster_barplot.pdf"), width = ceiling(length(condLevels)/2)*10, height = 5, bg = "transparent")
-  print(plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free") + theme_prism() + scale_fill_manual(values = sorted_pal, breaks = sorted_ids))
+  print(plotAbundances(sce, k = clusteringMethodToUse, by = "sample_id", k_pal = coloursList[[paste0(mergeBy, knn)]]) + facet_grid(~condition, space = "free", scales="free", labeller = MARMOT::label_greek) + theme_prism() + scale_fill_manual(values = sorted_pal, breaks = sorted_ids))
   dev.off()
 }
 ```
@@ -3171,9 +3173,9 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
   if (nrow(dfList[[i]]) >= 1) {
     g <- ggplot(dfList[[i]], aes(x = .data[["sample_id"]], y = .data[["Freq"]], fill = .data[["cluster_id"]]))
     g <- g + geom_bar(stat = "identity")
-    g <- g + facet_grid(~condition, scales = "free", space = "free")
+    g <- g + facet_grid(~condition, scales = "free", space = "free", labeller = MARMOT::label_greek)
     g <- g + scale_fill_manual(values = coloursList[[names(selectedClustersList)[[i]]]])
-    g <- g + ggtitle(names(dfList)[i])
+    g <- g + ggtitle(MARMOT::greek_label(names(dfList)[i]))
     g <- g + scale_x_discrete(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0), labels = seq(0, 100, 25), limits = c(0, 100))
     g <- g + theme_prism(axis_text_angle = 90)
     g <- g + theme(panel.border = element_blank(), panel.spacing.x = unit(1, "lines"))
@@ -3248,7 +3250,8 @@ clusterBoxplotList <- lapply(levels(kids), function(k) {
     scale_y_continuous(limits = c(min(clusterBoxPlotsDFMelt$value), maxY)) +
     geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
-    scale_fill_manual(values = coloursList$condition) +
+    scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
+    scale_x_discrete(labels = MARMOT::greek_label) +
     stat_pvalue_manual(clusterPvalues[[ctp]], label = "p.signif", tip.length = 0, hide.ns = TRUE, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
     theme_prism(axis_text_angle = 45) +
     ggtitle(paste("Cluster", ctp)) +
@@ -3341,10 +3344,11 @@ markerBoxplotList <- lapply(useMarkers, function(marker) {
     scale_y_continuous(limits = c(min(markerBoxplotsMeltDF$value), maxY)) +
     geom_boxplot(aes(fill = condition), alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_beeswarm(aes(fill = condition), pch = 21, size = 3, stroke = 0.3, cex = 2, corral = "random", corral.width = 0.9) +
-    scale_fill_manual(values = coloursList$condition) +
+    scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
+    scale_x_discrete(labels = MARMOT::greek_label) +
     stat_pvalue_manual(markerPvalues[[marker]], label = "p.signif", tip.length = 0, hide.ns = TRUE, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
     theme_prism(axis_text_angle = 45) +
-    ggtitle(marker) +
+    ggtitle(MARMOT::marker_label(marker, markerDisplay)) +
     theme(legend.position = "hide", axis.title = element_blank())
 })
 ylabtext <- switch(exprsToUse, "exprsTransformed" = "Transformed", "exprsQuantNorm" = "Quantile Normalised")
@@ -3377,9 +3381,10 @@ individualClusterMarkerBoxplots <- setNames(lapply(levels(markerBoxplotsMeltDF[[
     geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
     geom_boxplot(alpha = 0.2, show.legend = FALSE, outlier.shape = NA) +
     geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
-    scale_fill_manual(values = coloursList$condition) +
+    scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
     theme_prism(axis_text_angle = 45) +
-    ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", i))
+    scale_x_discrete(labels = function(x) MARMOT::marker_label(x, markerDisplay)) +
+    ylab("Median Quantile Normalised Expression") + xlab("Marker") + ggtitle(paste("Cluster", i))
   print(g1)
   cat("\n\n")
   return("g1" = g1)
@@ -3408,9 +3413,10 @@ for (i in seq_along(selectedClustersList)) {
         geom_point(position=position_jitterdodge(), pch = 21, size = 2, stroke = 0.2) +
         geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed", alpha = 0.3) +
         geom_vline(xintercept = (seq_along(useMarkers)+0.5)[-length(useMarkers)], linetype = "dotted", alpha = 0.3) +
-        scale_fill_manual(values = coloursList$condition) +
+        scale_fill_manual(values = coloursList$condition, labels = MARMOT::greek_label) +
         theme_prism(axis_text_angle = 45) +
-        ylab("Median Quantile Normalised Expression") + xlab("Condition") + ggtitle(paste("Cluster", j))
+        scale_x_discrete(labels = function(x) MARMOT::marker_label(x, markerDisplay)) +
+        ylab("Median Quantile Normalised Expression") + xlab("Marker") + ggtitle(paste("Cluster", j))
       print(g1)
     }
   } else {
@@ -3610,7 +3616,7 @@ for (i in seq_along(condLevels)) {
 }
 names(condLabels) <- condLevels
 dr2a <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = TRUE, show_grids = FALSE) +
-  facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
+  facet_wrap("condition", labeller = MARMOT::greek_labeller(condLabels), ncol = 2) +
   guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 ```
 
@@ -3620,7 +3626,7 @@ dr2a
 
 ```{r, label = "report_dr_by_condition_unlabelled", fig.cap = paste0("The ", dimRedMethodToUse, " embedding split by condition, coloured by cluster, without labels."), fig.height=ceiling(length(condLevels)/2)*6, fig.width=12}
 dr2b <- plotUMAPNice(df = as.data.frame(umapDFList[[umapsDFToPlot]]), colour_by = "cluster_id", show_density = FALSE, alpha = 0.85, text_size = 14, show_cluster_labels = FALSE, show_grids = FALSE) +
-  facet_wrap("condition", labeller = labeller("condition" = condLabels), ncol = 2) +
+  facet_wrap("condition", labeller = MARMOT::greek_labeller(condLabels), ncol = 2) +
   guides(colour = guide_legend(override.aes = list(size = dr_legend_dot, alpha = 1)))
 dr2b
 ```
@@ -3639,7 +3645,7 @@ if (gimmePDFs) {
 ```{r, label = "report_dr_coloured_by_condition", fig.cap = paste0("The ", dimRedMethodToUse, " embedding coloured by condition: all conditions together (top) and one panel per condition (bottom)."), fig.height=(6+length(conditionOrder)*2.5), fig.width=7}
 u1_by_cond <- plotUMAPNice(umapDFList[[umapsDFToPlot]], "condition")
 u2_by_cond <- plotUMAPNice(df = umapDFList[[umapsDFToPlot]], colour_by = "condition", show_density = FALSE) +
-  facet_wrap("condition", labeller = labeller("condition" = condLabels))
+  facet_wrap("condition", labeller = MARMOT::greek_labeller(condLabels))
 plot_grid(u1_by_cond, u2_by_cond, ncol = 1, align = "hv", rel_heights = c(1.4, 1))
 ```
 
@@ -3661,7 +3667,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
       name = "Normalised\nExpression\n",
       show_cluster_labels = var
       )
-    m1 <- m1 + ggtitle(marker) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
+    m1 <- m1 + ggtitle(MARMOT::marker_label(marker, markerDisplay)) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
     m1
   }), useMarkers)
   l1[["legend"]] <- cowplot::get_legend(l1[[1]])
@@ -3721,8 +3727,8 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
       name = "Normalised\nExpression\n",
       show_cluster_labels = var
       ) + 
-      facet_wrap(~condition, ncol = 2) +
-      ggtitle(marker)
+      facet_wrap(~condition, ncol = 2, labeller = MARMOT::label_greek) +
+      ggtitle(MARMOT::marker_label(marker, markerDisplay))
     m1 <- m1 + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank(), legend.position = "hide")
     m1
   }), useMarkers)
@@ -3821,7 +3827,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
     colour_by = paste0("is_", y),
     show_density = FALSE,
     alpha = 1
-  ) + ggtitle(paste0("Are ", mpt, "?")) +
+  ) + ggtitle(MARMOT::greek_label(paste0("Are ", mpt, "?"))) +
     theme(legend.position = "none")
   print(p1)
   cat("\n\n")
@@ -3862,7 +3868,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
   p3 <- ggplot(df_joint, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["density"]])) +
     geom_point(size = dr_point_size, alpha = 0.7, shape = 16) +
     scale_colour_gradientn(colours = get_palette_colours(viridisColour)) +
-    ggtitle(paste0(m1, " + ", m2, " density")) +
+    ggtitle(MARMOT::greek_label(paste0(MARMOT::marker_display(m1, markerDisplay), " + ", MARMOT::marker_display(m2, markerDisplay), " density"))) +
     coord_fixed() + dr_theme +
     labs(x = paste(dimRedMethodToUse, "dim 1"),
          y = paste(dimRedMethodToUse, "dim 2"),
@@ -4134,9 +4140,9 @@ plot_da_clusters <- function(i, by_condition = FALSE) {
   }
   gp <- gp + labs(x = paste(dimRedMethodToUse, "dim 1"), y = paste(dimRedMethodToUse, "dim 2"))
   if (by_condition) {
-    gp <- gp + facet_wrap(~ condition, ncol = 2)
+    gp <- gp + facet_wrap(~ condition, ncol = 2, labeller = MARMOT::label_greek)
   }
-  gp <- gp + ggtitle(names(clustersToMapList)[i])
+  gp <- gp + ggtitle(MARMOT::greek_label(names(clustersToMapList)[i]))
   gp <- gp + coord_fixed() +
     theme_prism() +
     theme(
