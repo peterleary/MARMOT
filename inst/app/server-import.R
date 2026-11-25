@@ -112,6 +112,9 @@ observe({
     # Kept so the FCS export can find the original FCS files
     files$dataDir <- dataDir
 
+    # Markers' display names (Display names for markers), for figures
+    files$markerDisplay <- tryCatch(marker_display_names(files$smd), error = function(e) character())
+
     # ── Labelled populations, as the last extension report made them ───────
     # Optional: offered as a "population" column wherever clusters are
     rec <- tryCatch(MARMOT::read_labelled_populations(dataDir), error = function(e) {

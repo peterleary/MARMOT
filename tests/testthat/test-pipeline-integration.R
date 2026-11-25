@@ -295,3 +295,37 @@ test_that("label, then regenerate: populations merge, a cluster drops, and DA/DS
   expect_identical(rec$population, pops$Population)
   expect_identical(rec$cells, as.integer(pops$Cells))
 })
+
+test_that("Greek letters in a condition and in display names render, PDFs included", {
+  skip_pipeline_deps()
+
+  gamma <- intToUtf8(0x3b3); alpha <- intToUtf8(0x3b1)   # the file stays ASCII
+  treated <- paste0("IFN-", gamma, " treated")
+  test_dir <- make_test_pipeline_data(n_cells = 300, n_markers = 6, params = list(gimmePDFs = "TRUE"))
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+
+  sheets <- openxlsx::getSheetNames(meta_path)
+  data <- lapply(sheets, function(s) openxlsx::read.xlsx(meta_path, sheet = s, check.names = FALSE, sep.names = " "))
+  names(data) <- sheets
+  data[["File Data"]]$condition[data[["File Data"]]$condition == "Treatment"] <- treated
+  sd <- data[["Study Data"]]
+  sd$`Conditions Order`[sd$`Conditions Order` %in% "Treatment"] <- treated
+  sd$`Conditions To Test`[1] <- paste(treated, "vs Control")
+  sd$`Display names for markers` <- NA_character_
+  sd$`Display names for markers`[1:2] <- c(paste0("IFN-", gamma), paste0("CD8", alpha))
+  data[["Study Data"]] <- sd
+  wb <- openxlsx::createWorkbook()
+  for (s in sheets) { openxlsx::addWorksheet(wb, s); openxlsx::writeData(wb, s, data[[s]]) }
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  marmot(metadata = meta_path, name = "Greek", render = TRUE)
+  html <- list.files(test_dir, pattern = "MARMOT_Pipeline_Greek\\.html$", recursive = TRUE, full.names = TRUE)
+  expect_length(html, 1)
+
+  # The PDFs draw the letters with the Symbol font, not as dots
+  pdfs <- list.files(dirname(html), pattern = "\\.pdf$", recursive = TRUE, full.names = TRUE)
+  expect_gt(length(pdfs), 5)
+  uses_symbol <- vapply(pdfs, function(f) any(grepl("/BaseFont /Symbol", readLines(f, warn = FALSE), useBytes = TRUE)), TRUE)
+  expect_gt(sum(uses_symbol), 3)
+})

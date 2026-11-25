@@ -120,8 +120,8 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list(
       "runQC", "useQC",
       "downsampleTo", "RDataFolder", "excludeTheseSamples",
       "gimmePDFs", "greyscalePlots", "quantileNormaliseAll",
-      "runInParallel", "nCores", "ramPerCore",
-      "themeToUse", "viridisColour",
+      "nCores", "ramPerCore",
+      "viridisColour",
       "runScGate"
     ),
     Setting = c(
@@ -130,8 +130,8 @@ make_test_pipeline_data <- function(n_cells = 500, n_markers = 8, params = list(
       "None", "FALSE",
       NA, NA, NA,
       "FALSE", "FALSE", "FALSE",
-      "FALSE", "1", "4",
-      "prism", "viridis",
+      "1", "4",
+      "viridis",
       "FALSE"
     ),
     stringsAsFactors = FALSE
@@ -744,8 +744,8 @@ make_realistic_pipeline_data <- function(n_cells = 5000, params = list(),
       "runQC", "useQC",
       "downsampleTo", "RDataFolder", "excludeTheseSamples",
       "gimmePDFs", "greyscalePlots", "quantileNormaliseAll",
-      "runInParallel", "nCores", "ramPerCore",
-      "themeToUse", "viridisColour",
+      "nCores", "ramPerCore",
+      "viridisColour",
       "runScGate"
     ),
     Setting = c(
@@ -754,8 +754,8 @@ make_realistic_pipeline_data <- function(n_cells = 5000, params = list(),
       "None", "FALSE",
       NA, NA, NA,
       "FALSE", "FALSE", "FALSE",
-      "FALSE", "1", "4",
-      "prism", "viridis",
+      "1", "4",
+      "viridis",
       "FALSE"
     ),
     stringsAsFactors = FALSE

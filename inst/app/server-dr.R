@@ -397,7 +397,7 @@ umapReactive <- eventReactive(
       # ── Return both plots ───────────────────────────────────────────
       list(
         umapInteractive = umapInteractive,
-        umapStatic      = umapStatic
+        umapStatic      = greek_plot(umapStatic, inputDataReactive$Results$markerDisplay)
       )
 
     }, error = function(e) {

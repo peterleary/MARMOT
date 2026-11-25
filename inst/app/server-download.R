@@ -60,7 +60,7 @@ output$dlFP <- downloadHandler(
     if (fpw <= 0) fpw <- session$clientData$output_umapFeaturePlotOutput_width %||% 1000   # "fit": the box's width
     w  <- fpw / 60
     h  <- as.numeric(input$figHeightFP) / 60
-    fp <- featurePlotReactive$fp
+    fp <- greek_plot(featurePlotReactive$fp, inputDataReactive$Results$markerDisplay)
 
     is_heatmap <- inherits(fp, "Heatmap") || inherits(fp, "HeatmapList")
     needs_arrange <- isTRUE(featurePlotReactive$needs_arrange) &&

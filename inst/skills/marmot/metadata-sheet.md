@@ -46,6 +46,7 @@ This is where conditions, contrasts, and the panel live. Columns are independent
 | `Markers to include` | Marker names you want analysed — must exactly match the antigen names parsed from the FCS files. | `CD4`, `CD8a`, `Ki-67` |
 | `Marker Type` | The type/state class for each marker, in the **same order** as `Markers to include`. Lowercase: `type` or `state`. | `type`, `type`, `state` |
 | `Cofactors for markers to use` | Per-marker arcsinh cofactor (one number per marker, same order). `2500` is a sensible default for spectral. | `2500`, `2500`, `2500` |
+| `Display names for markers` | Optional. How each marker is named in figures, for example with Greek letters; blank keeps the marker's own name. Matching always uses the marker's own name. | `IFN-γ`, `CD8α`, *(blank)* |
 | `Markers to exclude completely` | Channels to drop entirely from the imported data — scatter (FSC/SSC), time, dump (LD), CD45, comp channels, etc. | `Time`, `SSC-H`, `FSC-A`, `LD` |
 | `Marker Pairs` | Optional: `Label: Marker1 Marker2` strings, one per row. Used to generate biaxial scatter plots in the QC section. | `Tregs: FoxP3 CD4` |
 

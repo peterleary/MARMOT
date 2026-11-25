@@ -6,6 +6,12 @@
 
   let scanning = $state(false);
 
+  // Greek letters for condition names (MARMOT draws them in figures)
+  let conditionGreek = $derived.by(() => {
+    const i = $metadata.file_data.headers.indexOf("condition");
+    return i >= 0 ? { [i]: { greek: true } } : {};
+  });
+
   // Pastel palette for condition colour-coding
   const PALETTE = [
     "#dbeafe", "#dcfce7", "#fef3c7", "#fce7f3", "#e0e7ff",
@@ -103,6 +109,7 @@
     bind:rows={$metadata.file_data.rows}
     onchange={handleChange}
     {cellStyle}
+    columnConfig={conditionGreek}
   />
 </div>
 

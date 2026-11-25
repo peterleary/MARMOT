@@ -172,7 +172,7 @@ output$dadsPlot <- renderPlot({
       }
     }
 
-    ComplexHeatmap::draw(hm)
+    ComplexHeatmap::draw(greek_plot(hm, res$markerDisplay))
   }, error = function(e) {
     showNotification(
       paste("DA/DS Heatmap error:", e$message),

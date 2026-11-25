@@ -88,6 +88,7 @@ pub fn create_new_metadata() -> MetadataFile {
             "Markers to include".to_string(),
             "Marker Type".to_string(),
             "Cofactors for markers to use".to_string(),
+            "Display names for markers".to_string(),
             "Markers to exclude completely".to_string(),
             "Marker Pairs".to_string(),
         ],

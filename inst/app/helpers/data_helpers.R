@@ -15,6 +15,30 @@ bucket_levels <- function(values, include, exclude = NULL) {
   c(intersect(include, present), setdiff(present, c(include, exclude)))
 }
 
+#' Markers' display names from the study sheet (the pipeline's rule)
+#'
+#' @param smd The study metadata (Study Data sheet)
+#' @return A named character vector: display name, named by marker; empty
+#'   when the sheet has no display names
+marker_display_names <- function(smd) {
+  if (is.null(smd) || !"Display names for markers" %in% names(smd)) return(character())
+  inc <- grep("include|cluster", names(smd), value = TRUE)[1]
+  if (is.na(inc)) return(character())
+  keep <- !is.na(smd[[inc]])
+  d <- trimws(as.character(smd[["Display names for markers"]][keep]))
+  stats::setNames(d, as.character(smd[[inc]][keep]))[!is.na(d) & nzchar(d)]
+}
+
+#' A plot with Greek letters drawn and markers' display names
+#'
+#' @param x A ggplot, a list of them, or a ComplexHeatmap heatmap
+#' @param display Markers' display names (see marker_display_names())
+#' @return `x`, relabelled (untouched when there is nothing to change)
+greek_plot <- function(x, display = NULL) {
+  if (inherits(x, "Heatmap") || inherits(x, "HeatmapList")) MARMOT::greek_heatmap(x, display)
+  else MARMOT::greek_ggplot(x, display)
+}
+
 #' The results' labels sheet: the one the MARMOT extension reads
 #' @param res The loaded results (with `dataDir`, the R_files folder)
 labels_sheet_path <- function(res) {

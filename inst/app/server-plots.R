@@ -1397,7 +1397,7 @@ observeEvent(
 # ── 8. Render Feature Plot Output ───────────────────────────────────────────
 output$umapFeaturePlotOutput <- renderPlot(
   {
-    fp <- featurePlotReactive$fp
+    fp <- greek_plot(featurePlotReactive$fp, inputDataReactive$Results$markerDisplay)
     # Say what to do rather than show an empty box
     validate(need(length(genesReactive$genes) > 0,
       "Pick one or more markers to plot: choose them in 'Select markers to plot', or paste a list."))
