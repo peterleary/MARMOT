@@ -4,13 +4,16 @@
 \alias{marker_label}
 \title{Labels for markers, using their display names}
 \usage{
-marker_label(x, display = NULL)
+marker_label(x, display = NULL, bold = FALSE)
 }
 \arguments{
 \item{x}{Marker names, as used in the data.}
 
 \item{display}{A named character vector: display name, named by marker.
 Markers without one keep their own name. `NULL` for none.}
+
+\item{bold}{Draw names with a Greek letter in bold, for titles and strips
+(plotmath ignores the theme's bold).}
 }
 \value{
 The display names, ready for figures (see [greek_label()]).

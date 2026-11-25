@@ -47,15 +47,17 @@
 #' `column_labels` in ComplexHeatmap.
 #'
 #' @param x Names (a character vector, or something that becomes one).
+#' @param bold Draw names with a Greek letter in bold, for titles and strips
+#'   (plotmath ignores the theme's bold).
 #' @return An expression vector as long as `x` when any name has a Greek
 #'   letter; otherwise `x` as a character vector, unchanged.
 #' @export
-greek_label <- function(x) {
+greek_label <- function(x, bold = FALSE) {
   x <- as.character(x)
   g <- .has_greek(x)
   if (!any(g)) return(x)
   out <- as.expression(as.list(ifelse(is.na(x), "NA", x)))
-  for (i in which(g)) out[[i]] <- .greek_lines(x[[i]])
+  for (i in which(g)) out[[i]] <- if (bold) call("bold", .greek_lines(x[[i]])) else .greek_lines(x[[i]])
   out
 }
 
@@ -63,6 +65,9 @@ greek_label <- function(x) {
 .greek_lines <- function(s) {
   lines <- trimws(strsplit(s, "\n", fixed = TRUE)[[1]])
   calls <- lapply(lines, function(l) if (nzchar(l)) .greek_call(l) else "")
+  if (length(calls) == 1) return(calls[[1]])
+  # displaystyle() keeps both lines full size (atop alone shrinks them)
+  calls <- lapply(calls, function(cl) call("displaystyle", cl))
   Reduce(function(a, b) call("atop", a, b), calls, right = TRUE)
 }
 
@@ -101,10 +106,11 @@ marker_display <- function(x, display = NULL) {
 #' Labels for markers, using their display names
 #'
 #' @inheritParams marker_display
+#' @inheritParams greek_label
 #' @return The display names, ready for figures (see [greek_label()]).
 #' @export
-marker_label <- function(x, display = NULL) {
-  greek_label(marker_display(x, display))
+marker_label <- function(x, display = NULL, bold = FALSE) {
+  greek_label(marker_display(x, display), bold = bold)
 }
 
 #' A ggplot2 facet labeller that draws Greek letters
@@ -118,7 +124,7 @@ marker_label <- function(x, display = NULL) {
 #' @export
 label_greek <- function(labels, multi_line = TRUE) {
   lapply(labels, function(v) lapply(as.character(v), function(s) {
-    e <- greek_label(s)
+    e <- greek_label(s, bold = TRUE)
     if (is.expression(e)) e else as.expression(s)
   }))
 }
@@ -155,7 +161,7 @@ greek_labeller <- function(lookup) {
       v <- as.character(v)
       shown <- unname(lookup[v])
       shown[is.na(shown)] <- v[is.na(shown)]
-      e <- greek_label(shown)
+      e <- greek_label(shown, bold = TRUE)
       # Plain text, as ggplot2's own labellers give it, unless a letter is Greek
       if (is.expression(e)) lapply(seq_along(e), function(i) e[i]) else shown
     })

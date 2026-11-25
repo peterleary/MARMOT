@@ -381,7 +381,7 @@ plotUMAPNice <- function(
   }
 
   gp <- gp +
-    labs(title = if (colour_by %in% useMarkers) MARMOT::marker_label(colour_by, markerDisplay) else MARMOT::greek_label(colour_by)) +
+    labs(title = if (colour_by %in% useMarkers) MARMOT::marker_label(colour_by, markerDisplay, bold = TRUE) else MARMOT::greek_label(colour_by, bold = TRUE)) +
     MARMOT::dr_corner_arrows(df[, c("x", "y")], MARMOT::dr_axis_names(dimRedMethodToUse)) +
     theme_prism() +
     theme(
@@ -2835,7 +2835,7 @@ if (runMarkerPairPlots) {
           theme_prism() +
           theme(legend.position = "hide") +
           labs(x = MARMOT::marker_label(markersToPlot[1], markerDisplay), y = MARMOT::marker_label(markersToPlot[2], markerDisplay)) +
-          ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed")))
+          ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed"), bold = TRUE))
       }
       median_esQN <- do.call(rbind, lapply(unique(esQN[[mergeBy]]), function(cl) {
         data.frame(V1 = cl, x = median(esQN[[markersToPlot[1]]][esQN[[mergeBy]] == cl]),
@@ -2851,7 +2851,7 @@ if (runMarkerPairPlots) {
         theme_prism() +
         theme(legend.position = "hide") +
         labs(x = MARMOT::marker_label(markersToPlot[1], markerDisplay), y = MARMOT::marker_label(markersToPlot[2], markerDisplay)) +
-        ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed & QN")))
+        ggtitle(MARMOT::greek_label(paste0(x, "\nTransformed & QN"), bold = TRUE))
       if (!quantileNormaliseAll) {
         return(list(q1, p1))
       } else {
@@ -3180,7 +3180,7 @@ selectedBarplotList <- setNames(lapply(seq_along(dfList), function(i) {
     g <- g + geom_bar(stat = "identity")
     g <- g + facet_grid(~condition, scales = "free", space = "free", labeller = MARMOT::label_greek)
     g <- g + scale_fill_manual(values = coloursList[[names(selectedClustersList)[[i]]]])
-    g <- g + ggtitle(MARMOT::greek_label(names(dfList)[i]))
+    g <- g + ggtitle(MARMOT::greek_label(names(dfList)[i], bold = TRUE))
     g <- g + scale_x_discrete(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0), labels = seq(0, 100, 25), limits = c(0, 100))
     g <- g + theme_prism(axis_text_angle = 90)
     g <- g + theme(panel.border = element_blank(), panel.spacing.x = unit(1, "lines"))
@@ -3353,7 +3353,7 @@ markerBoxplotList <- lapply(useMarkers, function(marker) {
     scale_x_discrete(labels = MARMOT::greek_label) +
     stat_pvalue_manual(markerPvalues[[marker]], label = "p.signif", tip.length = 0, hide.ns = TRUE, label.size = 9, bracket.size = 0.8, bracket.shorten = 0.1, bracket.nudge.y = -0.1) +
     theme_prism(axis_text_angle = 45) +
-    ggtitle(MARMOT::marker_label(marker, markerDisplay)) +
+    ggtitle(MARMOT::marker_label(marker, markerDisplay, bold = TRUE)) +
     theme(legend.position = "hide", axis.title = element_blank())
 })
 ylabtext <- switch(exprsToUse, "exprsTransformed" = "Transformed", "exprsQuantNorm" = "Quantile Normalised")
@@ -3672,7 +3672,7 @@ UMAPList <- setNames(lapply(c("With", "Without"), function(yn) {
       name = "Normalised\nExpression\n",
       show_cluster_labels = var
       )
-    m1 <- m1 + ggtitle(MARMOT::marker_label(marker, markerDisplay)) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
+    m1 <- m1 + ggtitle(MARMOT::marker_label(marker, markerDisplay, bold = TRUE)) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank())
     m1
   }), useMarkers)
   l1[["legend"]] <- cowplot::get_legend(l1[[1]])
@@ -3733,7 +3733,7 @@ DRperCondList <- setNames(lapply(c("With", "Without"), function(yn) {
       show_cluster_labels = var
       ) + 
       facet_wrap(~condition, ncol = 2, labeller = MARMOT::label_greek) +
-      ggtitle(MARMOT::marker_label(marker, markerDisplay))
+      ggtitle(MARMOT::marker_label(marker, markerDisplay, bold = TRUE))
     m1 <- m1 + theme(plot.title = element_text(hjust = 0.5, face = "bold"), axis.title = element_blank(), legend.position = "hide")
     m1
   }), useMarkers)
@@ -3832,7 +3832,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
     colour_by = paste0("is_", y),
     show_density = FALSE,
     alpha = 1
-  ) + ggtitle(MARMOT::greek_label(paste0("Are ", mpt, "?"))) +
+  ) + ggtitle(MARMOT::greek_label(paste0("Are ", mpt, "?"), bold = TRUE)) +
     theme(legend.position = "none")
   print(p1)
   cat("\n\n")
@@ -3873,7 +3873,7 @@ invisible(lapply(names(scgate_models), function(mpt) {
   p3 <- ggplot(df_joint, aes(x = .data[["x"]], y = .data[["y"]], colour = .data[["density"]])) +
     geom_point(size = dr_point_size, alpha = 0.7, shape = 16) +
     scale_colour_gradientn(colours = get_palette_colours(viridisColour)) +
-    ggtitle(MARMOT::greek_label(paste0(MARMOT::marker_display(m1, markerDisplay), " + ", MARMOT::marker_display(m2, markerDisplay), " density"))) +
+    ggtitle(MARMOT::greek_label(paste0(MARMOT::marker_display(m1, markerDisplay), " + ", MARMOT::marker_display(m2, markerDisplay), " density"), bold = TRUE)) +
     coord_fixed() + dr_theme +
     labs(x = paste(dimRedMethodToUse, "dim 1"),
          y = paste(dimRedMethodToUse, "dim 2"),
@@ -4150,7 +4150,7 @@ plot_da_clusters <- function(i, by_condition = FALSE) {
   if (by_condition) {
     gp <- gp + facet_wrap(~ condition, ncol = 2, labeller = MARMOT::label_greek)
   }
-  gp <- gp + ggtitle(MARMOT::greek_label(names(clustersToMapList)[i]))
+  gp <- gp + ggtitle(MARMOT::greek_label(names(clustersToMapList)[i], bold = TRUE))
   gp <- gp + coord_fixed() +
     theme_prism() +
     theme(

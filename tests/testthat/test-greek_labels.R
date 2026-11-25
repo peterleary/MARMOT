@@ -43,7 +43,7 @@ test_that("display names as text, and prepared strip labels with two lines", {
   expect_identical(marker_display("CD4"), "CD4")
   lk <- c(A = paste0("IFN-", g(0x3b3), " \n n = 9"), B = "B \n n = 3")
   e <- greek_label(lk)
-  expect_identical(e[[1]], quote(atop("IFN-" * gamma, "n = 9")))
+  expect_identical(e[[1]], quote(atop(displaystyle("IFN-" * gamma), displaystyle("n = 9"))))
   lab <- greek_labeller(lk)(data.frame(condition = c("A", "B", "C")))
   expect_length(lab$condition, 3)
   expect_identical(greek_labeller(NULL)(data.frame(antigen = c("CD4", "CD8")))$antigen, c("CD4", "CD8"))

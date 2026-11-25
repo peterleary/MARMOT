@@ -4,10 +4,13 @@
 \alias{greek_label}
 \title{Figure labels that draw Greek letters}
 \usage{
-greek_label(x)
+greek_label(x, bold = FALSE)
 }
 \arguments{
 \item{x}{Names (a character vector, or something that becomes one).}
+
+\item{bold}{Draw names with a Greek letter in bold, for titles and strips
+(plotmath ignores the theme's bold).}
 }
 \value{
 An expression vector as long as `x` when any name has a Greek
