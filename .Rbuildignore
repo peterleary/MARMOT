@@ -37,3 +37,4 @@
 ^\.claude-plugin$
 ^notes$
 ^V2_PLAN\.md$
+^\.git$
