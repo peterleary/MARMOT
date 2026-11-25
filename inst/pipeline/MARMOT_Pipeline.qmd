@@ -381,7 +381,7 @@ plotUMAPNice <- function(
   }
 
   gp <- gp +
-    labs(title = colour_by) +
+    labs(title = if (colour_by %in% useMarkers) MARMOT::marker_label(colour_by, markerDisplay) else MARMOT::greek_label(colour_by)) +
     MARMOT::dr_corner_arrows(df[, c("x", "y")], MARMOT::dr_axis_names(dimRedMethodToUse)) +
     theme_prism() +
     theme(
@@ -403,13 +403,16 @@ plotUMAPNice <- function(
       df |>
         dplyr::group_by(.data[[cluster_labels]]) |>
         dplyr::summarise(x = median(x), y = median(y)))
+    # Labels with a Greek letter are drawn with plotmath; others as they are
+    parse_labels <- is.expression(MARMOT::greek_label(label_coords[[cluster_labels]]))
+    label_coords$label_text <- if (parse_labels) MARMOT::greek_parse_text(label_coords[[cluster_labels]]) else as.character(label_coords[[cluster_labels]])
     if (colour_by %in% useMarkers) {
       label_coords[[colour_by]] <- lapply(label_coords[[cluster_labels]], function(level) {
         mean(df[[colour_by]][df[[cluster_labels]] == level])
       }) |> unlist()
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[colour_by]]), colour = "black", show.legend = FALSE)
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = label_text, fill = .data[[colour_by]]), parse = parse_labels, colour = "black", show.legend = FALSE)
     } else {
-      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = .data[[cluster_labels]], fill = .data[[cluster_labels]]), colour = "black", show.legend = FALSE)
+      gp <- gp + geom_label_repel(data = label_coords, aes(x = x, y = y, label = label_text, fill = .data[[cluster_labels]]), parse = parse_labels, colour = "black", show.legend = FALSE)
     }
   }
 
@@ -423,13 +426,13 @@ plotUMAPNice <- function(
     gp <- gp + scale_colour_gradientn(name, colours = get_palette_colours(viridisColour))
     gp <- gp + scale_fill_gradientn(name, colours = get_palette_colours(viridisColour))
   } else {
-    gp <- gp + scale_colour_manual(values = coloursList[[colour_by]])
-    gp <- gp + scale_fill_manual(values = coloursList[[colour_by]])
+    gp <- gp + scale_colour_manual(values = coloursList[[colour_by]], labels = MARMOT::greek_label)
+    gp <- gp + scale_fill_manual(values = coloursList[[colour_by]], labels = MARMOT::greek_label)
   }
 
   # Faceting
   if (!is.null(facet_by)) {
-    gp <- gp + facet_wrap(facets = as.formula(paste("~", facet_by)))
+    gp <- gp + facet_wrap(facets = as.formula(paste("~", facet_by)), labeller = MARMOT::label_greek)
   }
 
   return(gp)
@@ -708,6 +711,13 @@ if (anyNA(cfToUse)) {
        "'Cofactors for markers to use'. Please check: ",
        paste(useMarkers[is.na(cfToUse)], collapse = ", "))
 }
+
+# Display names: how each marker is named in figures (for example with Greek
+# letters). Optional; matching always uses the marker's own name.
+markerDisplay <- if ("Display names for markers" %in% names(smd)) {
+  d <- trimws(as.character(smd$`Display names for markers`[!is.na(smd[[include_col]])]))
+  stats::setNames(d, useMarkers)[!is.na(d) & nzchar(d)]
+} else NULL
 
 # Contrasts
 # Each entry reads "A over B"; "vs", "versus" and "v" are read as "over" too.

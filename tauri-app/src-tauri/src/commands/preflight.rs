@@ -94,6 +94,7 @@ const STUDY_DATA_KNOWN: &[&str] = &[
     "Markers to include",
     "Marker Type",
     "Cofactors for markers to use",
+    "Display names for markers",
     "Markers to exclude completely",
     "Marker Pairs",
 ];

@@ -106,3 +106,19 @@ label_greek <- function(labels, multi_line = TRUE) {
     if (is.expression(e)) e else as.expression(s)
   }))
 }
+
+#' Text labels that draw Greek letters
+#'
+#' For text drawn from data, such as `geom_text()` or
+#' `ggrepel::geom_label_repel()` labels: returns each name as plotmath text, to
+#' draw with `parse = TRUE`. Names without a Greek letter come back quoted, so
+#' they are drawn exactly as they are.
+#'
+#' @param x Names.
+#' @return A character vector of plotmath text, one per name.
+#' @export
+greek_parse_text <- function(x) {
+  e <- greek_label(x)
+  if (!is.expression(e)) e <- as.expression(as.list(ifelse(is.na(e), "NA", e)))
+  vapply(seq_along(e), function(i) paste(deparse(e[[i]]), collapse = ""), "")
+}
