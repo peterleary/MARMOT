@@ -2916,6 +2916,7 @@ if("type" %in% markerType && "state" %in% markerType) {
     hm_pal = hmPalToUse,
     k_pal = coloursList[[paste0(mergeBy, knn)]]
     )
+  pET <- MARMOT::greek_heatmap(pET, markerDisplay)
   heatmapsList[["Type"]] <- pET
   ComplexHeatmap::draw(pET, merge_legend = TRUE)
   pETdf <- pET@matrix[row_order(pET),]
@@ -2952,6 +2953,7 @@ if("type" %in% markerType && "state" %in% markerType) {
     hm_pal = hmPalToUse,
     k_pal = coloursList[[paste0(mergeBy, knn)]]
     )
+  pES <- MARMOT::greek_heatmap(pES, markerDisplay)
   heatmapsList[["State"]] <- pES
   ComplexHeatmap::draw(pES, merge_legend = TRUE)
   pESdf <- pES@matrix[row_order(pES),]
@@ -2995,6 +2997,7 @@ if (gimmePDFs) {
 
 ```{r, label = "report_clusters_heatmap_all_markers", fig.cap = "Median scaled expression of every marker in each cluster. The bars on the right show each cluster's share of all cells.", fig.height=max(6, ceiling(length(numbersOfClusters)/2.5)), fig.width=max(10, ceiling(length(useMarkers)/2))}
 exH <- plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]])
+exH <- MARMOT::greek_heatmap(exH, markerDisplay)
 ComplexHeatmap::draw(exH, merge_legend = TRUE)
 ```
 
@@ -3033,7 +3036,7 @@ if (gimmePDFs) {
     width = max(10, ceiling(length(useMarkers)/2)),
     height = max(6, ceiling(length(numbersOfClusters)/2.5)), bg = "transparent"
     )
-  ComplexHeatmap::draw(plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]]), merge_legend = TRUE)
+  ComplexHeatmap::draw(MARMOT::greek_heatmap(plotExprHeatmap(x = sce, features = NULL, by = "cluster_id", k = clusteringMethodToUse, bars = TRUE, perc = TRUE, col_clust = FALSE, hm_pal = hmPalToUse, k_pal = coloursList[[paste0(mergeBy, knn)]]), markerDisplay), merge_legend = TRUE)
   dev.off()
 }
 ```
@@ -3056,6 +3059,7 @@ pFH <- plotFreqHeatmap(
   k_pal = coloursList[[paste0(mergeBy, knn)]]
   )
 pFH <- apply_anno_colours(pFH, conditions, coloursList)
+pFH <- MARMOT::greek_heatmap(pFH, markerDisplay)
 pFH
 ```
 
@@ -3081,6 +3085,7 @@ if (gimmePDFs) {
 pCE <- plotClusterExprs(sce, k = clusteringMethodToUse, features = NULL)
 pCE$facet$params$ncol <- 12
 pCE$facet$params$nrow <- ceiling(length(useMarkers)/12)
+pCE$facet$params$labeller <- MARMOT::greek_labeller(markerDisplay)
 pCE + theme_prism()
 ```
 
@@ -3905,6 +3910,7 @@ daResultsList <- setNames(lapply(names(daList), function(cont) {
   cat("####", cont, "Top 20 \n\n")
   pDH <- plotDiffHeatmap(sce, daList[[cont]], normalize = TRUE, all = TRUE, top_n = 20, col_anno = conditions)
   pDH <- apply_anno_colours(pDH, conditions, coloursList)
+  pDH <- MARMOT::greek_heatmap(pDH, markerDisplay)
   print(pDH)
   cat("\n\n")
   cx <- cont |> gsub(pattern = " ", replacement = "_", x = _) |> gsub(pattern = "-", replacement = "_", x = _) |> gsub(pattern = "\\+", replacement = ".", x = _) |> gsub(pattern = "\\/", replacement = ".", x = _)
@@ -3997,6 +4003,7 @@ show_ds_results <- function(cont, merged = FALSE) {
   cat("**Heatmap**\n\n")
   pDH <- plotDiffHeatmap(if (merged) sceDS else sce, dsList[[cont]]$tbl_DS, normalize = TRUE, all = TRUE, fdr = dsPThreshToUse, col_anno = conditions, hm_pal = hmPalToUse)
   pDH <- apply_anno_colours(pDH, conditions, coloursList)
+  pDH <- MARMOT::greek_heatmap(pDH, markerDisplay)
   print(pDH)
   cat("\n\n")
   cat("**Full Results**\n\n")
@@ -4086,6 +4093,7 @@ for (i in seq_along(selectedClustersList)) {
       rect_gp = gpar(col = "white"),
       heatmap_legend_param = .da_hm$lgd_aes
     )
+    h1 <- MARMOT::greek_heatmap(h1, markerDisplay)
     print(h1)
     heatmapClustersList[[i]] <- h1
     if (gimmePDFs) {
@@ -4228,8 +4236,8 @@ cat("\n\n### Heatmap\n\n")
 ```
 
 ```{r, label = "report_labels_heatmap", fig.cap = "Median scaled expression of the clustering markers in each labelled population.", fig.height=6, fig.width=10, eval = useLabels}
-CATALYST::plotExprHeatmap(sceLab, features = as.character(unname(featuresToCluster)), k = "population", by = "cluster_id",
-                          scale = "last", bars = TRUE, perc = TRUE)
+MARMOT::greek_heatmap(CATALYST::plotExprHeatmap(sceLab, features = as.character(unname(featuresToCluster)), k = "population", by = "cluster_id",
+                          scale = "last", bars = TRUE, perc = TRUE), markerDisplay)
 ```
 
 ```{r, label = "report_labels_abundance_tab", results = 'asis', eval = useLabels}
@@ -4237,7 +4245,9 @@ cat("\n\n### Frequencies\n\n")
 ```
 
 ```{r, label = "report_labels_abundance", fig.cap = "Share of each sample's cells in each labelled population, by condition.", fig.height=6, fig.width=12, eval = useLabels}
-CATALYST::plotAbundances(sceLab, k = "population", by = "cluster_id", group_by = "condition")
+pLA <- CATALYST::plotAbundances(sceLab, k = "population", by = "cluster_id", group_by = "condition")
+pLA$facet$params$labeller <- MARMOT::label_greek
+pLA + scale_x_discrete(labels = MARMOT::greek_label)
 ```
 
 ```{r, label = "report_labels_da_ds", results = 'asis', eval = useLabels}

@@ -161,3 +161,66 @@ greek_labeller <- function(lookup) {
     })
   }
 }
+
+#' Greek letters in a finished heatmap
+#'
+#' Takes a ComplexHeatmap heatmap (from MARMOT, CATALYST or `Heatmap()`) and
+#' swaps in labels that draw Greek letters: row and column names, and the
+#' legends of its annotations (conditions, clusters). Row or column names that
+#' are markers show their display names. Nothing in the data changes, and a
+#' heatmap without Greek letters or display names comes back untouched.
+#'
+#' @param h A `Heatmap` or `HeatmapList`.
+#' @param display Display names for markers, as for [marker_label()].
+#' @return `h`, relabelled.
+#' @export
+greek_heatmap <- function(h, display = NULL) {
+  if (inherits(h, "HeatmapList")) {
+    h@ht_list <- lapply(h@ht_list, function(x) if (inherits(x, "Heatmap")) greek_heatmap(x, display) else x)
+    return(h)
+  }
+  if (!inherits(h, "Heatmap")) return(h)
+
+  relabel <- function(x) {
+    if (is.null(x) || !length(x)) return(NULL)
+    x <- x0 <- as.character(x)
+    # CATALYST's DS rows read "marker(cluster)": the marker part gets its display name
+    for (mk in names(display)[!is.na(display) & nzchar(trimws(display))]) {
+      hit <- startsWith(x, paste0(mk, "("))
+      x[hit] <- paste0(display[[mk]], substring(x[hit], nchar(mk) + 1))
+    }
+    e <- marker_label(x, display)
+    if (is.expression(e) || !identical(e, x0)) e else NULL
+  }
+
+  # Row and column names: rebuild the text annotation that draws them
+  for (dim in c("row", "column")) {
+    p <- methods::slot(h, paste0(dim, "_names_param"))
+    new <- relabel(p$labels)
+    if (is.null(new) || is.null(p$anno)) next
+    near <- p$side %in% c("left", "bottom")   # text runs towards the heatmap
+    p$labels <- new
+    p$anno <- ComplexHeatmap::anno_text(
+      new, which = dim, gp = p$gp, rot = p$rot,
+      just = if (isTRUE(p$centered)) "centre" else if (near) "right" else "left",
+      location = if (isTRUE(p$centered)) grid::unit(0.5, "npc") else grid::unit(if (near) 1 else 0, "npc"))
+    methods::slot(h, paste0(dim, "_names_param")) <- p
+  }
+
+  # Annotation legends (conditions, clusters): Greek labels for their levels
+  for (side in c("top_annotation", "bottom_annotation", "left_annotation", "right_annotation")) {
+    ha <- methods::slot(h, side)
+    if (is.null(ha) || !methods::is(ha, "HeatmapAnnotation")) next
+    for (nm in names(ha@anno_list)) {
+      a <- ha@anno_list[[nm]]
+      cm <- a@color_mapping
+      if (is.null(cm) || !methods::is(cm, "ColorMapping") || cm@type != "discrete") next
+      lab <- greek_label(cm@levels)
+      if (!is.expression(lab)) next
+      a@legend_param$labels <- lab
+      ha@anno_list[[nm]] <- a
+    }
+    methods::slot(h, side) <- ha
+  }
+  h
+}
