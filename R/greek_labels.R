@@ -152,16 +152,17 @@ greek_parse_text <- function(x) {
 #' they are.
 #'
 #' @param lookup A named character vector: the label, named by facet value.
+#' @param bold Draw labels with a Greek letter in bold (MARMOT's strips are).
 #' @return A ggplot2 labeller.
 #' @export
-greek_labeller <- function(lookup) {
+greek_labeller <- function(lookup, bold = TRUE) {
   if (is.null(lookup)) lookup <- character()
   function(labels, multi_line = TRUE) {
     lapply(labels, function(v) {
       v <- as.character(v)
       shown <- unname(lookup[v])
       shown[is.na(shown)] <- v[is.na(shown)]
-      e <- greek_label(shown, bold = TRUE)
+      e <- greek_label(shown, bold = bold)
       # Plain text, as ggplot2's own labellers give it, unless a letter is Greek
       if (is.expression(e)) lapply(seq_along(e), function(i) e[i]) else shown
     })
@@ -229,4 +230,81 @@ greek_heatmap <- function(h, display = NULL) {
     methods::slot(h, side) <- ha
   }
   h
+}
+
+#' Greek letters and display names in a finished ggplot
+#'
+#' Relabels a plot after it is made, for code that builds plots in many
+#' places (such as the Explorer): titles and axis titles, discrete scales and
+#' facet strips draw Greek letters, and markers show their display names.
+#' Labels a plot already sets are kept. A plot with no Greek letters, and no
+#' display names to apply, comes back untouched.
+#'
+#' @param p A ggplot, or a list of them.
+#' @param display Display names for markers, as for [marker_label()].
+#' @return `p`, relabelled.
+#' @export
+greek_ggplot <- function(p, display = NULL) {
+  if (is.list(p) && !inherits(p, "gg")) return(lapply(p, greek_ggplot, display = display))
+  if (!inherits(p, "ggplot")) return(p)
+  display <- display[!is.na(display) & nzchar(trimws(display))]
+
+  # Anything to do? Greek letters in the labels or the data, or display names
+  labs_now <- ggplot2::get_labs(p)
+  texts <- unlist(lapply(labs_now, function(v) if (is.character(v)) v))
+  values <- unlist(lapply(p$data, function(v) if (is.factor(v)) levels(v) else if (is.character(v)) unique(v)))
+  if (!length(display) && !any(.has_greek(c(texts, values)))) return(p)
+
+  # Titles and axis titles
+  changed <- list()
+  for (nm in intersect(names(labs_now), c("title", "subtitle", "x", "y", "colour", "fill"))) {
+    v <- labs_now[[nm]]
+    if (!is.character(v) || length(v) != 1) next
+    e <- marker_label(v, display, bold = nm %in% c("title", "subtitle"))
+    if (is.expression(e) || !identical(e, v)) changed[[nm]] <- e
+  }
+  if (length(changed)) p <- p + do.call(ggplot2::labs, changed)
+
+  # Bold where the plot's theme is (plotmath ignores the theme's face)
+  theme <- tryCatch(ggplot2::complete_theme(p$theme), error = function(e) NULL)
+  is_bold <- function(el) isTRUE(tryCatch(ggplot2::calc_element(el, theme)$face %in% c("bold", "bold.italic"),
+                                          error = function(e) FALSE))
+  bold_legend <- is_bold("legend.text"); bold_axis <- is_bold("axis.text")
+
+  # Discrete scales: adjust the plot's own, or add one where ggplot2 would
+  # add a default when drawing
+  relabeller <- function(bold) function(breaks) marker_label(breaks, display, bold = bold)
+  relabel_breaks <- relabeller(bold_legend)
+  scales <- p$scales$clone()
+  for (i in seq_along(scales$scales)) {
+    sc <- scales$scales[[i]]
+    if (inherits(sc, "ScaleDiscrete") && inherits(sc$labels, "waiver")) {
+      sc <- sc$clone()
+      sc$labels <- relabeller(if (any(sc$aesthetics %in% c("x", "y"))) bold_axis else bold_legend)
+      scales$scales[[i]] <- sc
+    }
+  }
+  p$scales <- scales
+  for (a in intersect(names(p$mapping), c("x", "y", "colour", "fill"))) {
+    if (p$scales$has_scale(a)) next
+    v <- tryCatch(rlang::eval_tidy(p$mapping[[a]], data = p$data), error = function(e) NULL)
+    if (is.character(v) || is.factor(v)) {
+      p <- p + switch(a,
+        x = ggplot2::scale_x_discrete(labels = relabeller(bold_axis)),
+        y = ggplot2::scale_y_discrete(labels = relabeller(bold_axis)),
+        colour = ggplot2::scale_colour_discrete(labels = relabel_breaks),
+        fill = ggplot2::scale_fill_discrete(labels = relabel_breaks))
+    }
+  }
+
+  # Facet strips
+  if (identical(p$facet$params$labeller, ggplot2::label_value)) {
+    # A copy, so the plot passed in is left as it was (a ggproto child of a
+    # facet does not draw in ggplot2 4)
+    facet <- rlang::env_clone(p$facet)
+    class(facet) <- class(p$facet)
+    facet$params$labeller <- greek_labeller(display, bold = is_bold("strip.text"))
+    p$facet <- facet
+  }
+  p
 }

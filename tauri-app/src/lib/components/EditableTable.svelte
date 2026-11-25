@@ -10,6 +10,26 @@
   }
   function hideHelp() { helpBox = null; }
 
+  // Greek letters for columns that take them (columnConfig[i].greek): a small
+  // bar under the cell being edited; a click types the letter at the cursor
+  const GREEK = ["\u03b1", "\u03b2", "\u03b3", "\u03b4", "\u03ba", "\u03bb", "\u03bc"];
+  let greekBar = $state(null);   // { input, rowIdx, colIdx, left, top }
+  function showGreek(event, rowIdx, colIdx) {
+    const input = event.currentTarget;
+    const r = input.getBoundingClientRect();
+    greekBar = { input, rowIdx, colIdx, left: Math.max(8, r.left), top: r.bottom + 4 };
+  }
+  function hideGreek() { greekBar = null; }
+  function typeGreek(letter) {
+    if (!greekBar) return;
+    const { input, rowIdx, colIdx } = greekBar;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    input.value = input.value.slice(0, start) + letter + input.value.slice(end);
+    input.setSelectionRange(start + 1, start + 1);
+    handleCellEdit(rowIdx, colIdx, { target: { value: input.value } });
+  }
+
   function getCellStyle(rowIdx, colIdx, value) {
     if (!cellStyle) return "";
     const s = cellStyle(rowIdx, colIdx, value);
@@ -162,6 +182,14 @@
                       <option value={opt}>{opt}</option>
                     {/each}
                   </select>
+                {:else if columnConfig[colIdx]?.greek}
+                  <input
+                    type="text"
+                    value={cell}
+                    onchange={(e) => handleCellEdit(rowIdx, colIdx, e)}
+                    onfocus={(e) => showGreek(e, rowIdx, colIdx)}
+                    onblur={hideGreek}
+                  />
                 {:else}
                   <input
                     type="text"
@@ -186,6 +214,14 @@
   </div>
   {#if helpBox}
     <div class="col-help-box" style="left:{helpBox.left}px; top:{helpBox.top}px">{helpBox.text}</div>
+  {/if}
+  {#if greekBar}
+    <div class="greek-bar" style="left:{greekBar.left}px; top:{greekBar.top}px" role="toolbar" aria-label="Greek letters">
+      {#each GREEK as letter}
+        <!-- mousedown, not click, so the cell keeps the cursor -->
+        <button type="button" title={"Type " + letter} onmousedown={(e) => { e.preventDefault(); typeGreek(letter); }}>{letter}</button>
+      {/each}
+    </div>
   {/if}
 </div>
 
@@ -308,6 +344,16 @@
     flex-shrink: 0;
   }
   .col-help { margin-left: 0.25rem; color: #64748b; cursor: help; font-size: 0.85em; outline: none; }
+  .greek-bar {
+    position: fixed; z-index: 1000; display: flex; gap: 2px; padding: 3px;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+  .greek-bar button {
+    min-width: 1.7rem; padding: 0.15rem 0.3rem; border: 1px solid #e2e8f0; border-radius: 4px;
+    background: #f8fafc; font-size: 0.9rem; cursor: pointer;
+  }
+  .greek-bar button:hover { background: #e0f2fe; }
   .col-help-box {
     position: fixed; z-index: 1000; width: 22rem;
     padding: 0.5rem 0.65rem; background: #1e293b; color: #f8fafc; border-radius: 6px;

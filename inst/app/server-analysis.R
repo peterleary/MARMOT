@@ -974,7 +974,7 @@ analysisPlotReactive <- reactive({
 output$analysisPlotOutput <- renderPlot({
   p <- analysisPlotReactive()
   req(p)
-  p
+  greek_plot(p, inputDataReactive$Results$markerDisplay)
 },
 height = function() { as.integer(input$analysisFigHeight %||% 600) },
 width  = function() { as.integer(input$analysisFigWidth  %||% 900) })

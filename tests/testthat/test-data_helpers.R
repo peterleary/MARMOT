@@ -556,3 +556,11 @@ test_that("labelled populations become a column with their first cluster's colou
   # Offered wherever clusterings are, however many populations
   expect_true("population" %in% get_plottable_columns(data.frame(population = as.character(1:150))))
 })
+
+test_that("markers' display names come from the study sheet, blanks left out", {
+  smd <- data.frame(`Markers to include` = c("IFNg", "CD4", NA), `Display names for markers` = c("IFN-g", "", NA),
+                    check.names = FALSE)
+  expect_identical(marker_display_names(smd), c(IFNg = "IFN-g"))
+  expect_identical(marker_display_names(smd[, 1, drop = FALSE]), character())
+  expect_identical(marker_display_names(NULL), character())
+})

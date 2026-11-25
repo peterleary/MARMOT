@@ -142,8 +142,13 @@ fn parse_positive_int(v: &str) -> Option<u64> {
 fn has_unusual_chars(s: &str) -> bool {
     // Anything outside printable ASCII (letters, digits, common punctuation)
     // is flagged — covers unicode subscripts, superscripts, smart quotes,
-    // accented characters that R will factor-encode oddly, etc.
-    s.chars().any(|c| !c.is_ascii() || c.is_ascii_control())
+    // accented characters that R will factor-encode oddly, etc. Greek
+    // letters (and the micro sign) are fine: MARMOT draws them in figures.
+    s.chars().any(|c| (!c.is_ascii() && !is_greek(c)) || c.is_ascii_control())
+}
+
+fn is_greek(c: char) -> bool {
+    matches!(c, '\u{0391}'..='\u{03A9}' | '\u{03B1}'..='\u{03C9}' | '\u{00B5}')
 }
 
 /// Try to parse a contrast cell as `LHS <sep> RHS`. Accepts any of the
@@ -1512,5 +1517,14 @@ mod tests {
     fn parse_contrast_no_sep() {
         assert!(parse_contrast("AoverB").is_err());
         assert!(parse_contrast("A-B").is_err());
+    }
+
+    #[test]
+    fn greek_letters_are_not_unusual() {
+        assert!(!has_unusual_chars("IFN-\u{03B3} treated"));
+        assert!(!has_unusual_chars("\u{03B3}\u{03B4} T cells"));
+        assert!(!has_unusual_chars("\u{00B5}M"));
+        assert!(has_unusual_chars("CD4\u{2082}"));   // a subscript two is still flagged
+        assert!(has_unusual_chars("na\u{00EF}ve"));
     }
 }

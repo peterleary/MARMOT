@@ -4,10 +4,12 @@
 \alias{greek_labeller}
 \title{A facet labeller from prepared labels, drawing Greek letters}
 \usage{
-greek_labeller(lookup)
+greek_labeller(lookup, bold = TRUE)
 }
 \arguments{
 \item{lookup}{A named character vector: the label, named by facet value.}
+
+\item{bold}{Draw labels with a Greek letter in bold (MARMOT's strips are).}
 }
 \value{
 A ggplot2 labeller.

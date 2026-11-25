@@ -35,6 +35,8 @@
         cfg[i] = { type: "marker_pair", options: markers };
       } else if (h.includes("marker type")) {
         cfg[i] = { type: "dropdown", options: ["type", "state"] };
+      } else if (h.includes("display names for markers")) {
+        cfg[i] = { greek: true, help: "Optional. How this marker is named in figures, for example with Greek letters: IFN-\u03b3, CD8\u03b1. Leave blank to use the marker's own name. Matching with the FCS files always uses the marker's own name." };
       } else if (h.includes("cells per condition")) {
         cfg[i] = { help: "How many cells each sample of this condition shows in the maps. To give every condition the same total, whatever its number of samples, divide the total by that condition's number of samples: 10000/3 for 3 samples, 10000/4 for 4. Leave the whole column blank to show every cell." };
       }
