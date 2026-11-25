@@ -329,3 +329,54 @@ test_that("Greek letters in a condition and in display names render, PDFs includ
   uses_symbol <- vapply(pdfs, function(f) any(grepl("/BaseFont /Symbol", readLines(f, warn = FALSE), useBytes = TRUE)), TRUE)
   expect_gt(sum(uses_symbol), 3)
 })
+
+test_that("Condition colours from the sheet are the colours the results keep", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 300, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+
+  sheets <- openxlsx::getSheetNames(meta_path)
+  data <- lapply(sheets, function(s) openxlsx::read.xlsx(meta_path, sheet = s, check.names = FALSE, sep.names = " "))
+  names(data) <- sheets
+  sd <- data[["Study Data"]]
+  order <- sd$`Conditions Order`
+  # A name for the first condition, a code for the second, the rest blank
+  sd$`Condition colours` <- NA_character_
+  sd$`Condition colours`[which(!is.na(order))[1:2]] <- c("tomato", "#1B9E77")
+  data[["Study Data"]] <- sd
+  wb <- openxlsx::createWorkbook()
+  for (s in sheets) { openxlsx::addWorksheet(wb, s); openxlsx::writeData(wb, s, data[[s]]) }
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  marmot(metadata = meta_path, name = "Colours", render = TRUE)
+  h5ad <- list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE, full.names = TRUE)
+  e <- new.env()
+  invisible(capture.output(load_h5ad_to_env(h5ad, envir = e)))
+  conds <- stats::na.omit(order)
+  expect_identical(unname(e$coloursList$condition[conds[1:2]]), c("#FF6347", "#1B9E77"))
+})
+
+test_that("A condition colour that isn't a colour stops the run", {
+  skip_pipeline_deps()
+
+  test_dir <- make_test_pipeline_data(n_cells = 300, n_markers = 6)
+  on.exit(unlink(test_dir, recursive = TRUE), add = TRUE)
+  meta_path <- file.path(test_dir, "MARMOT_metadata.xlsx")
+
+  sheets <- openxlsx::getSheetNames(meta_path)
+  data <- lapply(sheets, function(s) openxlsx::read.xlsx(meta_path, sheet = s, check.names = FALSE, sep.names = " "))
+  names(data) <- sheets
+  sd <- data[["Study Data"]]
+  sd$`Condition colours` <- NA_character_
+  sd$`Condition colours`[which(!is.na(sd$`Conditions Order`))[1]] <- "not a colour"
+  data[["Study Data"]] <- sd
+  wb <- openxlsx::createWorkbook()
+  for (s in sheets) { openxlsx::addWorksheet(wb, s); openxlsx::writeData(wb, s, data[[s]]) }
+  openxlsx::saveWorkbook(wb, meta_path, overwrite = TRUE)
+
+  expect_error(suppressMessages(marmot(metadata = meta_path, name = "BadColour", render = TRUE)))
+  # It stopped before any results were written
+  expect_length(list.files(test_dir, pattern = "marmot_results\\.h5ad$", recursive = TRUE), 0)
+})

@@ -89,6 +89,7 @@ const FILE_DATA_REQUIRED: &[&str] = &["file_name", "sample_id", "condition"];
 /// it must match case-sensitively.
 const STUDY_DATA_KNOWN: &[&str] = &[
     "Conditions Order",
+    "Condition colours",
     "Cells per condition in UMAPs etc.",
     "Conditions To Test",
     "Markers to include",
@@ -596,6 +597,41 @@ fn check_conditions_order(metadata: &MetadataFile) -> CheckResult {
     }
 }
 
+/// Condition colours (optional): on the same row as each condition in
+/// Conditions Order, a colour code (#E41A1C) or an R colour name (tomato,
+/// grey50). Names can't be checked here; anything else certainly isn't a colour.
+fn check_condition_colours(metadata: &MetadataFile) -> CheckResult {
+    let Some(idx) = col_idx(&metadata.study_data, "Condition colours") else {
+        return CheckResult::skip("condition_colours", "Condition colours are colours", 1,
+            "No 'Condition colours' column (automatic colours)");
+    };
+    let order_idx = col_idx(&metadata.study_data, "Conditions Order");
+    let mut bad = vec![];
+    let mut orphans = vec![];
+    for (i, row) in metadata.study_data.rows.iter().enumerate() {
+        let v = row.get(idx).map(|s| s.trim()).unwrap_or("");
+        if v.is_empty() { continue; }
+        let hex = v.len() == 7 || v.len() == 9;
+        let is_hex = hex && v.starts_with('#') && v[1..].chars().all(|c| c.is_ascii_hexdigit());
+        let is_name = v.chars().next().map(|c| c.is_ascii_alphabetic()).unwrap_or(false)
+            && v.chars().all(|c| c.is_ascii_alphanumeric());
+        if !is_hex && !is_name { bad.push(format!("row {}: {:?}", i + 1, v)); }
+        let cond = order_idx.and_then(|o| row.get(o)).map(|s| s.trim()).unwrap_or("");
+        if cond.is_empty() { orphans.push(format!("row {}: {:?} has no condition beside it", i + 1, v)); }
+    }
+    if bad.is_empty() && orphans.is_empty() {
+        CheckResult::pass("condition_colours", "Condition colours are colours", 1, "OK")
+    } else if bad.is_empty() {
+        CheckResult::warn("condition_colours", "Condition colours are colours", 1,
+            format!("{} colour(s) with no condition on the same row: they are ignored", orphans.len()), orphans)
+    } else {
+        let mut details = bad;
+        details.extend(orphans);
+        CheckResult::fail("condition_colours", "Condition colours are colours", 1,
+            "Use a colour code such as #E41A1C, or a colour name such as tomato".to_string(), details)
+    }
+}
+
 fn check_knn_in_k_values(metadata: &MetadataFile) -> CheckResult {
     let knn = get_setting(metadata, "knn");
     let k_values = get_setting(metadata, "kValuesIWant");
@@ -1081,6 +1117,7 @@ pub fn check_metadata(metadata: MetadataFile, fcs_folder: String) -> Result<Pref
     checks.push(check_cofactors(&metadata));
     checks.push(check_contrasts(&metadata));
     checks.push(check_conditions_order(&metadata));
+    checks.push(check_condition_colours(&metadata));
     checks.push(check_knn_in_k_values(&metadata));
     checks.extend(check_k_values_sanity(&metadata));
 
@@ -1410,6 +1447,40 @@ mod tests {
             r
         });
         assert_eq!(check_conditions_order(&m).status, Status::Fail);
+    }
+
+    fn with_colours(vals: &[&str]) -> MetadataFile {
+        let mut m = base_metadata();
+        m.study_data.headers.push("Condition colours".into());
+        for (i, row) in m.study_data.rows.iter_mut().enumerate() {
+            row.push(vals.get(i).map(|v| v.to_string()).unwrap_or_default());
+        }
+        m
+    }
+
+    #[test]
+    fn condition_colours_absent_skips() {
+        assert_eq!(check_condition_colours(&base_metadata()).status, Status::Skip);
+    }
+
+    #[test]
+    fn condition_colours_codes_and_names_pass() {
+        assert_eq!(check_condition_colours(&with_colours(&["#E41A1C", "grey50"])).status, Status::Pass);
+        assert_eq!(check_condition_colours(&with_colours(&["tomato", ""])).status, Status::Pass);
+    }
+
+    #[test]
+    fn condition_colours_rubbish_fails() {
+        assert_eq!(check_condition_colours(&with_colours(&["#E41A1", "red"])).status, Status::Fail);
+        assert_eq!(check_condition_colours(&with_colours(&["light blue", ""])).status, Status::Fail);
+    }
+
+    #[test]
+    fn condition_colours_without_condition_warn() {
+        let mut m = with_colours(&["red", "blue"]);
+        let o = m.study_data.headers.iter().position(|h| h == "Conditions Order").unwrap();
+        m.study_data.rows[1][o] = "".into();
+        assert_eq!(check_condition_colours(&m).status, Status::Warn);
     }
 
     #[test]

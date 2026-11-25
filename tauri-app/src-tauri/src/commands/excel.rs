@@ -83,6 +83,7 @@ pub fn create_new_metadata() -> MetadataFile {
     let study_data = SheetData {
         headers: vec![
             "Conditions Order".to_string(),
+            "Condition colours".to_string(),
             "Cells per condition in UMAPs etc.".to_string(),
             "Conditions To Test".to_string(),
             "Markers to include".to_string(),

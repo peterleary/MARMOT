@@ -848,6 +848,23 @@ if (length(allConditionLevels) > length(palettePool)) {
 
 allConditionLevelColours <- setNames(palettePool[seq_along(allConditionLevels)], allConditionLevels)
 
+# Colours chosen in the sheet: 'Condition colours', on the same row as each
+# condition in 'Conditions Order'. Any colour R knows ("tomato", "#E41A1C");
+# a blank cell keeps the automatic colour.
+if ("Condition colours" %in% names(smd)) {
+  chosenColours <- trimws(as.character(smd$`Condition colours`[!is.na(smd$`Conditions Order`)]))
+  names(chosenColours) <- conditionOrder
+  chosenColours <- chosenColours[!is.na(chosenColours) & nzchar(chosenColours)]
+  isColour <- vapply(chosenColours, \(x) !inherits(try(grDevices::col2rgb(x), silent = TRUE), "try-error"), logical(1))
+  if (!all(isColour)) {
+    stop("❌ 'Condition colours' on the 'Study Data' sheet has something that isn't a colour for: ",
+         paste(names(chosenColours)[!isColour], collapse = ", "),
+         ". Use a colour name such as tomato, or a code such as #E41A1C.")
+  }
+  allConditionLevelColours[names(chosenColours)] <-
+    grDevices::rgb(t(grDevices::col2rgb(chosenColours)), maxColorValue = 255)
+}
+
 # Create named list of colours per condition
 coloursList <- setNames(
   lapply(conditions, \(x) {
