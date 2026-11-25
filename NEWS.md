@@ -10,6 +10,7 @@
 - **Batch correction with Harmony** (`batchColumn`). The cells' positions are corrected before clustering and dimension reduction; batch enters the DA and DS models; marker values are never changed. A *Batch correction* report tab shows the maps before and after. The design is checked before anything runs, in the pipeline and in the desktop app.
 - **Forgiving names.** Capitals, spaces, hyphens and underscores no longer break a run: "IL7R" and "Il7R", or "CD8a" and "CD8-A", line up, across FCS files, the metadata sheet, conditions and contrasts. The report says what it lined up.
 - **A fancier report.** Overview and Report provenance tabs, a Find panel, downloads, figure captions, and a figure-resolution setting. The provenance tab says which methods ran and whom to cite.
+- **Greek letters in figures.** Names with Greek letters (a condition "IFN-γ treated", a population "γδ T cells") are drawn properly everywhere, PDFs included, with R's plain PDF device (so files stay friendly to Affinity and Illustrator). A new optional column, *Display names for markers*, sets how each marker is named in figures (IFN-γ, CD8α) while matching keeps the marker's own name. The desktop app has Greek letter buttons for those cells.
 - **Manuscript-style maps** in the report and the Explorer: no axes, a fixed aspect ratio, a black halo around the cells, and two corner arrows naming the axes.
 - **Installation without compiling.** MARMOT and its R packages come ready-built from `peterleary.r-universe.dev`. The original Python PARC and PaCMAP are set up with pixi, with no conda needed. Quarto is found automatically (RStudio's and Positron's copies count), and `check_setup()` says in plain words what works.
 
@@ -25,6 +26,8 @@
 - **Contrasts** may be written "A vs B", "A versus B" or "A v B" as well as "A over B"; the Overview says how each was read. An entry that cannot be read as two conditions now stops the run, where before it was silently skipped.
 - The report and the documentation say plainly that MARMOT's own versions (MfastPG, Mphenograph, Mparc, Mpacmap) are fall-backs, not validated or supported, and ask you to use and cite the originals. The report names the *main k* (used for DA, DS and most figures) and says how far re-runs were tested to repeat.
 - The by-condition DA map PDFs are named like the others (`Contrast_1_..._subset.pdf`).
+- t-SNE uses `nCores` threads where Rtsne can (Linux and Docker; the macOS build has one thread). Results are unchanged.
+- The *markers by cluster* boxplots label their axis "Marker" (it said "Condition").
 - **A reload shows the first run's warnings again** (memory cap, downsampling, QC skipped, *Names lined up*).
 - **Labelled populations are saved in the results**: an extension run records which population each cluster became, adds *Populations* and *Per sample* sheets to `Labelled_populations_DA_DS.xlsx`, and the Explorer offers a *population* column wherever clusters are.
 

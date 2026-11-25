@@ -24,6 +24,7 @@ The set of fluorophore-conjugated antibodies (and their channels) used in the ex
 - `Markers to include` — the markers you want analysed (must match antigen names parsed from the FCS).
 - `Marker Type` — `type` or `state` for each, positionally aligned with `Markers to include`.
 - `Cofactors for markers to use` — per-marker arcsinh cofactor.
+- `Display names for markers` — optional: how each marker is named in figures, Greek letters welcome (`IFN-γ`, `CD8α`). Matching with the FCS files always uses the marker's own name.
 - `Markers to exclude completely` — channels dropped entirely (scatter, time, dump, CD45, comp).
 
 Channel names as written inside the FCS (the internal `fcs_colname`) are parsed automatically — the user works with antigen names, not channel names.
