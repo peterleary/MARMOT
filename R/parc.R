@@ -247,14 +247,12 @@ Mparc <- function(data,
   # Degree of each node (number of neighbors)
   degrees <- Matrix::rowSums(adj_sym)
 
-  # Intersection matrix: B = adj_sym %*% t(adj_sym)
-  # B[i,j] = number of common neighbors
-  # Only compute for edges that exist
-  B <- Matrix::tcrossprod(adj_sym)
-
-  # Compute Jaccard for each edge (vectorized sparse matrix indexing)
+  # Number of common neighbours for each edge: B = adj_sym %*% t(adj_sym),
+  # B[i,j] = common neighbours, read at the edges only. Worked out in blocks
+  # of cells (see .parc_edge_intersections), since the whole B overflows on
+  # large data.
   n_edges <- length(edge_i)
-  intersections <- B[cbind(edge_i, edge_j)]
+  intersections <- .parc_edge_intersections(adj_sym, edge_i, edge_j)
   union_sizes <- degrees[edge_i] + degrees[edge_j] - intersections
   jaccards <- ifelse(union_sizes > 0, intersections / union_sizes, 0)
 
@@ -282,6 +280,37 @@ Mparc <- function(data,
     jaccard = jaccards[keep],
     n = n
   )
+}
+
+
+#' Common neighbours of the two cells at each edge, in blocks of cells
+#'
+#' The same numbers as `Matrix::tcrossprod(adj_sym)[cbind(edge_i, edge_j)]`,
+#' without building the whole product at once. That product holds every
+#' two-step link in the graph (roughly cells x neighbours^2 entries) and, on
+#' large data, overflows the Matrix package's 32-bit index, which crashes R
+#' with a segfault. The counts are whole numbers, so working in blocks gives
+#' exactly the same result.
+#' @param adj_sym Symmetric sparse adjacency (cells x cells)
+#' @param edge_i,edge_j The edges, as 1-indexed row and column
+#' @param max_entries Rough cap on the entries of each block's product
+#' @keywords internal
+.parc_edge_intersections <- function(adj_sym, edge_i, edge_j, max_entries = 5e7) {
+  n <- nrow(adj_sym)
+  out <- numeric(length(edge_i))
+  if (!length(edge_i)) return(out)
+  deg <- Matrix::rowSums(adj_sym)
+  # Two-step links per cell are about the sum of its neighbours' degrees
+  per_cell <- max(1, mean(deg)^2)
+  block <- max(1000L, as.integer(max_entries / per_cell))
+  for (start in seq(1L, n, by = block)) {
+    end <- min(n, start + block - 1L)
+    sel <- which(edge_i >= start & edge_i <= end)
+    if (!length(sel)) next
+    B <- Matrix::tcrossprod(adj_sym[start:end, , drop = FALSE], adj_sym)
+    out[sel] <- B[cbind(edge_i[sel] - start + 1L, edge_j[sel])]
+  }
+  out
 }
 
 
