@@ -5,8 +5,9 @@
 # looks at nearly every channel, so these channels can make good cells look bad.
 # Two things decide which channels are kept out of QC:
 #
-# 1. A table of channels per instrument, in inst/extdata/qc_ignore_channels.csv,
-#    matched on the instrument name each FCS file carries ($CYT).
+# 1. The table of channels that are never markers, per instrument, in
+#    inst/extdata/instrument_channels.json, matched on the instrument name
+#    each FCS file carries ($CYT). QC skips the kinds it lists in qc_skips.
 # 2. A check for any instrument: FCS 3.2 lets a channel be stored differently
 #    from the rest of the file ($PnDATATYPE). flowCore ignores that and reads
 #    such channels as garbage, so they are always kept out of QC.
@@ -15,11 +16,23 @@
 
 #' The table of channels to keep out of QC, per instrument
 #'
+#' Read from `inst/extdata/instrument_channels.json`: the channels of the
+#' kinds QC skips, named exactly (not the `#` patterns).
+#'
 #' @return A data frame with columns `instrument`, `channel` and `reason`.
 #' @export
 qc_ignore_table <- function() {
-  utils::read.csv(system.file("extdata", "qc_ignore_channels.csv", package = "MARMOT"),
-                  stringsAsFactors = FALSE, check.names = FALSE)
+  tab <- jsonlite::read_json(system.file("extdata", "instrument_channels.json", package = "MARMOT"))
+  rows <- lapply(names(tab$instruments), function(inst) {
+    ch <- tab$instruments[[inst]]
+    data.frame(instrument = rep(inst, length(ch)), channel = names(ch),
+               reason = vapply(ch, as.character, character(1), USE.NAMES = FALSE),
+               stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, rows)
+  out <- out[out$reason %in% unlist(tab$qc_skips) & !grepl("#", out$channel, fixed = TRUE) & out$instrument != "*", , drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 #' Find the channels quality control should not judge
