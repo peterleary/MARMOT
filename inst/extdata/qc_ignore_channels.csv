@@ -1,0 +1,52 @@
+instrument,channel,reason
+FACSDiscover S8,"LightLoss (Imaging)-A",light loss
+FACSDiscover S8,"LightLoss (Imaging)-H",light loss
+FACSDiscover S8,"LightLoss (Imaging)-W",light loss
+FACSDiscover S8,"LightLoss (Violet)-A",light loss
+FACSDiscover S8,"LightLoss (Violet)-H",light loss
+FACSDiscover S8,"LightLoss (Violet)-W",light loss
+FACSDiscover S8,"Size (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Size (FSC)",imaging feature
+FACSDiscover S8,"Size (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Max Intensity (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Max Intensity (FSC)",imaging feature
+FACSDiscover S8,"Max Intensity (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Long Axis Moment (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Long Axis Moment (FSC)",imaging feature
+FACSDiscover S8,"Long Axis Moment (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Short Axis Moment (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Short Axis Moment (FSC)",imaging feature
+FACSDiscover S8,"Short Axis Moment (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Center of Mass (Y) (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Center of Mass (Y) (FSC)",imaging feature
+FACSDiscover S8,"Center of Mass (Y) (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Center of Mass (X) (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Center of Mass (X) (FSC)",imaging feature
+FACSDiscover S8,"Center of Mass (X) (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Total Intensity (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Total Intensity (FSC)",imaging feature
+FACSDiscover S8,"Total Intensity (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Radial Moment (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Radial Moment (FSC)",imaging feature
+FACSDiscover S8,"Radial Moment (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Eccentricity (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Eccentricity (FSC)",imaging feature
+FACSDiscover S8,"Eccentricity (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Diffusivity (LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Diffusivity (FSC)",imaging feature
+FACSDiscover S8,"Diffusivity (SSC (Imaging))",imaging feature
+FACSDiscover S8,"Delta CoM (SSC (Imaging)/LightLoss (Imaging))",imaging feature
+FACSDiscover S8,"Delta CoM (SSC (Imaging)/FSC)",imaging feature
+FACSDiscover S8,"Delta CoM (LightLoss (Imaging)/FSC)",imaging feature
+FACSDiscover S8,Saturated,instrument flag
+FACSDiscover S8,Sorted,instrument flag
+FACSDiscover S8,Row,instrument flag
+FACSDiscover S8,Column,instrument flag
+FACSDiscover S8,SaturatedChannels,instrument flag
+FACSDiscover S8,SaturatedChannels1,instrument flag
+FACSDiscover S8,SaturatedChannels2,instrument flag
+FACSDiscover S8,PhaseOffset,instrument flag
+FACSDiscover S8,WaveformPresent,instrument flag
+FACSDiscover S8,SpectralEventWidth,instrument flag
+FACSDiscover S8,MergedTriggerCount,instrument flag
+Aurora,Time,time

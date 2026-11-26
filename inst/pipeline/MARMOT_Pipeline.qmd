@@ -1076,6 +1076,16 @@ if (length(missing)) {
   stop("❌ Markers in metadata not found in FCS: ", paste(missing, collapse = ", "))
 }
 
+# A marker on a channel flowCore cannot read would feed nonsense into every result
+unreadableChannels <- MARMOT::qc_ignore_channels(fcs_files)
+unreadableChannels <- unreadableChannels$channel[grepl("cannot read", unreadableChannels$reason)]
+badMarkers <- panel$marker_name[panel$fcs_colname %in% unreadableChannels]
+if (length(badMarkers)) {
+  stop("❌ These markers sit on channels MARMOT can't read yet, so their values would be nonsense: ",
+       paste(badMarkers, collapse = ", "),
+       ". Please take them out of your markers in the metadata sheet.")
+}
+
 message("⚙️ Preparing cofactors for arcsinh transformation...")
 
 # Base cofactor vector, matched to FCS column names
@@ -1145,7 +1155,11 @@ if (runQC == "FlowAI") {
   expected_qc_files <- gsub("\\.fcs$", "_QC.fcs", md$file_name)
   # QC'd files on disk are reused only if they were made from exactly these FCS
   # files with exactly these QC settings (see ?MARMOT::qc_cache_stamp).
-  qc_stamp <- MARMOT::qc_cache_stamp(fcs_files, "FlowAI", list(remove_from = metricsQC))
+  # Channels that are not biology on this instrument, or that flowCore cannot read
+  qcIgnore <- MARMOT::qc_ignore_channels(fcs_files)
+  qcExclude <- c("FSC", "SSC", MARMOT::exact_channel_patterns(qcIgnore$channel))
+  qc_stamp <- MARMOT::qc_cache_stamp(fcs_files, "FlowAI", list(remove_from = metricsQC,
+                                                               exclude = qcExclude))
   qc_present <- dir.exists(qc_dir) &&
     all(expected_qc_files %in% list.files(qc_dir, pattern = "_QC\\.fcs", ignore.case = TRUE)) &&
     MARMOT::qc_cache_is_current(qc_dir, qc_stamp)
@@ -1169,7 +1183,8 @@ if (runQC == "FlowAI") {
       flow_auto_qc(
         fcsfiles       = ff,
         folder_results = qc_dir,
-        remove_from    = metricsQC
+        remove_from    = metricsQC,
+        ChExcludeFS    = qcExclude
       )
       # FlowAI decides which cells to remove, but its own "high quality" file
       # is not used: it clips bright values at the channel's declared range
@@ -1217,6 +1232,9 @@ if (runQC == "PeacoQC") {
   all_channels <- param_df$name
   fluor_channels <- all_channels[!grepl("^(FSC|SSC|Time)", all_channels, ignore.case = TRUE)]
   fluor_channels <- fluor_channels[!grepl("(Width|Height|Trigger)", fluor_channels, ignore.case = TRUE)]
+  # Channels that are not biology on this instrument, or that flowCore cannot read
+  qcIgnore <- MARMOT::qc_ignore_channels(fcs_files)
+  fluor_channels <- setdiff(fluor_channels, qcIgnore$channel)
 
   # QC'd files on disk are reused only if they were made from exactly these FCS
   # files with exactly these QC settings (see ?MARMOT::qc_cache_stamp). PeacoQC
@@ -2487,6 +2505,14 @@ if (exists("qc_skip_reason")) {
     "You ran QC using ", runQC, ", but chose **not** to apply it, so the results in this report include every cell. ",
     "The QC tab shows what QC would have removed.\n\n:::\n"))
 }
+unreadable <- if (exists("qcIgnore")) qcIgnore$channel[grepl("cannot read", qcIgnore$reason)] else character()
+if (length(unreadable) > 0) {
+  overviewWarnings <- c(overviewWarnings, paste0(
+    "::: {.callout-warning title='Unreadable channels'}\n\n",
+    "**", length(unreadable), " channel", if (length(unreadable) != 1) "s", "** in your FCS files (",
+    paste(unreadable, collapse = ", "), ") are stored in a way MARMOT can't read yet, so their values are nonsense. ",
+    "QC skipped them. Don't pick them as markers.\n\n:::\n"))
+}
 # The first run saves its warnings, so a reload can show them again
 if (is.null(RDataFolder)) MARMOT::save_overview_warnings(rFilesDir, overviewWarnings)
 cat(overviewWarnings, sep = "\n")
@@ -2526,6 +2552,15 @@ if (exists("qc_skip_reason")) {
   }
   if (exists("qcWasReused") && isTRUE(qcWasReused)) {
     cat("The QC results below were reused from an earlier run of exactly these FCS files with the same QC settings.\n\n")
+  }
+  if (exists("qcIgnore") && nrow(qcIgnore) > 0) {
+    cat("QC left out **", nrow(qcIgnore), " channel", if (nrow(qcIgnore) != 1) "s", "**. ",
+        "On this instrument they don't measure biology (imaging features, light loss and instrument flags), ",
+        "or MARMOT can't read them. They are still in your data. QC just didn't judge cells on them.\n\n", sep = "")
+    cat("::: {.callout-note collapse='true' title='Channels QC left out'}\n\n")
+    print(kable(qcIgnore[, c("channel", "reason")], format = "html",
+                col.names = c("Channel", "Reason")) |> kable_styling())
+    cat("\n\n:::\n\n")
   }
   print(kable(QCmini, format = "html", escape = FALSE, col.names = gsub("\\.", "", names(QCmini))) |> kable_styling())
   cat("\n\n")
