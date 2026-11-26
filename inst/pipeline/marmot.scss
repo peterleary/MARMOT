@@ -135,3 +135,18 @@ figcaption, .figure-caption {
   color: $text-muted;
   text-align: center;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Every figure and table centred, the same way throughout the report
+// ─────────────────────────────────────────────────────────────────
+main p:has(> a.lightbox),
+main p:has(> img),
+main p:has(> .marmot-code-img) { text-align: center; }
+main .tab-pane > img,
+main .tab-pane > a.lightbox { display: block; width: fit-content; margin-left: auto; margin-right: auto; }
+main table.table:not(.dataTable) {
+  width: auto !important;
+  max-width: 100%;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}

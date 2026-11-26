@@ -273,6 +273,8 @@
     box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
   }
   .marmot-inline-code:hover { background: #2e7d79; }
+  .marmot-code-wrap { position: relative; display: table; margin: 0 auto; max-width: 100%; }
+  .marmot-code-wrap.marmot-code-img { display: inline-block; }
   /* Highlight applied to the source lines of the chunk jumped to. inline (not
      block) so it decorates only the matched text, not a synthetic full-width
      row -- these spans are cloned verbatim into the Download panel's "Qmd
@@ -793,7 +795,49 @@
     // MARMOT: no crossref id, so use the chunk name from the figure's file name
     var link = (el.closest && el.closest('a.lightbox')) ||
                (el.querySelector && el.querySelector('a.lightbox'));
-    return link ? chunkKeyForLink(link) : null;
+    return (link && chunkKeyForLink(link)) || chunkKeyForMarker(el);
+  }
+
+  // MARMOT: every chunk's output starts with a comment naming the chunk
+  // (<!-- marmot-chunk: name -->, from a knitr hook in the setup chunk), so the
+  // chunk behind any table, data table or picture is the last such comment
+  // before it. Returns "chunk:<name>", or null.
+  var CHUNK_MARKERS = null;
+  function chunkMarkers() {
+    if (CHUNK_MARKERS) return CHUNK_MARKERS;
+    CHUNK_MARKERS = [];
+    var root = document.querySelector('main') || document.body;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
+    var n;
+    while ((n = walker.nextNode())) {
+      var m = n.nodeValue.match(/^\s*marmot-chunk:\s*(.+?)\s*$/);
+      if (m) CHUNK_MARKERS.push({ node: n, name: m[1] });
+    }
+    return CHUNK_MARKERS;
+  }
+  function chunkKeyForMarker(el) {
+    if (!el || !el.compareDocumentPosition) return null;
+    var marks = chunkMarkers(), found = null;
+    for (var i = 0; i < marks.length; i++) {
+      if (el.compareDocumentPosition(marks[i].node) & Node.DOCUMENT_POSITION_PRECEDING) found = marks[i];
+      else break;
+    }
+    return found ? 'chunk:' + found.name : null;
+  }
+
+  function codeBadge(title, key) {
+    var badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'marmot-inline-code';
+    badge.title = title;
+    badge.setAttribute('aria-label', title);
+    badge.textContent = '</>';
+    badge.addEventListener('click', function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      showChunkForId(key);
+    });
+    return badge;
   }
 
   // MARMOT: Quarto names each figure file after its chunk ("<chunk>-1.png"), and
@@ -926,6 +970,36 @@
         showChunkForId(key);
       });
       wrap.appendChild(badge);
+    });
+    // MARMOT: tables, data tables and pictures that still have no badge, matched
+    // to their chunk by the marker comment before them
+    var skip = '.marmot-pf-panel, pre, .sourceCode, [id^="fig-"], [id^="tbl-"], #quarto-embedded-source-code-modal';
+    document.querySelectorAll('main .html-widget.datatables').forEach(function (w) {
+      if (w.closest(skip) || w.querySelector('.marmot-inline-code')) return;
+      var key = chunkKeyForMarker(w);
+      if (!key || !chunkRangeForId(key)) return;
+      if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
+      w.appendChild(codeBadge('Show code for this table', key));
+    });
+    document.querySelectorAll('main table').forEach(function (t) {
+      if (t.closest(skip) || t.closest('.html-widget') || t.parentElement.classList.contains('marmot-code-wrap')) return;
+      var key = chunkKeyForMarker(t);
+      if (!key || !chunkRangeForId(key)) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'marmot-code-wrap';
+      t.parentNode.insertBefore(wrap, t);
+      wrap.appendChild(t);
+      wrap.appendChild(codeBadge('Show code for this table', key));
+    });
+    document.querySelectorAll('main img').forEach(function (img) {
+      if (img.closest(skip) || img.closest('a.lightbox') || img.closest('.marmot-code-wrap, .html-widget')) return;
+      var key = chunkKeyForMarker(img);
+      if (!key || !chunkRangeForId(key)) return;
+      var wrap = document.createElement('span');
+      wrap.className = 'marmot-code-wrap marmot-code-img';
+      img.parentNode.insertBefore(wrap, img);
+      wrap.appendChild(img);
+      wrap.appendChild(codeBadge('Show code for this plot', key));
     });
   }
 

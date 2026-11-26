@@ -95,6 +95,18 @@ knitr::opts_chunk$set(
 )
 timeRun <- format(Sys.time(), "%Y-%m-%d_%H.%M.%S")
 options(bitmapType = "cairo", kableExtra_view_html = FALSE)
+# Each chunk's output starts with an invisible note of the chunk's name, so the
+# report's "show code" button can find the code behind every table and figure
+local({
+  chunkHook <- knitr::knit_hooks$get("chunk")
+  knitr::knit_hooks$set(chunk = function(x, options) {
+    note <- paste0("<!-- marmot-chunk: ", options$label, " -->")
+    x <- chunkHook(x, options)
+    # A chunk that writes its own headings (tabs) gets the note under each one too
+    if (identical(options$results, "asis")) x <- gsub("(^|\n)(#{1,6} [^\n]*\n)", paste0("\\1\\2", note, "\n"), x)
+    paste0("\n", note, "\n", x)
+  })
+})
 ```
 
 <!-- ════════════════════════════════════════════════════════
@@ -2520,13 +2532,69 @@ cat(overviewWarnings, sep = "\n")
 
 ```{r, label = "report_overview_settings", results = 'asis'}
 cat("::: {.callout-note collapse='true' title='Pipeline Settings Summary'}\n\n")
-cat("- **Clustering method:** ", clusteringMethodToUse, "\n", sep = "")
-cat("- **k values:** ", paste(kValuesIWant, collapse = ", "), " (main k: ", knn, ", used for DA, DS and most figures)\n", sep = "")
-cat("- **Dim. reduction:** ", dimRedMethodToUse, "\n", sep = "")
-cat("- **QC:** ", runQC, if (useQC) " (applied)" else " (not applied)", "\n", sep = "")
-cat("- **Downsample:** ", if (!is.null(downsampleTo)) paste0(downsampleTo, " cells") else "No", "\n", sep = "")
-cat("- **Cores:** ", nCores, "\n", sep = "")
-cat("- **scGate:** ", if (runScGate) "Enabled" else "Disabled", "\n", sep = "")
+cat("Every setting on the Pipeline Settings sheet, and what the Study Data sheet set up, as this run used them.\n\n")
+
+# The Pipeline Settings sheet, in the template's order
+yesNo <- function(x) if (isTRUE(x)) "Yes" else "No"
+settingsShown <- data.frame(
+  Setting = c("Clustering method", "Markers to cluster by", "k values",
+              "Dimension reduction", "Markers for dimension reduction",
+              "QC", "Keep only cells that pass QC", "scGate",
+              "Cells per FCS file", "Quantile normalisation", "Batch correction",
+              "Samples left out", "Reloaded from",
+              "Colour palette", "Greyscale figures", "PDFs of the figures", "Figure resolution",
+              "Cores", "RAM per core"),
+  `In the sheet` = c("clusteringMethodToUse", "markersToClusterBy", "kValuesIWant, knn",
+                     "dimRedMethodToUse", "markersToDimRedBy",
+                     "runQC", "useQC", "runScGate",
+                     "downsampleTo", "quantileNormaliseAll", "batchColumn",
+                     "excludeTheseSamples", "RDataFolder",
+                     "viridisColour", "greyscalePlots", "gimmePDFs", "figureDPI",
+                     "nCores", "ramPerCore"),
+  Value = c(clusteringMethodToUse, markersToClusterBy,
+            paste0(paste(kValuesIWant, collapse = ", "), " (main k ", knn, ", used for DA, DS and most figures)"),
+            dimRedMethodToUse, markersToDimRedBy,
+            runQC, yesNo(useQC), yesNo(runScGate),
+            if (is.null(downsampleTo)) "Every cell" else paste(downsampleTo, "cells"),
+            yesNo(quantileNormaliseAll),
+            if (useBatch) paste("By", batchColumn) else "None",
+            if (length(excludeTheseSamples)) paste(excludeTheseSamples, collapse = ", ") else "None",
+            if (is.null(RDataFolder)) "A fresh run" else basename(dirname(RDataFolder)),
+            viridisColour, yesNo(greyscalePlots), yesNo(gimmePDFs), paste(figureDPI, "dpi"),
+            nCores, paste(ramPerCore, "GB")),
+  check.names = FALSE)
+cat("#### Pipeline Settings\n\n")
+print(kable(settingsShown, format = "html") |> kable_styling())
+cat("\n\n")
+
+# The Study Data sheet: markers, conditions and contrasts
+cat("#### Study Data\n\n")
+markersRun <- panel$marker_name[panel$use_channel]
+chosenCofactors <- if (length(cfToUse) == length(useMarkers)) setNames(cfToUse, useMarkers) else NULL
+markersShown <- data.frame(
+  Marker = markersRun,
+  `Shown in figures as` = ifelse(markersRun %in% names(markerDisplay), unname(markerDisplay[markersRun]), ""),
+  Use = dplyr::recode(panel$marker_class[panel$use_channel], none = "neither"),
+  Cofactor = if (is.null(chosenCofactors)) "" else unname(chosenCofactors[markersRun]),
+  check.names = FALSE)
+cat("**", nrow(markersShown), " markers**, of which ", sum(markersShown$Use == "type"), " type, ",
+    sum(markersShown$Use == "state"), " state and ", sum(markersShown$Use == "neither"), " neither.\n\n", sep = "")
+print(kable(markersShown, format = "html") |> kable_styling())
+cat("\n\n")
+leftOut <- unique(stats::na.omit(removeMarkers))
+cat(if (length(leftOut)) paste0("**Left out completely** are ", length(leftOut), " channels (", paste(leftOut, collapse = ", "), ").")
+    else "**Nothing was left out completely.**", "\n\n", sep = "")
+condsShown <- levels(factor(colData(sce)$condition))
+swatch <- function(cond) {
+  col <- if (exists("coloursList") && cond %in% names(coloursList$condition)) coloursList$condition[[cond]] else NA
+  if (is.na(col)) cond else paste0("<span style='color:", col, "'>&#9632;</span> ", cond)
+}
+cat("**Conditions**, in order, are ", paste(vapply(condsShown, swatch, character(1)), collapse = ", "), ".\n\n", sep = "")
+cat(if (length(contrastsToTest)) paste0("**Contrasts tested** are ", paste(contrastsToTest, collapse = "; "), ".") else "**No contrasts were tested.**", "\n\n", sep = "")
+if (isTRUE(runScGate) && "Marker Pairs" %in% colnames(smd)) {
+  pairsShown <- stats::na.omit(smd[["Marker Pairs"]])
+  if (length(pairsShown)) cat("**Marker pairs for scGate** are ", paste(pairsShown, collapse = "; "), ".\n\n", sep = "")
+}
 cat(":::\n\n")
 ```
 
@@ -4332,30 +4400,60 @@ if (is.null(RDataFolder)) {
 ```
 
 ```{r, label = "report_provenance_methods", results = 'asis'}
-# Which implementation did the work, and whom to credit. The marmots' own R
-# versions (the M methods) follow the originals but are unsupported
-# fall-backs; the originals deserve the citation, and MARMOT recommends them.
-.cite <- function(pkg) tryCatch(gsub("[[:space:]]+", " ", paste(format(citation(pkg)[[1]], style = "text"), collapse = " ")),
-                                error = function(e) pkg)
+# Which implementation did the work, and whom to credit. The references follow
+# the MARMOT paper's own list (Kirsche et al. 2025); the few it doesn't cover
+# (PeacoQC, scGate, Harmony, CATALYST) were checked against the journals. The
+# marmots' own R versions (the M methods) follow the originals but are
+# unsupported fall-backs; the originals deserve the citation.
+.refs <- c(
+  MARMOT     = "Kirsche, L., He, J., Müller, A., Leary, P., 2025. MARMOT: a multifaceted R pipeline for analysing spectral flow cytometry data from subcutaneously growing murine gastric organoids. J. Immunol. Methods 540, 113854. https://doi.org/10.1016/j.jim.2025.113854",
+  FlowSOM    = "Van Gassen, S., et al., 2015. FlowSOM: using self-organizing maps for visualisation and interpretation of cytometry data. Cytometry A 87, 636–645.",
+  PhenoGraph = "Levine, J.H., et al., 2015. Data-driven phenotypic dissection of AML reveals progenitor-like cells that correlate with prognosis. Cell 162, 184–197.",
+  FastPG     = "Bodenheimer, T., et al., 2020. FastPG: fast clustering of millions of single cells. bioRxiv. https://doi.org/10.1101/2020.06.19.159749",
+  PARC       = "Stassen, S.V., et al., 2020. PARC: ultrafast and accurate clustering of phenotypic data of millions of single cells. Bioinformatics 36, 2778–2786.",
+  UMAP       = "McInnes, L., Healy, J., Saul, N., Großberger, L., 2018. UMAP: uniform manifold approximation and projection. J. Open Source Softw. 3, 861.",
+  tSNE       = "Van Der Maaten, L., Hinton, G., 2008. Visualizing data using t-SNE. J. Mach. Learn. Res. 9.",
+  PaCMAP     = "Wang, Y., Huang, H., Rudin, C., Shaposhnik, Y., 2021. Understanding how dimension reduction tools work: an empirical approach to deciphering t-SNE, UMAP, TriMap, and PaCMAP for data visualisation. J. Mach. Learn. Res. 22. http://jmlr.org/papers/v22/20-1061.html",
+  FlowAI     = "Monaco, G., et al., 2016. FlowAI: automatic and interactive anomaly discerning tools for flow cytometry data. Bioinformatics 32, 2473–2480.",
+  PeacoQC    = "Emmaneel, A., et al., 2022. PeacoQC: peak-based selection of high quality cytometry data. Cytometry A 101, 325–338. https://doi.org/10.1002/cyto.a.24501",
+  scGate     = "Andreatta, M., Berenstein, A.J., Carmona, S.J., 2022. scGate: marker-based purification of cell types from heterogeneous single-cell RNA-seq datasets. Bioinformatics 38, 2642–2644.",
+  Harmony    = "Korsunsky, I., et al., 2019. Fast, sensitive and accurate integration of single-cell data with Harmony. Nat. Methods 16, 1289–1296. https://doi.org/10.1038/s41592-019-0619-0",
+  diffcyt    = "Weber, L.M., Nowicka, M., Soneson, C., Robinson, M.D., 2019. Diffcyt: differential discovery in high-dimensional cytometry via high-resolution clustering. Commun. Biol. 2.",
+  clustree   = "Zappia, L., Oshlack, A., 2018. Clustering trees: a visualisation for evaluating clusterings at multiple resolutions. Gigascience 7.",
+  Shiny      = "Chang, W., Cheng, J., Allaire, J., Xie, Y., McPherson, J., 2024. Shiny: web application framework for R. https://CRAN.R-project.org/package=shiny"
+)
+.unsupported <- "It is a fall-back: not validated or peer-reviewed, and not supported."
 .methods <- c(
+  paste("**This pipeline:** MARMOT. Please cite", .refs[["MARMOT"]]),
   switch(clusteringMethodToUse,
-    FlowSOM     = paste0("**Clustering:** FlowSOM. ", .cite("FlowSOM")),
-    Rphenograph = paste0("**Clustering:** Rphenograph, the original PhenoGraph for R. ", .cite("Rphenograph")),
-    Mphenograph = "**Clustering:** Mphenograph, the marmots' own R version of PhenoGraph (Levine et al. 2015, Cell 162:184-197), following Rphenograph (Chen and Granjeaud). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with Rphenograph (MARMOT::install_marmot_extras() installs it); please cite the originals.",
-    MfastPG     = "**Clustering:** MfastPG, the marmots' own R version of FastPG (Bodenheimer et al. 2020, https://github.com/sararselitsky/FastPG), itself based on PhenoGraph (Levine et al. 2015). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the originals; please cite them.",
-    PARC        = "**Clustering:** PARC, the original Python implementation (Stassen et al., https://github.com/ShobiStassen/PARC).",
-    Mparc       = "**Clustering:** Mparc, the marmots' own R version of PARC (Stassen et al., https://github.com/ShobiStassen/PARC). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the Python PARC (MARMOT::install_marmot_python() sets it up); please cite the original.",
+    FlowSOM     = paste("**Clustering:** FlowSOM.", .refs[["FlowSOM"]]),
+    Rphenograph = paste("**Clustering:** Rphenograph (Chen and Granjeaud), the original PhenoGraph for R.", .refs[["PhenoGraph"]]),
+    Mphenograph = paste("**Clustering:** Mphenograph, the marmots' own R version of PhenoGraph, following Rphenograph (Chen and Granjeaud).", .unsupported,
+                        "The marmots would be much happier with Rphenograph (MARMOT::install_marmot_extras() installs it). Please cite the original.", .refs[["PhenoGraph"]]),
+    MfastPG     = paste("**Clustering:** MfastPG, the marmots' own R version of FastPG, itself based on PhenoGraph.", .unsupported,
+                        "The marmots would be much happier with the originals. Please cite them.", .refs[["FastPG"]], .refs[["PhenoGraph"]]),
+    PARC        = paste("**Clustering:** PARC, the original Python implementation.", .refs[["PARC"]]),
+    Mparc       = paste("**Clustering:** Mparc, the marmots' own R version of PARC.", .unsupported,
+                        "The marmots would be much happier with the Python PARC (MARMOT::install_marmot_python() sets it up). Please cite the original.", .refs[["PARC"]]),
     paste0("**Clustering:** ", clusteringMethodToUse, ".")),
+  paste("**Choosing k:** Clustering trees, with clustree.", .refs[["clustree"]]),
   switch(dimRedMethodToUse,
-    pacmap  = "**Embedding:** PaCMAP, the original Python implementation (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP).",
-    Mpacmap = "**Embedding:** Mpacmap, the marmots' own R version of PaCMAP (Wang, Huang, Rudin and Shaposhnik, https://github.com/YingfanWang/PaCMAP). It is a fall-back: not validated or peer-reviewed, and not supported. The marmots would be much happier with the Python PaCMAP (MARMOT::install_marmot_python() sets it up); please cite the original.",
+    pacmap  = paste("**Embedding:** PaCMAP, the original Python implementation.", .refs[["PaCMAP"]]),
+    Mpacmap = paste("**Embedding:** Mpacmap, the marmots' own R version of PaCMAP.", .unsupported,
+                    "The marmots would be much happier with the Python PaCMAP (MARMOT::install_marmot_python() sets it up). Please cite the original.", .refs[["PaCMAP"]]),
     NULL),
-  paste0("**UMAP:** ", .cite("uwot")),
-  paste0("**tSNE:** ", .cite("Rtsne")),
-  if (exists("useBatch") && useBatch) paste0("**Batch correction:** Harmony. ", .cite("harmony")),
-  paste0("**Differential abundance and state:** ", .cite("diffcyt")),
-  paste0("**Data handling and many plots:** ", .cite("CATALYST")),
-  "**Repeating a run:** the same data and settings gave identical results when re-run in our tests, on one computer, for FlowSOM, MfastPG, Mphenograph, Mparc, the Python PARC, UMAP, Mpacmap and the Python PaCMAP. On another computer, or with Rphenograph or tSNE (not tested), results may differ slightly."
+  paste("**UMAP:** Made with uwot (Melville).", .refs[["UMAP"]]),
+  paste("**tSNE:** Made with Rtsne (Krijthe).", .refs[["tSNE"]]),
+  switch(runQC,
+    FlowAI  = paste("**Quality control:** FlowAI.", .refs[["FlowAI"]]),
+    PeacoQC = paste("**Quality control:** PeacoQC.", .refs[["PeacoQC"]]),
+    NULL),
+  if (isTRUE(runScGate)) paste("**Gating by marker pairs:** scGate.", .refs[["scGate"]]),
+  if (exists("useBatch") && useBatch) paste("**Batch correction:** Harmony.", .refs[["Harmony"]]),
+  paste("**Differential abundance and state:** diffcyt.", .refs[["diffcyt"]]),
+  paste0("**Data handling and many plots:** CATALYST. ", gsub("[[:space:]]+", " ", paste(format(citation("CATALYST")[[1]], style = "text"), collapse = " "))),
+  paste("**The Explorer:** Shiny.", .refs[["Shiny"]]),
+  "**Repeating a run:** The same data and settings gave identical results when re-run in our tests, on one computer, for FlowSOM, MfastPG, Mphenograph, Mparc, the Python PARC, UMAP, Mpacmap and the Python PaCMAP. On another computer, or with Rphenograph or tSNE (not tested), results may differ slightly."
 )
 cat("::: {.callout-note collapse='true' title='Methods, and whom to cite'}\n\n",
     paste0("- ", .methods, collapse = "\n"), "\n\n:::\n\n", sep = "")

@@ -260,7 +260,7 @@ umapReactive <- eventReactive(
             pch    = 21,
             alpha  = inputs$pointAlphaUMAP,
             size   = inputs$pointSizeUMAP,
-            stroke = input$borderSizeUMAP %||% 0.5,
+            stroke = input$borderSizeUMAP %||% 2,
             colour = input$umapBorderColour %||% "black",
             aes(fill = .data[[plot_column]])
           ) +
