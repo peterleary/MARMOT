@@ -21,7 +21,7 @@
 - **Results format 2.** Results are saved in one `marmot_results.h5ad` with a version check.
 - **Speed.** Mphenograph and Rphenograph share one neighbour search across all k values (the large reference run went from about 29 to 22 minutes, with identical clusters). The halo on every map makes the report slower again, about 10% on small runs.
 - **One list of settings** shared by the metadata template, the pipeline and the desktop app. Old settings (`runInParallel`, `themeToUse`, `condaDir`, `parcScriptDir`) are ignored with a message.
-- **The Explorer.** Every map is listed once with a plain name, starting on the report's version, with "every cell" and "before batch correction" alongside. Feature plots fit their box and keep their markers when the plot type changes. Large runs start rasterised.
+- **The Explorer.** Every map is listed once with a plain name, starting on the report's version, with "every cell" and "before batch correction" alongside. Feature plots fit their box and keep their markers when the plot type changes. Large runs start rasterised. Maps and feature plots start with a dot size of 1.3, and cell borders 2 thick.
 - **The desktop app.** The batch column is a dropdown of the File Data columns.
 - `Median_Markers_Per_Sample_Expression.xlsx` no longer has a `patient_id` column (it was a copy of `sample_id`). A user's own `patient_id` column is now kept, and can be a batch.
 - **Contrasts** may be written "A vs B", "A versus B" or "A v B" as well as "A over B"; the Overview says how each was read. An entry that cannot be read as two conditions now stops the run, where before it was silently skipped.
