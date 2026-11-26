@@ -10,5 +10,6 @@ qc_ignore_table()
 A data frame with columns `instrument`, `channel` and `reason`.
 }
 \description{
-The table of channels to keep out of QC, per instrument
+Read from `inst/extdata/instrument_channels.json`: the channels of the
+kinds QC skips, named exactly (not the `#` patterns).
 }

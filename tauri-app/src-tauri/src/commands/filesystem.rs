@@ -76,9 +76,12 @@ pub struct FcsMarker {
     pub short_name: String,
     /// $PnS — long/reagent name (e.g. "CD3", "CD4"); empty if not set
     pub long_name: String,
-    /// True for scatter / time / event / index channels we'd normally
-    /// exclude from the analysis panel.
+    /// True for channels that are not markers (scatter, time, raw detectors,
+    /// instrument flags and so on): excluded from the analysis panel.
     pub is_scatter: bool,
+    /// Why it is not a marker ("scatter or time", "raw detector", "no marker
+    /// name"...); empty for a marker.
+    pub why: String,
 }
 
 /// Extended header info — marker list + `$TOT` (event count) + `$PAR`
@@ -189,14 +192,71 @@ pub fn read_fcs_text_segment(path: &str) -> Result<(HashMap<String, String>, usi
 }
 
 pub fn markers_from_kv(kv: &HashMap<String, String>, par: usize) -> Vec<FcsMarker> {
-    let mut markers = Vec::with_capacity(par);
-    for n in 1..=par {
-        let short = kv.get(&format!("$P{}N", n)).cloned().unwrap_or_default();
-        let long = kv.get(&format!("$P{}S", n)).cloned().unwrap_or_default();
-        let is_scatter = is_non_marker_channel(&short, &long);
-        markers.push(FcsMarker { short_name: short, long_name: long, is_scatter });
+    let instrument = kv.get("$CYT").map(|s| s.trim().to_string()).unwrap_or_default();
+    let names: Vec<(String, String)> = (1..=par)
+        .map(|n| (kv.get(&format!("$P{}N", n)).cloned().unwrap_or_default(),
+                  kv.get(&format!("$P{}S", n)).cloned().unwrap_or_default()))
+        .collect();
+    // A file with no marker names at all (some instruments write none): the
+    // no-name rule would leave nothing, so it is not used
+    let has_names = names.iter().any(|(s, l)| has_own_name(s, l));
+    names.into_iter().map(|(short, long)| {
+        let why = channel_kind(&instrument, &short)
+            .or_else(|| is_non_marker_channel(&short, &long).then(|| "scatter or time".to_string()))
+            .or_else(|| (has_names && !has_own_name(&short, &long)).then(|| "no marker name".to_string()))
+            .unwrap_or_default();
+        FcsMarker { short_name: short, long_name: long, is_scatter: !why.is_empty(), why }
+    }).collect()
+}
+
+/// A marker name of its own: $PnS set, and not just the channel name again
+fn has_own_name(short: &str, long: &str) -> bool {
+    let l = long.trim();
+    !l.is_empty() && l != short.trim()
+}
+
+/// The table of channels that are never markers, per instrument. The master
+/// is inst/extdata/instrument_channels.json; this is an identical copy.
+fn instrument_table() -> &'static Vec<(String, String, String)> {
+    static TABLE: std::sync::OnceLock<Vec<(String, String, String)>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../instrument_channels.json")).unwrap_or_default();
+        let mut out = Vec::new();
+        if let Some(insts) = v.get("instruments").and_then(|x| x.as_object()) {
+            for (inst, chans) in insts {
+                if let Some(chans) = chans.as_object() {
+                    for (ch, kind) in chans {
+                        out.push((inst.to_lowercase(), ch.clone(), kind.as_str().unwrap_or("").to_string()));
+                    }
+                }
+            }
+        }
+        out
+    })
+}
+
+/// What the table says a channel is on this instrument (or on any, "*")
+pub fn channel_kind(instrument: &str, channel: &str) -> Option<String> {
+    let inst = instrument.to_lowercase();
+    let ch = channel.trim();
+    instrument_table().iter()
+        .find(|(i, pat, _)| (i == &inst || i == "*") && glob_digits(pat, ch))
+        .map(|(_, _, k)| k.clone())
+}
+
+/// Match a channel name against a pattern where # stands for one or more digits
+fn glob_digits(pattern: &str, name: &str) -> bool {
+    fn go(p: &[u8], n: &[u8]) -> bool {
+        match p.first() {
+            None => n.is_empty(),
+            Some(b'#') => {
+                let digits = n.iter().take_while(|c| c.is_ascii_digit()).count();
+                (1..=digits).any(|k| go(&p[1..], &n[k..]))
+            }
+            Some(c) => n.first() == Some(c) && go(&p[1..], &n[1..]),
+        }
     }
-    markers
+    go(pattern.as_bytes(), name.as_bytes())
 }
 
 /// Decide whether a given FCS channel is a scatter / time / metadata
@@ -356,6 +416,53 @@ mod tests {
         // Case-insensitive lex on letters, numeric on digits.
         // "Apple" and "apple1" share prefix "apple"; then "" < "1", so Apple first.
         assert_eq!(sort(input), vec!["Apple", "apple1", "Apple2", "bar"]);
+    }
+
+    #[test]
+    fn channel_table_copy_matches_master() {
+        let master = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../inst/extdata/instrument_channels.json");
+        if let Ok(m) = std::fs::read_to_string(&master) {
+            assert_eq!(m, include_str!("../../instrument_channels.json"), "copy differs from inst/extdata");
+        }
+    }
+
+    #[test]
+    fn channel_table_patterns_and_instruments() {
+        assert!(glob_digits("UV# (#)-A", "UV7 (450)-A"));
+        assert!(!glob_digits("UV# (#)-A", "UV (450)-A"));
+        assert!(!glob_digits("V#-A", "BV421-A"));
+        assert_eq!(channel_kind("FACSDiscover S8", "UV7 (450)-H").as_deref(), Some("raw detector"));
+        assert_eq!(channel_kind("facsdiscover s8", "LightLoss (Violet)-A").as_deref(), Some("light loss"));
+        assert_eq!(channel_kind("Aurora", "YG10-A").as_deref(), Some("raw detector"));
+        assert_eq!(channel_kind("LSRII", "V450-A"), None);
+        assert_eq!(channel_kind("Anything", "umap_x").as_deref(), Some("added by analysis software"));
+    }
+
+    fn kv_of(cyt: &str, chans: &[(&str, &str)]) -> HashMap<String, String> {
+        let mut kv = HashMap::new();
+        kv.insert("$CYT".to_string(), cyt.to_string());
+        for (i, (n, s)) in chans.iter().enumerate() {
+            kv.insert(format!("$P{}N", i + 1), n.to_string());
+            if !s.is_empty() { kv.insert(format!("$P{}S", i + 1), s.to_string()); }
+        }
+        kv
+    }
+
+    #[test]
+    fn markers_need_a_name_of_their_own() {
+        let kv = kv_of("FACSDiscover S8", &[("FSC-A", ""), ("BUV395-A", "CD45"), ("BV421-A", "BV421-A"),
+                                           ("UV7 (450)-A", "UV7 (450)-A"), ("LightLoss (Violet)-A", "LightLoss (Violet)-A")]);
+        let m = markers_from_kv(&kv, 5);
+        let why: Vec<&str> = m.iter().map(|x| x.why.as_str()).collect();
+        assert_eq!(why, vec!["scatter", "", "no marker name", "raw detector", "light loss"]);
+        assert_eq!(m.iter().filter(|x| !x.is_scatter).count(), 1);
+    }
+
+    #[test]
+    fn a_file_without_any_names_keeps_its_channels() {
+        let kv = kv_of("LSRII", &[("FSC-A", ""), ("V450-A", ""), ("B515-A", "")]);
+        let m = markers_from_kv(&kv, 3);
+        assert_eq!(m.iter().filter(|x| !x.is_scatter).count(), 2);
     }
 
     #[test]

@@ -52,3 +52,9 @@ test_that("exact patterns match only their own channel", {
   expect_setequal(hit, ch)
   expect_length(exact_channel_patterns(character()), 0)
 })
+
+test_that("the channel table's two copies are identical", {
+  app_copy <- testthat::test_path("..", "..", "tauri-app", "src-tauri", "instrument_channels.json")
+  skip_if_not(file.exists(app_copy), "not in the source tree")
+  expect_identical(readLines(app_copy), readLines(system.file("extdata", "instrument_channels.json", package = "MARMOT")))
+})

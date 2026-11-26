@@ -131,13 +131,19 @@ function autoFillMarkers(peeked, sourceFile) {
 
   if (filled) {
     isDirty.set(true);
-    const excludeNote =
-      excludeNames.length > 0
-        ? `, plus ${excludeNames.length} scatter/time channels in "Markers to exclude completely"`
-        : "";
+    const named = peeked.some((p) => p.long_name && p.long_name.trim() && p.long_name.trim() !== p.short_name.trim());
+    if (!named) {
+      return {
+        kind: "warn",
+        text: `${sourceFile} has no marker names, so the marmots couldn't tell markers from other channels. Check the markers by hand. ${includeNames.length} channels are under markers, and ${excludeNames.length} (scatter, time and the like) are not.`,
+      };
+    }
+    const others = excludeNames.length
+      ? ` The other ${excludeNames.length} channels (scatter, time, and channels without a marker name, such as raw detectors) are under "Markers to exclude completely".`
+      : "";
     return {
       kind: "info",
-      text: `Detected ${includeNames.length} markers from ${sourceFile}${excludeNote}.`,
+      text: `Found ${includeNames.length} markers in ${sourceFile}.${others}`,
     };
   }
   if (existed) {
