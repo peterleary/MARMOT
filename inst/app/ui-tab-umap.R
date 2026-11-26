@@ -91,7 +91,7 @@ tabItem(
             splitLayout(
               sliderInput(
                 inputId = "pointSizeUMAP", label = "Dot size",
-                min = 0.1, max = 4, value = 0.3, step = 0.1,
+                min = 0.1, max = 4, value = 1.3, step = 0.1,
                 width = "85%", ticks = FALSE
               ),
               sliderInput(
@@ -114,7 +114,7 @@ tabItem(
               condition = "input.umapBorderType == 'Per-cell borders'",
               sliderInput(
                 inputId = "borderSizeUMAP", label = "Border thickness",
-                min = 0.1, max = 3, value = 0.5, step = 0.1,
+                min = 0.1, max = 3, value = 2, step = 0.1,
                 width = "85%", ticks = FALSE
               ),
               colourpicker::colourInput(
