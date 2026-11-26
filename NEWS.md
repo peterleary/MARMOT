@@ -35,6 +35,7 @@
 
 ## Fixed
 
+- **QC judged channels that are not biology**, and some it could not read. FCS 3.2 files (from newer BD instruments such as the FACSDiscover S8) can store a few channels as whole numbers; flowCore reads those as nonsense, and FlowAI and PeacoQC then threw out good cells because of them (a third of the cells in one test file). QC now leaves out such channels on any instrument, plus a list of non-biology channels for each instrument we know (imaging features, light loss and instrument flags on the FACSDiscover S8). The QC tab lists what was left out, the Overview warns about unreadable channels, and a marker on an unreadable channel stops the run. **Results with QC on may differ for files with such channels**; Aurora files are unaffected.
 - **scGate gated nothing:** every cell came out "Negative", because MARMOT looked for a value scGate never writes. Cells that pass a gate are now kept, and each gets the best-scoring gate among those it passed. **Results with `runScGate` on will differ.**
 - The Explorer no longer greys out (ends the session) on an error. Among the crashes fixed: clearing a subset box, an unreadable top-marker table, and a bad table edit.
 - The Explorer showed the wrong DA clusters for a contrast.
