@@ -18,6 +18,13 @@ FROM rocker/r-ver:4.6.2
 
 ARG TARGETARCH
 ARG MARMOT_REF=main
+# Bioconductor release to install from. Pinned rather than "the newest", so
+# a new release can't break the build or change results unannounced: 3.24
+# (October 2026) shipped an ncdfFlow that no longer loads with its own
+# BiocGenerics and flowCore, and PeacoQC needs ncdfFlow. MARMOT's reference
+# runs were made on 3.23. pak/pkgcache read R_BIOC_VERSION too.
+ARG BIOC_VERSION=3.23
+ENV R_BIOC_VERSION=${BIOC_VERSION}
 
 # ── System libraries ─────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -49,7 +56,7 @@ RUN mkdir -p /opt/marmot-data && chmod 755 /opt/marmot-data
 RUN Rscript -e 'install.packages(c("pak", "BiocManager"), repos = "https://cloud.r-project.org")'
 # Change CACHEBUST to fetch MARMOT again from GitHub
 ARG CACHEBUST=1
-RUN Rscript -e 'options(repos = c(MARMOT = "https://peterleary.r-universe.dev", BiocManager::repositories())); \
+RUN Rscript -e 'options(repos = c(MARMOT = "https://peterleary.r-universe.dev", BiocManager::repositories(version = Sys.getenv("R_BIOC_VERSION")))); \
     pak::pkg_install(c(paste0("peterleary/MARMOT@", Sys.getenv("MARMOT_REF")), "github::peterleary/Rphenograph"), \
                      dependencies = TRUE, ask = FALSE)'
 
