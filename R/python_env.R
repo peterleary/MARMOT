@@ -84,6 +84,19 @@ use_marmot_python <- function() {
 
   if (.marmot_py$bound) return(.marmot_py$available)
 
+  # The pipeline runs PARC and PaCMAP in a Python process of their own, found
+  # by .find_p4r_python(): pixi's environment first (how install_marmot_python()
+  # and the Docker image set it up), then a conda "p4r". Nothing needs binding
+  # here, so the same search decides. Checking only for conda used to miss a
+  # pixi-only setup, such as the Docker image, and PARC fell back to Mparc.
+  py <- .find_p4r_python()
+  if (!is.null(py)) {
+    .marmot_py$bound     <- TRUE
+    .marmot_py$available <- TRUE
+    .marmot_py$path      <- py
+    return(TRUE)
+  }
+
   # If reticulate is already bound to some Python, assume it is the right one.
 
   # NOTE: we deliberately do NOT run `import parc; import pacmap` here.
