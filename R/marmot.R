@@ -222,15 +222,30 @@ marmot <- function(metadata = NULL, name = "Title", render = FALSE) {
     # YAML `embed-resources: true` is silently ignored for certain htmlwidget
     # sidecars, producing a split report with a `*_files/` directory that
     # breaks when the .html is moved on its own.
-    quarto::quarto_render(
-      input       = output_qmd,
-      output_file = paste0("MARMOT_Pipeline_", name, ".html"),
-      quarto_args = c("--embed-resources")
-    )
+    .render_report(output_qmd, paste0("MARMOT_Pipeline_", name, ".html"))
     message("Finished rendering! Hopefully the marmots did a good job, and the data is now all ready.\n")
     unlink(file.path(resultsDir, "Rplots.pdf"))
   }
   
+}
+
+# Render the report with Quarto. When the pipeline stops part-way, the quarto
+# package rebuilds the error from the run's own output, and any braces in it
+# (R code always has some) are read as code to run, which fails with something
+# misleading such as 'could not find function "Mparc"'. The real reason has
+# already been printed above it, so say where to look instead.
+.render_report <- function(input, output_file) {
+  rendered <- tryCatch({
+    quarto::quarto_render(input = input, output_file = output_file,
+                          quarto_args = c("--embed-resources"))
+    TRUE
+  }, error = function(e) e)
+  if (inherits(rendered, "error")) {
+    stop("The marmots could not finish the report. The reason is in the messages just above: ",
+         "look for \"Quitting from\", which names the step that failed, or \"caught segfault\".",
+         call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 # Find the folder holding the pandoc that ships with Quarto.
