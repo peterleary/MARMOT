@@ -131,13 +131,14 @@ Mparc <- function(data,
   # Query k+1 neighbors (includes self), then drop self
   k_query <- min(k + 1L, n - 1L)
 
-  # RcppHNSW::hnsw_knn returns list(idx, dist) — 1-indexed, includes self
-  result <- RcppHNSW::hnsw_knn(data, k = k_query,
-                                distance = hnsw_dist,
-                                M = M,
-                                ef_construction = ef_construction,
-                                ef = ef_query,
-                                n_threads = num_threads)
+  # Build the index on one thread: adding cells on several threads at once
+  # makes a slightly different index each run, so Mparc would not repeat.
+  # Searching it is per cell and repeats on any number of threads.
+  # Returns list(idx, dist), 1-indexed, including self.
+  ann <- RcppHNSW::hnsw_build(data, distance = hnsw_dist, M = M,
+                              ef = ef_construction, n_threads = 1L)
+  result <- RcppHNSW::hnsw_search(data, ann, k = k_query, ef = ef_query,
+                                  n_threads = num_threads)
 
   idx  <- result$idx
   dist <- result$dist

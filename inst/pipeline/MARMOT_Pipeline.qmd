@@ -1706,6 +1706,12 @@ if (clusteringMethodToUse == "PARC") {
     as.integer(labels)
   }), paste0("p", kValuesIWant))
 
+  # If PARC stopped for any resolution, use Mparc for all of them, so the run
+  # carries on with one method throughout (the report says which ran)
+  if (any(vapply(parcClustList, length, integer(1)) != ncol(sce))) {
+    message("Python PARC failed -- falling back to Mparc (R).")
+    clusteringMethodToUse <- "Mparc"
+  } else {
   for (k in kValuesIWant) {
     cluster_labels <- factor(as.character(parcClustList[[paste0("p", k)]] + 1))
     cluster_labels <- factor(cluster_labels, levels = gtools::mixedsort(levels(cluster_labels)))
@@ -1719,6 +1725,7 @@ if (clusteringMethodToUse == "PARC") {
   )
   kids <- sce[[paste0("p", knn)]]
   numbersOfClusters <- gtools::mixedsort(levels(kids))
+  }
   }
 }
 ```
