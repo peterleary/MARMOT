@@ -323,6 +323,25 @@ build_da_heatmap_inputs <- function(sce, k, assay = "exprs",
   list(x = x, z = z, lgd_aes = lgd_aes)
 }
 
+# Writes a set of PDF files, several at once on Linux and macOS (one per core;
+# Windows writes them one after another). The files are the same either way.
+# Each file starts from the same random seed, so the cluster labels, which are
+# nudged apart at random, sit in the same place on every run. The session's
+# own random numbers are left as they were.
+pdf_lapply <- function(X, FUN) {
+  one <- function(x) { set.seed(2); FUN(x) }
+  if (.Platform$OS.type == "unix" && nCores > 1) {
+    done <- parallel::mclapply(X, one, mc.cores = nCores)
+  } else {
+    seed <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+    done <- lapply(X, one)
+    if (!is.null(seed)) assign(".Random.seed", seed, envir = globalenv())
+  }
+  failed <- vapply(done, inherits, logical(1), what = "try-error")
+  if (any(failed)) stop("❌ A PDF could not be written: ", as.character(done[[which(failed)[1]]]))
+  invisible(NULL)
+}
+
 # The start of a PDF file name, made from the name of a group of clusters:
 # "Contrast 1: A over B Up" becomes "Contrast_1_A_over_B_Up".
 pdf_name_stem <- function(name) {
@@ -3855,20 +3874,24 @@ invisible(lapply(names(UMAPList), function(yn){
 ```{r, label = "report_dr_per_marker_save", include = FALSE}
 if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse)))
-  lapply(names(UMAPList), function(m) {
-    dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
+  for (m in names(UMAPList)) dir.create(file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
+  # All markers on one page, with and without labels
+  pdf_lapply(names(UMAPList), function(m) {
     pdf(file = file.path(pdfDir, paste0(MARMOT::safe_file_name(m), "_all_markers_", dimRedMethodToUse, ".pdf")), width = 16, height = ceiling(length(useMarkers)/3)*3)
     print(plot_grid(plotlist = UMAPList[[m]], ncol = 4))
     dev.off()
-    lapply(names(UMAPList[[m]]), function(n) {
-      pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
-      if (n != "legend") {
-        print(UMAPList[[m]][[n]])
-      } else if (n == "legend") {
-        plot(UMAPList[[m]][[n]])
-      }
-      dev.off()
-    })
+  })
+  # One file per marker
+  jobs <- do.call(rbind, lapply(names(UMAPList), function(m) data.frame(m = m, n = names(UMAPList[[m]]), stringsAsFactors = FALSE)))
+  pdf_lapply(seq_len(nrow(jobs)), function(i) {
+    m <- jobs$m[i]; n <- jobs$n[i]
+    pdf(file = file.path(pdfDir, paste0("marker_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 4, height = 4, bg = "transparent")
+    if (n != "legend") {
+      print(UMAPList[[m]][[n]])
+    } else if (n == "legend") {
+      plot(UMAPList[[m]][[n]])
+    }
+    dev.off()
   })
 }
 ```
@@ -3918,17 +3941,17 @@ invisible(lapply(names(DRperCondList), function(yn){
 ```{r, label = "report_dr_per_marker_condition_save", include = FALSE}
 if (gimmePDFs) {
   dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse)))
-  lapply(names(DRperCondList), function(m) {
-    dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
-    lapply(names(DRperCondList[[m]]), function(n) {
-      pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
-      if (n != "legend") {
-        print(DRperCondList[[m]][[n]])
-      } else if (n == "legend") {
-        plot(DRperCondList[[m]][[n]])
-      }
-      dev.off()
-    })
+  for (m in names(DRperCondList)) dir.create(file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m)))
+  jobs <- do.call(rbind, lapply(names(DRperCondList), function(m) data.frame(m = m, n = names(DRperCondList[[m]]), stringsAsFactors = FALSE)))
+  pdf_lapply(seq_len(nrow(jobs)), function(i) {
+    m <- jobs$m[i]; n <- jobs$n[i]
+    pdf(file = file.path(pdfDir, paste0("marker_per_cond_", dimRedMethodToUse), MARMOT::safe_file_name(m), paste0(MARMOT::safe_file_name(n), "_", dimRedMethodToUse, ".pdf")), width = 10, height = 5*(ceiling(length(condLevels)/2)), bg = "transparent")
+    if (n != "legend") {
+      print(DRperCondList[[m]][[n]])
+    } else if (n == "legend") {
+      plot(DRperCondList[[m]][[n]])
+    }
+    dev.off()
   })
 }
 ```
