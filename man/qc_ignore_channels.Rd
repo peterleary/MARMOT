@@ -12,7 +12,8 @@ qc_ignore_channels(files, ignore_table = qc_ignore_table())
 \item{ignore_table}{The per-instrument table; defaults to [qc_ignore_table()].}
 }
 \value{
-A data frame with one row per channel: `channel`, `reason` and
+A data frame with one row per channel: `channel`, `reason`,
+  `unreadable` (TRUE when flowCore cannot read the channel's values) and
   `files` (how many of the files have it).
 }
 \description{

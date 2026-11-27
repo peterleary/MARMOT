@@ -58,7 +58,12 @@ output$dadsTable <- DT::renderDataTable({
     df <- df[order(df$p_val), ]
   }
 
-  req(!is.null(df), nrow(df) > 0)
+  # One list holds DA and DS entries, so a choice can have no table of this
+  # type ("... Merged" entries have DS results only): say so, not a blank
+  validate(need(!is.null(df) && nrow(df) > 0,
+    paste0("There is no ", result_type, " for '", contrast, "'. ",
+           if (result_type == "DA Table") "Entries ending in 'Merged' have DS results only; try 'DS Table'."
+           else "Try 'DA Table', or another entry.")))
 
   # Natural sort cluster_id
   if ("cluster_id" %in% colnames(df)) {

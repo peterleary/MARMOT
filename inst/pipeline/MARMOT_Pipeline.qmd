@@ -1090,7 +1090,7 @@ if (length(missing)) {
 
 # A marker on a channel flowCore cannot read would feed nonsense into every result
 unreadableChannels <- MARMOT::qc_ignore_channels(fcs_files)
-unreadableChannels <- unreadableChannels$channel[grepl("cannot read", unreadableChannels$reason)]
+unreadableChannels <- unreadableChannels$channel[unreadableChannels$unreadable]
 badMarkers <- panel$marker_name[panel$fcs_colname %in% unreadableChannels]
 if (length(badMarkers)) {
   stop("❌ These markers sit on channels MARMOT can't read yet, so their values would be nonsense: ",
@@ -2554,7 +2554,7 @@ if (exists("qc_skip_reason")) {
     "You ran QC using ", runQC, ", but chose **not** to apply it, so the results in this report include every cell. ",
     "The QC tab shows what QC would have removed.\n\n:::\n"))
 }
-unreadable <- if (exists("qcIgnore")) qcIgnore$channel[grepl("cannot read", qcIgnore$reason)] else character()
+unreadable <- if (exists("qcIgnore")) qcIgnore$channel[qcIgnore$unreadable] else character()
 if (length(unreadable) > 0) {
   overviewWarnings <- c(overviewWarnings, paste0(
     "::: {.callout-warning title='Unreadable channels'}\n\n",

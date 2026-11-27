@@ -39,30 +39,50 @@ def main():
         )
     X = X.reshape((args.rows, args.cols), order="F")
 
-    model = parc.PARC(
+    import inspect
+    import time as _real_time
+
+    import parc._parc as _parc_module
+
+    # --- Four repairs to PARC 0.40, all so that it finishes and repeats. ---
+    # Each one is skipped if PARC no longer has the fault, so a fixed PARC is
+    # left alone. Nothing here changes how PARC clusters.
+
+    # 1. The loop that tidies small clusters after re-clustering a too-big
+    #    population is written `while (a) == True & (b):`, which Python reads
+    #    as `a == (True & b)`. Once no small clusters are left and the time is
+    #    up, that is `False == False`, and the loop never ends. Put the
+    #    brackets where they were meant to be (as PARC's other loop has them).
+    _bad = "while (small_pop_exist) == True & (time.time() - time_smallpop_start < self.time_smallpop):"
+    _good = "while (small_pop_exist == True) & ((time.time() - time_smallpop_start) < self.time_smallpop):"
+    _source = inspect.getsource(_parc_module)
+    if _bad in _source:
+        exec(compile(_source.replace(_bad, _good), _parc_module.__file__, "exec"),
+             _parc_module.__dict__)
+
+    model = _parc_module.PARC(
         X,
         knn=args.knn,
         num_threads=args.num_threads,
         random_seed=args.random_seed,
         resolution_parameter=args.resolution,
     )
-    # PARC 0.40 has a bug: when a cluster is larger than too_big_factor of
-    # the cells, run_toobig_subPARC() re-clusters it and then uses
-    # `small_pop` (and nearby `time_smallpop`) as if they were module-level
-    # names, which they are not, so it stops with a NameError. They are the
-    # object's own settings (self.small_pop, self.time_smallpop), so give the
-    # module those values. Only when PARC has not defined them itself, so a
-    # fixed PARC is left alone.
-    import parc._parc as _parc_module
+
+    # 2. When a cluster is larger than too_big_factor of the cells,
+    #    run_toobig_subPARC() uses `small_pop` (and nearby `time_smallpop`) as
+    #    if they were module-level names, which they are not, so it stops
+    #    with a NameError. They are the object's own settings, so give the
+    #    module those values.
     for name, default in (("small_pop", 10), ("time_smallpop", 15)):
         if not hasattr(_parc_module, name):
             setattr(_parc_module, name, getattr(model, name, default))
-    # Adding cells to an hnswlib index on several threads at once builds a
-    # slightly different index each run, so PARC did not repeat. PARC 0.40
-    # also sets the thread count only on its main index; the one for a
-    # too-big population used every core, so it varied even on one thread.
-    # So every index is built on one thread, and searched on ours (each
-    # cell's search is separate, so that part repeats on any number).
+
+    # 3. Adding cells to an hnswlib index on several threads at once builds a
+    #    slightly different index each run, so PARC did not repeat. PARC also
+    #    sets the thread count only on its main index; the one for a too-big
+    #    population used every core, so it varied even on one thread. So
+    #    every index is built on one thread, and searched on ours (each
+    #    cell's search is separate, so that part repeats on any number).
     _Index = _parc_module.hnswlib.Index
     _threads = model.num_threads
 
@@ -77,6 +97,27 @@ def main():
             return super().add_items(data, *a, **k)
 
     _parc_module.hnswlib.Index = _IndexBuiltOnOneThread
+
+    # 4. PARC stops its small-cluster tidying on a clock (time_smallpop
+    #    seconds), so where it stops can depend on how fast or busy the
+    #    computer is. Inside PARC, the clock is replaced by a counter: each
+    #    look at the time moves it on by a hundredth of time_smallpop, so the
+    #    tidying stops after at most 100 rounds, the same on every computer.
+    #    PARC only uses the time for these limits and for progress messages.
+    class _CountingClock:
+        def __init__(self, step):
+            self._now = 0.0
+            self._step = step
+
+        def time(self):
+            self._now += self._step
+            return self._now
+
+        def __getattr__(self, name):
+            return getattr(_real_time, name)
+
+    _parc_module.time = _CountingClock(float(model.time_smallpop) / 100.0)
+
     model.run_PARC()
     labels = np.asarray(model.labels, dtype=np.int32)
     labels.tofile(args.output)

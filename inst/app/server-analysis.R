@@ -5,7 +5,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Dynamic settings UI ────────────────────────────────────────────────────
-observeEvent(input$analysisPlotType, {
+# Rebuilt after a relabel too (drDataVersion), so the column lists offer the
+# new labels straight away
+observeEvent(list(input$analysisPlotType, drDataVersion()), {
   req(inputDataReactive$Results)
   res         <- inputDataReactive$Results
   sce         <- res$sce

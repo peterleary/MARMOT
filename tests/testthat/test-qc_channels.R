@@ -20,6 +20,7 @@ test_that("channels are found by instrument, ignoring capitals", {
                 list("$CYT" = "facsdiscover s8"))
   res <- qc_ignore_channels(f)
   expect_setequal(res$channel, c("Sorted", "Size (FSC)"))
+  expect_false(any(res$unreadable))
 })
 
 test_that("another instrument's channels are not touched", {
@@ -33,6 +34,7 @@ test_that("a channel stored in a different data type is caught on any instrument
   res <- qc_ignore_channels(f)
   expect_equal(res$channel, "Flag")
   expect_match(res$reason, "cannot read")
+  expect_true(res$unreadable)
 })
 
 test_that("channels are counted across files", {
@@ -42,6 +44,7 @@ test_that("channels are counted across files", {
   res <- qc_ignore_channels(c(a, b))
   expect_equal(res$channel, "Sorted")
   expect_equal(res$files, 2L)
+  expect_true(res$unreadable)
 })
 
 test_that("exact patterns match only their own channel", {

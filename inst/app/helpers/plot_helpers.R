@@ -34,6 +34,16 @@ marmot_dr_theme <- function(base_size = 14, show_axes = FALSE, legend_position =
   th
 }
 
+#' Fill scale for cluster labels drawn in their group's colour
+#'
+#' A column without stored colours (sample_id, say) has none to give; ggplot
+#' then keeps its own colours (adding NULL to a plot changes nothing).
+#'
+#' @param colours Named colour vector, or NULL
+label_fill_scale <- function(colours) {
+  if (is.null(colours)) NULL else ggplot2::scale_fill_manual(values = colours)
+}
+
 #' Columns for several feature panels: the user's number, or automatic (0):
 #' one per panel, up to 4
 #' @param chosen The "Columns per marker" setting

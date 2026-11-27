@@ -39,9 +39,9 @@ observeEvent(inputDataReactive$Results, once = TRUE, {
     choices = c("None", colsThatCanBePlot), selected = "None")
 
   # ── Contrast dropdowns ─────────────────────────────────────────────────
-  # Populate from the contrasts in the study metadata, tidied the way the
-  # pipeline tidies them so both number the contrasts alike.
-  contrast_names <- tidy_contrasts(res$smd$`Conditions To Test`)
+  # The contrasts as the pipeline read them ("A vs B" became "A over B"), so
+  # both number the contrasts alike.
+  contrast_names <- results_contrasts(res)
   if (length(contrast_names) == 0) contrast_names <- "None"
   updateSelectInput(session, "umapContrast", choices = contrast_names)
   updateSelectInput(session, "fpContrast",   choices = contrast_names)
@@ -182,7 +182,7 @@ observeEvent(input$addMarkersFromTable, {
       c("Marker", "marker", "Feature", "feature", "gene", "Gene"))
     if (length(marker_col) == 0) {
       for (cn in colnames(tmt)) {
-        if (any(as.character(tmt[[cn]][sel_rows]) %in% rownames(res$sce))) {
+        if (length(markers_in_cells(tmt[[cn]][sel_rows], rownames(res$sce))) > 0) {
           marker_col <- cn
           break
         }
@@ -190,11 +190,14 @@ observeEvent(input$addMarkersFromTable, {
     } else {
       marker_col <- marker_col[1]
     }
-    if (length(marker_col) == 0) return(invisible(NULL))
-
-    new_markers <- as.character(tmt[[marker_col]][sel_rows])
-    new_markers <- intersect(new_markers, rownames(res$sce))
-    if (length(new_markers) == 0) return(invisible(NULL))
+    # A cell may list several markers ("CD3 CD4 CD8a"); if none of the
+    # selected rows names a marker, say so instead of doing nothing
+    new_markers <- if (length(marker_col) == 0) character(0)
+                   else markers_in_cells(tmt[[marker_col]][sel_rows], rownames(res$sce))
+    if (length(new_markers) == 0) {
+      showNotification("The marmots found no marker names in the selected rows.", type = "warning")
+      return(invisible(NULL))
+    }
 
     current  <- isolate(input$fpFeatureToPlot) %||% character(0)
     combined <- unique(c(current, new_markers))

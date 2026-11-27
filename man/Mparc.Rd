@@ -49,7 +49,9 @@ Mparc(
 
 \item{distance}{Distance metric for HNSW ("l2", "cosine", "ip")}
 
-\item{time_smallpop}{Max seconds for small-pop merging loop}
+\item{time_smallpop}{No longer used (kept so old calls still work): the
+small-cluster merging stops when a round changes nothing, or after 100
+rounds, not on a clock, so results do not depend on the computer's speed}
 
 \item{partition_type}{"ModularityVP" or "RBVP"}
 
