@@ -1842,6 +1842,30 @@ t0 <- Sys.time()
 sce <- runDR(x = sce, dr = "PCA", features = featuresToUmap, assay = exprsToUse)
 message("    done (", format(round(Sys.time() - t0, 1)), ")")
 
+# The maps are made from the cells they will show: with 'Cells per condition
+# in UMAPs etc.' set, that many from each sample (all of a smaller one),
+# otherwise every cell. The plotting tables below then keep exactly these
+# cells, as no sample has more than its share. Clustering and the tests always
+# use every cell. Other cells get no map position, and the plotting tables
+# leave them out.
+drCells <- seq_len(ncol(sce))
+if (!is.null(drCellPerCondition)) {
+  set.seed(2)
+  drCells <- sort(unlist(lapply(split(seq_len(ncol(sce)), as.character(sce$sample_id)), function(ix) {
+    target_n <- floor(as.numeric(drCellPerCondition[as.character(sce$condition[ix[1]])]))
+    if (length(ix) > target_n) ix[sample.int(length(ix), target_n)] else ix
+  }), use.names = FALSE))
+  set.seed(2)
+}
+sceDR <- if (length(drCells) < ncol(sce)) sce[, drCells] else sce
+message("  ▸ Maps from ", length(drCells), " of ", ncol(sce), " cells")
+# Put a map made on those cells back into the full object, empty for the rest
+putMap <- function(name, coords) {
+  full <- matrix(NA_real_, nrow = ncol(sce), ncol = ncol(coords), dimnames = list(colnames(sce), colnames(coords)))
+  full[drCells, ] <- as.matrix(coords)
+  reducedDim(sce, name) <<- full
+}
+
 # With batchColumn set, the embeddings are drawn from Harmony-corrected
 # positions too: the clustering's, when the markers are the same, otherwise a
 # Harmony run of their own on the embedding markers.
@@ -1852,6 +1876,8 @@ if (useBatch) {
     harmony::RunHarmony(pcsDR, meta_data = data.frame(batch = sce[[batchColumn]]), vars_use = "batch", verbose = FALSE)
   }
   reducedDim(sce, "PCA_harmony_dr") <- drInput
+  drInput <- drInput[drCells, , drop = FALSE]
+  sceDR <- if (length(drCells) < ncol(sce)) sce[, drCells] else sce
   set.seed(2)
 }
 
@@ -1860,41 +1886,45 @@ if (useBatch) {
 # macOS arm64 and segfaults during ANNOY's NN search. Falls back to Mpacmap
 # (pure R) if the p4r conda env is missing or the subprocess errors.
 if (dimRedMethodToUse == "pacmap") {
-  es <- if (useBatch) as.matrix(drInput) else as.matrix(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+  es <- if (useBatch) as.matrix(drInput) else as.matrix(t(assay(sceDR, exprsToUse)[featuresToUmap, ]))
   embedding <- MARMOT:::run_pacmap_subprocess(es, apply_pca = FALSE, random_state = 2L, verbose = TRUE)
   if (is.null(embedding)) {
     message("PaCMAP failed -- falling back to Mpacmap (R).")
     dimRedMethodToUse <- "Mpacmap"
   } else {
     colnames(embedding) <- c("x", "y")
-    reducedDim(sce, dimRedMethodToUse) <- embedding
+    putMap(dimRedMethodToUse, embedding)
   }
 }
 
 # Mpacmap (pure R) — also used as fallback when Python PaCMAP is unavailable
 if (dimRedMethodToUse == "Mpacmap") {
   message("Running Mpacmap (R)...")
-  es <- if (useBatch) as.data.frame(drInput) else as.data.frame(t(assay(sce, exprsToUse)[featuresToUmap, ]))
+  es <- if (useBatch) as.data.frame(drInput) else as.data.frame(t(assay(sceDR, exprsToUse)[featuresToUmap, ]))
   # Put the random-number stream back afterwards, so the UMAP and tSNE below
   # come out the same whichever method was chosen
   seedBeforeMpacmap <- .Random.seed
   embedding <- Mpacmap(as.matrix(es), apply_pca = FALSE, verbose = TRUE)
   assign(".Random.seed", seedBeforeMpacmap, envir = .GlobalEnv)
   colnames(embedding) <- c("x", "y")
-  reducedDim(sce, "Mpacmap") <- embedding
+  putMap("Mpacmap", embedding)
 }
 
-# Native DRs (from the corrected positions when batchColumn is set)
+# Native DRs (from the corrected positions when batchColumn is set). UMAP
+# always; tSNE only when it is the chosen map, as it is slow on many cells.
 drFrom <- if (useBatch) "PCA_harmony_dr" else NULL
-sce <- runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse, dimred = drFrom)
-sce <- runDR(x = sce, dr = "TSNE", features = featuresToUmap, assay = exprsToUse, dimred = drFrom, num_threads = nCores)
+putMap("UMAP", reducedDim(runDR(x = sceDR, dr = "UMAP", features = featuresToUmap, assay = exprsToUse, dimred = drFrom), "UMAP"))
+if (dimRedMethodToUse == "TSNE") {
+  putMap("TSNE", reducedDim(runDR(x = sceDR, dr = "TSNE", features = featuresToUmap, assay = exprsToUse, dimred = drFrom, num_threads = nCores), "TSNE"))
+}
 
 # ... and an uncorrected UMAP beside it, so the correction can be judged
 if (useBatch) {
   set.seed(2)
-  reducedDim(sce, "UMAP_uncorrected") <- reducedDim(
-    runDR(x = sce, dr = "UMAP", features = featuresToUmap, assay = exprsToUse), "UMAP")
+  putMap("UMAP_uncorrected", reducedDim(
+    runDR(x = sceDR, dr = "UMAP", features = featuresToUmap, assay = exprsToUse), "UMAP"))
 }
+rm(sceDR)
 ```
 
 ```{r, label = "analysis_scgate_seurat", include = FALSE}
@@ -4443,7 +4473,7 @@ if (is.null(RDataFolder)) {
                     "The marmots would be much happier with the Python PaCMAP (MARMOT::install_marmot_python() sets it up). Please cite the original.", .refs[["PaCMAP"]]),
     NULL),
   paste("**UMAP:** Made with uwot (Melville).", .refs[["UMAP"]]),
-  paste("**tSNE:** Made with Rtsne (Krijthe).", .refs[["tSNE"]]),
+  if ("TSNE" %in% reducedDimNames(sce)) paste("**tSNE:** Made with Rtsne (Krijthe).", .refs[["tSNE"]]),
   switch(runQC,
     FlowAI  = paste("**Quality control:** FlowAI.", .refs[["FlowAI"]]),
     PeacoQC = paste("**Quality control:** PeacoQC.", .refs[["PeacoQC"]]),

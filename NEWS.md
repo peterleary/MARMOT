@@ -17,6 +17,8 @@
 
 ## Changed
 
+- **The maps are made from the cells they show**, not from every cell. With *Cells per condition in UMAPs etc.* set, UMAP and PaCMAP are calculated on that many cells from each sample, so large runs take minutes there instead of hours. Clustering and the tests still use every cell. **Maps may differ** when that setting is used (calculated from a sample); with it blank, maps are calculated as before. The Explorer shows the same cells as the report's maps.
+- **tSNE is only made when it is the chosen map.** It used to be made every time, and on large data it was the slowest step of a run. The methods text only cites it when it was made.
 - **Licence: GPL-3 or later** (was MIT). Anything shared that builds on MARMOT must be shared under the same terms.
 - **Results format 2.** Results are saved in one `marmot_results.h5ad` with a version check.
 - **Speed.** Mphenograph and Rphenograph share one neighbour search across all k values (the large reference run went from about 29 to 22 minutes, with identical clusters). The halo on every map makes the report slower again, about 10% on small runs.
