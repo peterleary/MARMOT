@@ -57,6 +57,7 @@ Imports:
   openxlsx,
   pacman,
   pals,
+  parallel,
   patchwork,
   plotly,
   purrr,

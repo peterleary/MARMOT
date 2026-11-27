@@ -79,7 +79,7 @@ Mparc <- function(data,
                         keep_all_local_dist, dist_std_local, verbose)
 
   # ---- Step 3-4: Jaccard similarity + global threshold ----
-  pruned <- .parc_jaccard_prune(csr, n, jac_std_global, verbose)
+  pruned <- .parc_jaccard_prune(csr, n, jac_std_global, verbose, threads = num_threads)
 
   # ---- Step 5-6: Build graph + Leiden ----
   labels <- .parc_leiden(pruned, n, jac_weighted_edges, partition_type,
@@ -220,7 +220,7 @@ Mparc <- function(data,
 
 #' Compute Jaccard similarity on edges and apply global threshold
 #' @keywords internal
-.parc_jaccard_prune <- function(csr, n, jac_std_global, verbose) {
+.parc_jaccard_prune <- function(csr, n, jac_std_global, verbose, threads = 1L) {
 
   if (verbose) message("Computing Jaccard similarity")
 
@@ -252,7 +252,7 @@ Mparc <- function(data,
   # of cells (see .parc_edge_intersections), since the whole B overflows on
   # large data.
   n_edges <- length(edge_i)
-  intersections <- .parc_edge_intersections(adj_sym, edge_i, edge_j)
+  intersections <- .parc_edge_intersections(adj_sym, edge_i, edge_j, threads = threads)
   union_sizes <- degrees[edge_i] + degrees[edge_j] - intersections
   jaccards <- ifelse(union_sizes > 0, intersections / union_sizes, 0)
 
@@ -294,8 +294,9 @@ Mparc <- function(data,
 #' @param adj_sym Symmetric sparse adjacency (cells x cells)
 #' @param edge_i,edge_j The edges, as 1-indexed row and column
 #' @param max_entries Rough cap on the entries of each block's product
+#' @param threads Blocks worked on at once (forked processes; one at a time on Windows)
 #' @keywords internal
-.parc_edge_intersections <- function(adj_sym, edge_i, edge_j, max_entries = 5e7) {
+.parc_edge_intersections <- function(adj_sym, edge_i, edge_j, max_entries = 5e7, threads = 1L) {
   n <- nrow(adj_sym)
   out <- numeric(length(edge_i))
   if (!length(edge_i)) return(out)
@@ -303,12 +304,27 @@ Mparc <- function(data,
   # Two-step links per cell are about the sum of its neighbours' degrees
   per_cell <- max(1, mean(deg)^2)
   block <- max(1000L, as.integer(max_entries / per_cell))
-  for (start in seq(1L, n, by = block)) {
+  threads <- max(1L, as.integer(threads))
+  # At least two blocks per thread, so the threads share the work evenly
+  if (threads > 1L) block <- max(1000L, min(block, ceiling(n / (2L * threads))))
+  starts <- seq(1L, n, by = block)
+  one_block <- function(start) {
     end <- min(n, start + block - 1L)
     sel <- which(edge_i >= start & edge_i <= end)
-    if (!length(sel)) next
+    if (!length(sel)) return(list(sel = sel, val = numeric()))
     B <- Matrix::tcrossprod(adj_sym[start:end, , drop = FALSE], adj_sym)
-    out[sel] <- B[cbind(edge_i[sel] - start + 1L, edge_j[sel])]
+    list(sel = sel, val = B[cbind(edge_i[sel] - start + 1L, edge_j[sel])])
+  }
+  # The blocks are independent, so several run at once where R can fork
+  # (Linux and macOS); each gives the same whole numbers either way.
+  parts <- if (threads > 1L && .Platform$OS.type == "unix") {
+    parallel::mclapply(starts, one_block, mc.cores = threads, mc.preschedule = FALSE)
+  } else {
+    lapply(starts, one_block)
+  }
+  for (p in parts) {
+    if (inherits(p, "try-error")) stop("Counting shared neighbours failed: ", as.character(p), call. = FALSE)
+    out[p$sel] <- p$val
   }
   out
 }
@@ -411,7 +427,7 @@ Mparc <- function(data,
                               keep_all_local_dist, dist_std_local, verbose)
 
     # Jaccard prune with tighter threshold (jac_std_global = 0.3)
-    sub_pruned <- .parc_jaccard_prune(sub_csr, sub_n, 0.3, verbose)
+    sub_pruned <- .parc_jaccard_prune(sub_csr, sub_n, 0.3, verbose, threads = num_threads)
 
     # Leiden
     sub_labels <- .parc_leiden(sub_pruned, sub_n, jac_weighted_edges,
