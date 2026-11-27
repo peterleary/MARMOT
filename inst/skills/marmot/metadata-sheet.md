@@ -49,14 +49,14 @@ This is where conditions, contrasts, and the panel live. Columns are independent
 | `Cofactors for markers to use` | Per-marker arcsinh cofactor (one number per marker, same order). `2500` is a sensible default for spectral. | `2500`, `2500`, `2500` |
 | `Display names for markers` | Optional. How each marker is named in figures, for example with Greek letters; blank keeps the marker's own name. Matching always uses the marker's own name. | `IFN-γ`, `CD8α`, *(blank)* |
 | `Markers to exclude completely` | Channels to drop entirely from the imported data — scatter (FSC/SSC), time, dump (LD), CD45, comp channels, etc. | `Time`, `SSC-H`, `FSC-A`, `LD` |
-| `Marker Pairs` | Optional: `Label: Marker1 Marker2` strings, one per row. Used to generate biaxial scatter plots in the QC section. | `Tregs: FoxP3 CD4` |
+| `Marker Pairs` | Optional: `Label: Marker1 Marker2` strings, one per row. Each row is a gate for scGate (only used when `runScGate` is on): cells that pass it are labelled with its name. | `Tregs: FoxP3 CD4` |
 
 Important things about this sheet:
 
 - **`Markers to include` + `Marker Type` are positionally aligned.** Row 5 of `Marker Type` describes the marker on row 5 of `Markers to include`. Mis-aligning them silently mis-classifies markers.
 - **`Markers to exclude completely`** is the right place for scatter / time / dump channels — not "give them a marker class of `none`". Excluded markers never enter the SCE.
 - **Contrasts go *here*, not in their own sheet.** Format: `A over B` (literal space-`over`-space).
-- **Marker Pairs** is for biaxial QC plots only — it doesn't drive analysis. If unsure, leave blank.
+- **Marker Pairs** only matters with `runScGate` on: each row becomes a scGate gate, and the report labels the cells that pass it. Exactly two markers per row, spelt as in the panel. If you are not using scGate, leave it blank.
 
 ## `File Data` sheet
 

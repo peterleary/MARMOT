@@ -15,3 +15,18 @@ test_that("shared neighbours in blocks match the whole product exactly", {
   expect_identical(.parc_edge_intersections(adj_sym, s$i, s$j, max_entries = 1), whole)
   expect_identical(.parc_edge_intersections(adj_sym, integer(), integer()), numeric())
 })
+
+test_that("several threads give exactly the same shared-neighbour counts", {
+  skip_on_os("windows")
+  set.seed(4)
+  n <- 5000
+  i <- rep(seq_len(n), each = 10)
+  j <- sample.int(n, length(i), replace = TRUE)
+  keep <- i != j
+  m <- Matrix::sparseMatrix(i = i[keep], j = j[keep], x = 1, dims = c(n, n))
+  adj_sym <- (m > 0) | Matrix::t(m > 0)
+  s <- Matrix::summary(m)
+  one <- .parc_edge_intersections(adj_sym, s$i, s$j, max_entries = 1)
+  expect_identical(.parc_edge_intersections(adj_sym, s$i, s$j, max_entries = 1, threads = 3L), one)
+  expect_identical(one, Matrix::tcrossprod(adj_sym)[cbind(s$i, s$j)])
+})
