@@ -367,6 +367,22 @@ tidy_contrasts <- function(contrasts) {
   contrasts[grepl(".+ over .+", contrasts)]
 }
 
+#' The contrasts of a results folder, as the pipeline read them
+#'
+#' The pipeline reads "A vs B" as "A over B" and respells each side with the
+#' conditions' own spelling, but the saved Study Data keeps what was typed. The
+#' DA tables are named with the contrasts as the pipeline read them, in its
+#' order, so those names are used; the typed column is only a fall-back for
+#' results without DA tables.
+#'
+#' @param res The loaded results (needs `daList` or `smd`)
+#' @return Character vector of contrasts, in pipeline order
+results_contrasts <- function(res) {
+  from_da <- names(res$daList)
+  if (length(from_da)) return(tidy_contrasts(from_da))
+  tidy_contrasts(res$smd$`Conditions To Test`)
+}
+
 #' Look up the DA clusters of one contrast by name
 #'
 #' The pipeline names each entry of selectedClustersList
@@ -375,7 +391,7 @@ tidy_contrasts <- function(contrasts) {
 #' in alphabetical order, so position means nothing.
 #'
 #' @param selected_clusters_list Named list of DA cluster vectors
-#' @param contrasts All contrasts from the study metadata
+#' @param contrasts All contrasts, as the pipeline read them (see results_contrasts)
 #' @param contrast The contrast to look up, e.g. "Treated over Control"
 #' @return list(up = clusters higher in the first condition,
 #'   down = clusters higher in the second condition); empty if none
@@ -585,4 +601,26 @@ calculate_proportional_subset <- function(metadata, group_col, total_cells) {
   sc2 <- floor(total_cells * proportions)
   sc2[sc2 == 0] <- 1
   sc2
+}
+
+#' The marker names written in table cells
+#'
+#' The report's top-marker table lists several markers in one cell, separated
+#' by spaces ("CD3 CD4 CD8a"). A cell that is itself a marker is taken whole;
+#' otherwise it is split on spaces, commas and semicolons, and marker names
+#' that contain a space are looked for in the text.
+#'
+#' @param cells Character vector of cell contents
+#' @param valid The marker names that exist
+#' @return The markers found, in order, each once
+markers_in_cells <- function(cells, valid) {
+  cells <- as.character(cells); cells <- cells[!is.na(cells)]
+  found <- unlist(lapply(cells, function(cell) {
+    if (cell %in% valid) return(cell)
+    tokens <- strsplit(cell, "[ ,;]+")[[1]]
+    spaced <- valid[grepl(" ", valid, fixed = TRUE)]
+    spaced <- spaced[vapply(spaced, function(m) grepl(m, cell, fixed = TRUE), logical(1))]
+    c(intersect(tokens, valid), spaced)
+  }))
+  unique(as.character(found))
 }

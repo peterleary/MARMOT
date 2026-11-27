@@ -500,7 +500,7 @@ observeEvent(
         # Looked up by name, never by position (see get_da_clusters)
         da <- get_da_clusters(
           inputDataReactive$Results$selectedClustersList,
-          inputDataReactive$Results$smd$`Conditions To Test`, contrast)
+          results_contrasts(inputDataReactive$Results), contrast)
         up_clusters   <- da$up
         down_clusters <- da$down
 
@@ -663,9 +663,9 @@ observeEvent(
                   size = (input$textSizeFP %||% 14) / 4,
                   max.overlaps = 100
                 ) +
-                scale_fill_manual(
-                  values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
-                )
+                # A column without stored colours (sample_id, say) keeps
+                # ggplot's own colours instead of stopping the plot
+                label_fill_scale(inputDataReactive$Results$coloursList[[fpColumnToPlot]])
             } else {
               fp2 <- fp2 +
                 ggrepel::geom_label_repel(
@@ -770,9 +770,9 @@ observeEvent(
                   size = (input$textSizeFP %||% 14) / 4,
                   max.overlaps = 100
                 ) +
-                scale_fill_manual(
-                  values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
-                )
+                # A column without stored colours (sample_id, say) keeps
+                # ggplot's own colours instead of stopping the plot
+                label_fill_scale(inputDataReactive$Results$coloursList[[fpColumnToPlot]])
             } else {
               fp2 <- fp2 +
                 ggrepel::geom_label_repel(
@@ -855,9 +855,9 @@ observeEvent(
                   size = (input$textSizeFP %||% 14) / 4,
                   max.overlaps = 100
                 ) +
-                scale_fill_manual(
-                  values = inputDataReactive$Results$coloursList[[fpColumnToPlot]]
-                )
+                # A column without stored colours (sample_id, say) keeps
+                # ggplot's own colours instead of stopping the plot
+                label_fill_scale(inputDataReactive$Results$coloursList[[fpColumnToPlot]])
             } else {
               joint_plot <- joint_plot +
                 ggrepel::geom_label_repel(

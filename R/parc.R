@@ -19,7 +19,9 @@
 #' @param seed Random seed
 #' @param num_threads Threads for HNSW (default 1)
 #' @param distance Distance metric for HNSW ("l2", "cosine", "ip")
-#' @param time_smallpop Max seconds for small-pop merging loop
+#' @param time_smallpop No longer used (kept so old calls still work): the
+#'   small-cluster merging stops when a round changes nothing, or after 100
+#'   rounds, not on a clock, so results do not depend on the computer's speed
 #' @param partition_type "ModularityVP" or "RBVP"
 #' @param resolution_parameter Leiden resolution (triggers RBVP if != 1)
 #' @param hnsw_param_ef_construction HNSW ef_construction (default 150)
@@ -481,14 +483,16 @@ Mparc <- function(data,
     }
   }
 
-  # Iterative pass: merge remaining small clusters (any neighbor, time-limited)
-  t_start <- proc.time()[3]
-
-  repeat {
+  # Iterative pass: merge remaining small clusters (any neighbor). The Python
+  # PARC stops this on a clock (time_smallpop seconds), so where it stops can
+  # depend on how fast the computer is. Here it stops when a round changes
+  # nothing (no later round would either) or after 100 rounds, so the same
+  # data always gives the same clusters.
+  for (round in seq_len(100L)) {
     tab <- table(labels)
     small_clusters <- as.integer(names(tab)[tab < small_pop])
     if (length(small_clusters) == 0) break
-    if ((proc.time()[3] - t_start) > time_smallpop) break
+    before <- labels
 
     for (sc in small_clusters) {
       cells <- which(labels == sc)
@@ -498,6 +502,7 @@ Mparc <- function(data,
         labels[cell] <- best
       }
     }
+    if (identical(labels, before)) break
   }
 
   # Relabel contiguously

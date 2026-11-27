@@ -43,7 +43,8 @@ qc_ignore_table <- function() {
 #'
 #' @param files Paths of the FCS files.
 #' @param ignore_table The per-instrument table; defaults to [qc_ignore_table()].
-#' @return A data frame with one row per channel: `channel`, `reason` and
+#' @return A data frame with one row per channel: `channel`, `reason`,
+#'   `unreadable` (TRUE when flowCore cannot read the channel's values) and
 #'   `files` (how many of the files have it).
 #' @export
 qc_ignore_channels <- function(files, ignore_table = qc_ignore_table()) {
@@ -54,20 +55,22 @@ qc_ignore_channels <- function(files, ignore_table = qc_ignore_table()) {
     instrument <- trimws(unname(kw["$CYT"]))
     hits <- if (is.na(instrument)) ignore_table[0, ] else
       ignore_table[tolower(ignore_table$instrument) == tolower(instrument) & ignore_table$channel %in% channel, ]
-    out <- data.frame(channel = hits$channel, reason = hits$reason, stringsAsFactors = FALSE)
+    out <- data.frame(channel = hits$channel, reason = hits$reason,
+                      unreadable = rep(FALSE, nrow(hits)), stringsAsFactors = FALSE)
     file_type <- unname(kw["$DATATYPE"])
     own_type <- vapply(seq_len(n), function(i) unname(kw[sprintf("$P%dDATATYPE", i)]), character(1))
     odd <- !is.na(own_type) & own_type != file_type
     if (any(odd)) {
       out <- rbind(out, data.frame(channel = channel[odd],
                                    reason = "stored in a format flowCore cannot read",
-                                   stringsAsFactors = FALSE))
+                                   unreadable = TRUE, stringsAsFactors = FALSE))
     }
     out[!duplicated(out$channel, fromLast = TRUE), , drop = FALSE]
   })
   all <- do.call(rbind, rows)
   if (is.null(all) || nrow(all) == 0) {
-    return(data.frame(channel = character(), reason = character(), files = integer()))
+    return(data.frame(channel = character(), reason = character(),
+                      unreadable = logical(), files = integer()))
   }
   counts <- table(all$channel)
   all <- all[!duplicated(all$channel, fromLast = TRUE), , drop = FALSE]

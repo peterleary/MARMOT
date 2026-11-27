@@ -402,6 +402,18 @@ test_that("tidy_contrasts matches the pipeline: blanks, spacing and non-contrast
   expect_equal(tidy_contrasts(NULL), character(0))
 })
 
+test_that("results_contrasts: a contrast typed 'A vs B' is found as the pipeline read it", {
+  # The sheet keeps what was typed; the DA tables carry what the pipeline read
+  res <- list(smd = data.frame(`Conditions To Test` = c("treated vs control", "KO over WT"), check.names = FALSE),
+              daList = list("Treated over Control" = data.frame(), "KO over WT" = data.frame()))
+  expect_equal(results_contrasts(res), c("Treated over Control", "KO over WT"))
+  scl <- list("Contrast 1: Treated Up" = "3", "Contrast 1: Control Up" = "5", "Contrast 2: KO Up" = "7")
+  expect_equal(get_da_clusters(scl, results_contrasts(res), "Treated over Control"), list(up = "3", down = "5"))
+  expect_equal(get_da_clusters(scl, results_contrasts(res), "KO over WT")$up, "7")
+  # Without DA tables the typed column is still used
+  expect_equal(results_contrasts(list(smd = res$smd)), "KO over WT")
+})
+
 test_that("get_da_clusters: a list in pipeline order is read correctly", {
   contrasts <- c("B over A", "C over A")
   scl <- list(
@@ -564,3 +576,12 @@ test_that("markers' display names come from the study sheet, blanks left out", {
   expect_identical(marker_display_names(smd[, 1, drop = FALSE]), character())
   expect_identical(marker_display_names(NULL), character())
 })
+
+test_that("markers_in_cells finds markers listed several to a cell", {
+  valid <- c("CD3", "CD4", "CD8a", "HLA DR", "Ki67")
+  expect_equal(markers_in_cells("CD3 CD4 CD8a", valid), c("CD3", "CD4", "CD8a"))
+  expect_equal(markers_in_cells(c("Ki67", "CD4, CD3"), valid), c("Ki67", "CD4", "CD3"))
+  expect_equal(markers_in_cells("CD3 HLA DR", valid), c("CD3", "HLA DR"))
+  expect_equal(markers_in_cells(c("Cluster 1", NA), valid), character(0))
+})
+

@@ -79,7 +79,7 @@ umapReactive <- eventReactive(
       if (da_mode != "None" && contrast != "None") {
         # Looked up by name, never by position (see get_da_clusters)
         clusters_to_plot <- unname(get_da_clusters(
-          res$selectedClustersList, res$smd$`Conditions To Test`, contrast))
+          res$selectedClustersList, results_contrasts(res), contrast))
         da_result <- filter_da_clusters(umapDF, clusters_to_plot, mode = da_mode)
         umapDF <- da_result$umap_df
         if (!is.null(da_result$warning)) {
